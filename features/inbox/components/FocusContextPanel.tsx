@@ -244,6 +244,177 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
         };
     }, [aiAnalysis, activities]);
 
+    // Snapshot completo do cockpit para a IA (equivalente ao “board envia tudo do board”)
+    // Importante: esse snapshot é enviado via props-only para evitar herdar contexto global do board.
+    const cockpitSnapshot = useMemo(() => {
+        const stageInfo = currentStage
+            ? { id: currentStage.id, label: currentStage.label, color: currentStage.color }
+            : undefined;
+
+        const boardInfo = board
+            ? {
+                id: board.id,
+                name: board.name,
+                description: board.description,
+                wonStageId: board.wonStageId,
+                lostStageId: board.lostStageId,
+                stages: (board.stages ?? []).map((s) => ({ id: s.id, label: s.label, color: s.color })),
+            }
+            : undefined;
+
+        const contactInfo = contact
+            ? {
+                id: contact.id,
+                name: contact.name,
+                role: contact.role,
+                email: contact.email,
+                phone: contact.phone,
+                avatar: contact.avatar,
+                status: contact.status,
+                stage: contact.stage,
+                source: contact.source,
+                notes: contact.notes,
+                lastInteraction: contact.lastInteraction,
+                birthDate: contact.birthDate,
+                lastPurchaseDate: contact.lastPurchaseDate,
+                totalValue: contact.totalValue,
+                clientCompanyId: contact.clientCompanyId,
+            }
+            : undefined;
+
+        const dealInfo = {
+            id: deal.id,
+            title: deal.title,
+            value: deal.value,
+            status: deal.status,
+            isWon: deal.isWon,
+            isLost: deal.isLost,
+            probability: deal.probability,
+            priority: deal.priority,
+            owner: deal.owner,
+            ownerId: deal.ownerId,
+            nextActivity: deal.nextActivity,
+            tags: deal.tags,
+            items: deal.items,
+            customFields: deal.customFields,
+            lastStageChangeDate: deal.lastStageChangeDate,
+            lossReason: deal.lossReason,
+            createdAt: deal.createdAt,
+            updatedAt: deal.updatedAt,
+            companyId: deal.companyId,
+            clientCompanyId: deal.clientCompanyId,
+            // Alguns fluxos ainda expõem companyName via DealView/casts
+            companyName: (deal as any)?.companyName,
+        };
+
+        const activitiesLimit = 25;
+        const activitiesPreview = (activities ?? []).slice(0, activitiesLimit).map((a) => ({
+            id: a.id,
+            type: a.type,
+            title: a.title,
+            description: a.description,
+            date: a.date,
+            completed: a.completed,
+            user: a.user?.name,
+        }));
+
+        const notesLimit = 50;
+        const notesPreview = (notes ?? []).slice(0, notesLimit).map((n) => ({
+            id: n.id,
+            content: n.content,
+            created_at: n.created_at,
+            updated_at: n.updated_at,
+            created_by: n.created_by,
+        }));
+
+        const filesLimit = 50;
+        const filesPreview = (files ?? []).slice(0, filesLimit).map((f) => ({
+            id: f.id,
+            file_name: f.file_name,
+            file_size: f.file_size,
+            mime_type: f.mime_type,
+            file_path: f.file_path,
+            created_at: f.created_at,
+            created_by: f.created_by,
+        }));
+
+        const scriptsLimit = 50;
+        const scriptsPreview = (scripts ?? []).slice(0, scriptsLimit).map((s) => ({
+            id: s.id,
+            title: s.title,
+            category: s.category,
+            template: s.template,
+            icon: s.icon,
+            is_system: s.is_system,
+            updated_at: s.updated_at,
+        }));
+
+        return {
+            meta: {
+                generatedAt: new Date().toISOString(),
+                source: 'cockpit',
+                version: 1,
+            },
+            deal: dealInfo,
+            contact: contactInfo,
+            board: boardInfo,
+            stage: stageInfo,
+            cockpitSignals: {
+                daysInStage,
+                healthScore,
+                nextBestAction,
+                aiAnalysis: aiAnalysis ?? null,
+                aiAnalysisLoading: isAILoading,
+            },
+            lists: {
+                activities: {
+                    total: (activities ?? []).length,
+                    preview: activitiesPreview,
+                    limit: activitiesLimit,
+                    truncated: (activities ?? []).length > activitiesLimit,
+                },
+                notes: {
+                    total: (notes ?? []).length,
+                    preview: notesPreview,
+                    loading: isNotesLoading,
+                    limit: notesLimit,
+                    truncated: (notes ?? []).length > notesLimit,
+                },
+                files: {
+                    total: (files ?? []).length,
+                    preview: filesPreview,
+                    loading: isFilesLoading,
+                    limit: filesLimit,
+                    truncated: (files ?? []).length > filesLimit,
+                },
+                scripts: {
+                    total: (scripts ?? []).length,
+                    preview: scriptsPreview,
+                    loading: isScriptsLoading,
+                    limit: scriptsLimit,
+                    truncated: (scripts ?? []).length > scriptsLimit,
+                },
+            },
+        };
+    }, [
+        deal,
+        contact,
+        board,
+        currentStage,
+        activities,
+        notes,
+        files,
+        scripts,
+        daysInStage,
+        healthScore,
+        nextBestAction,
+        aiAnalysis,
+        isAILoading,
+        isNotesLoading,
+        isFilesLoading,
+        isScriptsLoading,
+    ]);
+
     // Quick action handlers - open modal instead of creating directly
     const handleQuickAction = (type: ScheduleType) => {
         setScheduleType(type);
@@ -1377,6 +1548,8 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                                             activeBoard={board}
                                             dealId={deal.id}
                                             contactId={contact?.id}
+                                            cockpitSnapshot={cockpitSnapshot}
+                                            contextMode="props-only"
                                         />
                                     </React.Suspense>
                                 </div>

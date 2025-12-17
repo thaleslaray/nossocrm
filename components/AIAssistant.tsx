@@ -20,6 +20,9 @@ interface AIAssistantProps {
   activeBoard?: Board | null;
   dealId?: string;
   contactId?: string;
+  cockpitSnapshot?: unknown;
+  /** Força o chat a usar apenas props (sem AIContext) quando necessário. */
+  contextMode?: 'auto' | 'props-only';
 }
 
 const AIAssistant: React.FC<AIAssistantProps> = ({
@@ -29,6 +32,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
   activeBoard,
   dealId,
   contactId,
+  cockpitSnapshot,
+  contextMode,
 }) => {
   if (!isOpen) return null;
 
@@ -52,6 +57,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
           boardId={activeBoard?.id}
           dealId={dealId}
           contactId={contactId}
+          cockpitSnapshot={cockpitSnapshot}
+          contextMode={contextMode}
           floating={false}
           startMinimized={false}
         />

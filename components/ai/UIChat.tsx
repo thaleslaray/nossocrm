@@ -10,6 +10,7 @@ import remarkGfm from 'remark-gfm';
 
 type ActiveObjectMetadata = {
     boardId?: string;
+    boardName?: string;
     dealId?: string;
     contactId?: string;
     stages?: Array<{ id: string; name: string }>;
@@ -26,6 +27,14 @@ export interface UIChatProps {
     boardId?: string;
     dealId?: string;
     contactId?: string;
+    /** Snapshot rico do cockpit (deal/contato/atividades/notas/arquivos/scripts etc.) */
+    cockpitSnapshot?: unknown;
+    /**
+     * Controla de onde vem o contexto:
+     * - 'auto' (default): usa props e faz fallback para AIContext (global/board/deal)
+     * - 'props-only': usa SOMENTE props (não lê AIContext para montar body.context)
+     */
+    contextMode?: 'auto' | 'props-only';
     /** Whether to show as a floating widget */
     floating?: boolean;
     /** Starting minimized state (for floating) */
@@ -43,6 +52,8 @@ export function UIChat({
     boardId,
     dealId,
     contactId,
+    cockpitSnapshot,
+    contextMode = 'auto',
     floating = false,
     startMinimized = true,
     onClose
@@ -51,8 +62,22 @@ export function UIChat({
     const [isOpen, setIsOpen] = useState(!startMinimized);
     const [isExpanded, setIsExpanded] = useState(false);
 
-    // Extract FULL context from AIContext for AI SDK v6
-    const metadata = activeContext?.activeObject?.metadata as ActiveObjectMetadata | undefined;
+    const cockpitDealTitle = useMemo(() => {
+        const s: any = cockpitSnapshot as any;
+        const title = s?.deal?.title;
+        return typeof title === 'string' && title.trim() ? title.trim() : undefined;
+    }, [cockpitSnapshot]);
+
+    const cockpitContactName = useMemo(() => {
+        const s: any = cockpitSnapshot as any;
+        const name = s?.contact?.name;
+        return typeof name === 'string' && name.trim() ? name.trim() : undefined;
+    }, [cockpitSnapshot]);
+
+    // Extract FULL context from AIContext for AI SDK v6 (somente quando permitido)
+    const metadata = (contextMode === 'auto'
+        ? (activeContext?.activeObject?.metadata as ActiveObjectMetadata | undefined)
+        : undefined);
 
     // Build rich context with all available info
     const context = useMemo(() => ({
@@ -61,8 +86,16 @@ export function UIChat({
         dealId: dealId ?? metadata?.dealId,
         contactId: contactId ?? metadata?.contactId,
 
+        // Cockpit snapshot (quando fornecido via props)
+        cockpitSnapshot,
+
         // Board Context
-        boardName: activeContext?.activeObject?.name,
+        boardName:
+            contextMode === 'auto'
+                ? ((activeContext?.activeObject?.type === 'board'
+                    ? activeContext?.activeObject?.name
+                    : metadata?.boardName) ?? undefined)
+                : undefined,
         stages: metadata?.stages,
 
         // Metrics
@@ -76,8 +109,12 @@ export function UIChat({
         lostStage: metadata?.lostStage,
     }), [
         boardId, dealId, contactId,
+        cockpitSnapshot,
+        contextMode,
         metadata?.boardId, metadata?.dealId, metadata?.contactId,
+        activeContext?.activeObject?.type,
         activeContext?.activeObject?.name,
+        metadata?.boardName,
         metadata?.stages, metadata?.dealCount, metadata?.pipelineValue,
         metadata?.stagnantDeals, metadata?.overdueDeals,
         metadata?.wonStage, metadata?.lostStage
@@ -328,12 +365,69 @@ export function UIChat({
         return parsed.requestId ? `${parsed.raw} (ID: ${parsed.requestId})` : parsed.raw;
     })();
 
-    // Quick action buttons
-    const quickActions = [
-        { label: '📊 Analisar Pipeline', prompt: 'Analise meu pipeline de vendas' },
-        { label: '⏰ Deals Parados', prompt: 'Quais deals estão parados há mais de 7 dias?' },
-        { label: '🔍 Buscar', prompt: 'Buscar ' },
-    ];
+    const homeHint = useMemo(() => {
+        const hasDealContext = Boolean(cockpitDealTitle || context.dealId);
+        const hasBoardContext = Boolean(context.boardId);
+
+        if (hasDealContext) {
+            return {
+                subtitle: 'Deal • Contato • Atividades • Notas • Arquivos • Scripts',
+                quickActions: [
+                    {
+                        label: '🧾 Diagnóstico do Deal',
+                        prompt:
+                            'Faça um diagnóstico completo deste deal usando o contexto do cockpit (notas, atividades e arquivos). Liste riscos, próximos passos e um plano de follow-up para 7 dias.',
+                    },
+                    {
+                        label: '👉 Próxima ação',
+                        prompt:
+                            'Qual a próxima melhor ação para avançar este deal agora? Seja específico e use o histórico do cockpit para justificar.',
+                    },
+                    {
+                        label: '✍️ Mensagem WhatsApp',
+                        prompt:
+                            'Escreva uma mensagem curta de follow-up para WhatsApp para este contato, baseada no estágio atual e no histórico do cockpit. Traga 2 variações.',
+                    },
+                    {
+                        label: '✅ Tarefas da semana',
+                        prompt:
+                            'Crie 3 tarefas objetivas para avançar este deal nesta semana (com datas sugeridas) e descreva rapidamente o porquê de cada uma.',
+                    },
+                ],
+            };
+        }
+
+        if (hasBoardContext) {
+            return {
+                subtitle: 'Pipeline • Deals • Contatos • Tarefas',
+                quickActions: [
+                    { label: '📊 Analisar Pipeline', prompt: 'Analise meu pipeline de vendas' },
+                    { label: '⏰ Deals Parados', prompt: 'Quais deals estão parados há mais de 7 dias?' },
+                    { label: '🔍 Buscar', prompt: 'Buscar deals por: ' },
+                ],
+            };
+        }
+
+        return {
+            subtitle: 'Deals • Contatos • Tarefas',
+            quickActions: [
+                { label: '🔍 Buscar deals', prompt: 'Buscar deals por: ' },
+                { label: '👤 Buscar contatos', prompt: 'Buscar contatos por: ' },
+                { label: '✅ Próximas tarefas', prompt: 'Quais tarefas eu deveria priorizar hoje?' },
+            ],
+        };
+    }, [cockpitDealTitle, context.boardId, context.dealId]);
+
+    const headerSubtitle = useMemo(() => {
+        // No cockpit, priorizar título do deal / nome do contato em vez de IDs.
+        if (cockpitDealTitle) return `Deal: ${cockpitDealTitle}`;
+        if (cockpitContactName) return `Contato: ${cockpitContactName}`;
+
+        if (context.dealId) return `Deal: ${context.dealId.slice(0, 8)}...`;
+        if (context.boardId) return `Board: ${context.boardId.slice(0, 8)}...`;
+        if (context.contactId) return `Contato: ${context.contactId.slice(0, 8)}...`;
+        return 'AI Assistant';
+    }, [cockpitContactName, cockpitDealTitle, context.boardId, context.contactId, context.dealId]);
 
     const toolLabelMap: Record<string, string> = {
         moveDeal: 'Mover estágio',
@@ -453,9 +547,7 @@ export function UIChat({
                 <div className="flex-1 min-w-0">
                     <h2 className="font-semibold text-white">NossoCRM Pilot</h2>
                     <p className="text-xs text-slate-400 truncate">
-                        {context.boardId ? `Board: ${context.boardId.slice(0, 8)}...` :
-                            context.dealId ? `Deal: ${context.dealId.slice(0, 8)}...` :
-                                'AI Assistant'}
+                        {headerSubtitle}
                     </p>
                 </div>
                 <div className={`px-2 py-1 rounded-full text-xs ${status === 'ready'
@@ -503,11 +595,11 @@ export function UIChat({
                         <div>
                             <p className="text-slate-300 mb-1">Como posso ajudar?</p>
                             <p className="text-slate-500 text-xs">
-                                Pipeline • Deals • Contatos • Tarefas
+                                {homeHint.subtitle}
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-2 justify-center">
-                            {quickActions.map((action) => (
+                            {homeHint.quickActions.map((action) => (
                                 <button
                                     key={action.label}
                                     onClick={() => {

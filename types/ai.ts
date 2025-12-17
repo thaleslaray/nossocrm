@@ -92,6 +92,10 @@ export const CRMCallOptionsSchema = z.object({
     wonStage: z.string().optional(),
     lostStage: z.string().optional(),
 
+    // Cockpit Context (snapshot rico vindo do painel/cockpit)
+    // Mantido como any para evoluir sem quebrar compatibilidade.
+    cockpitSnapshot: z.any().optional(),
+
     // User context
     userId: z.string().optional(),
     userName: z.string().optional(),

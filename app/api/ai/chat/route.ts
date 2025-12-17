@@ -35,6 +35,28 @@ function asOptionalStages(
     return stages.length ? stages : undefined;
 }
 
+function asOptionalCockpitSnapshot(v: unknown): unknown | undefined {
+    if (v == null) return undefined;
+    if (typeof v !== 'object') return undefined;
+
+    // Guardrail: evita payloads gigantes que podem estourar limites ou degradar streaming.
+    try {
+        const text = JSON.stringify(v);
+        // ~80KB costuma ser um bom compromisso (contexto rico sem virar “dump”).
+        if (text.length > 80_000) {
+            console.warn('[AI Chat] cockpitSnapshot too large; ignoring.', {
+                bytes: text.length,
+            });
+            return undefined;
+        }
+    } catch {
+        // Se não serializa, não é seguro/útil como contexto.
+        return undefined;
+    }
+
+    return v;
+}
+
 export async function POST(req: Request) {
     // Mitigação CSRF: endpoint autenticado por cookies.
     if (!isAllowedOrigin(req)) {
@@ -142,20 +164,28 @@ export async function POST(req: Request) {
         overdueDeals: asOptionalNumber(rawContext.overdueDeals),
         wonStage: asOptionalString(rawContext.wonStage),
         lostStage: asOptionalString(rawContext.lostStage),
+        cockpitSnapshot: asOptionalCockpitSnapshot((rawContext as any)?.cockpitSnapshot),
         userId: user.id,
         userName: profile?.nickname || profile?.first_name || user.email,
         userRole: (profile as any)?.role,
     };
 
+    const rawContextSummary = {
+        ...rawContext,
+        // Evita dump gigante no console.
+        cockpitSnapshot: (rawContext as any)?.cockpitSnapshot ? '[provided]' : undefined,
+    };
+
     console.log('[AI Chat] 📨 Request received:', {
         messagesCount: messages?.length,
-        rawContext,
+        rawContext: rawContextSummary,
         context: {
             organizationId: context.organizationId,
             boardId: context.boardId,
             dealId: context.dealId,
             boardName: context.boardName,
             stagesCount: context.stages?.length,
+            cockpitSnapshot: context.cockpitSnapshot ? '[provided]' : undefined,
             userName: context.userName,
         },
         ai: {

@@ -11,6 +11,113 @@ function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function clampText(v: unknown, max = 240): string | undefined {
+    if (typeof v !== 'string') return undefined;
+    const s = v.trim();
+    if (!s) return undefined;
+    if (s.length <= max) return s;
+    return s.slice(0, max - 1) + '…';
+}
+
+function formatCockpitSnapshotForPrompt(snapshot: any): string[] {
+    if (!snapshot || typeof snapshot !== 'object') return [];
+
+    const lines: string[] = [];
+
+    const deal = snapshot.deal;
+    if (deal && typeof deal === 'object') {
+        const title = clampText(deal.title, 120) || clampText(deal.name, 120);
+        const value = typeof deal.value === 'number' ? deal.value : undefined;
+        const probability = typeof deal.probability === 'number' ? deal.probability : undefined;
+        const priority = clampText(deal.priority, 30);
+        const status = clampText(deal.status, 80);
+        lines.push(`🧾 Deal (cockpit): ${title ?? '(sem título)'}${value != null ? ` — R$ ${value.toLocaleString('pt-BR')}` : ''}`);
+        if (probability != null) lines.push(`   - Probabilidade: ${probability}%`);
+        if (priority) lines.push(`   - Prioridade: ${priority}`);
+        if (status) lines.push(`   - Status/Stage ID: ${status}`);
+        const lossReason = clampText(deal.lossReason, 200);
+        if (lossReason) lines.push(`   - Motivo perda: ${lossReason}`);
+    }
+
+    const stage = snapshot.stage;
+    if (stage && typeof stage === 'object') {
+        const label = clampText(stage.label, 80);
+        if (label) lines.push(`🏷️ Estágio atual (label): ${label}`);
+    }
+
+    const contact = snapshot.contact;
+    if (contact && typeof contact === 'object') {
+        const name = clampText(contact.name, 80);
+        const role = clampText(contact.role, 80);
+        const email = clampText(contact.email, 120);
+        const phone = clampText(contact.phone, 60);
+        lines.push(`👤 Contato (cockpit): ${name ?? '(sem nome)'}${role ? ` — ${role}` : ''}`);
+        if (email) lines.push(`   - Email: ${email}`);
+        if (phone) lines.push(`   - Telefone: ${phone}`);
+        const notes = clampText(contact.notes, 220);
+        if (notes) lines.push(`   - Notas do contato: ${notes}`);
+    }
+
+    const signals = snapshot.cockpitSignals;
+    if (signals && typeof signals === 'object') {
+        if (typeof signals.daysInStage === 'number') {
+            lines.push(`⏱️ Dias no estágio: ${signals.daysInStage}`);
+        }
+
+        const nba = signals.nextBestAction;
+        if (nba && typeof nba === 'object') {
+            const action = clampText(nba.action, 120);
+            const reason = clampText(nba.reason, 160);
+            if (action) lines.push(`👉 Próxima melhor ação (cockpit): ${action}${reason ? ` — ${reason}` : ''}`);
+        }
+
+        const ai = signals.aiAnalysis;
+        if (ai && typeof ai === 'object') {
+            const action = clampText(ai.action, 120);
+            const reason = clampText(ai.reason, 180);
+            if (action) lines.push(`🤖 Sinal da IA (cockpit): ${action}${reason ? ` — ${reason}` : ''}`);
+        }
+    }
+
+    const lists = snapshot.lists;
+    if (lists && typeof lists === 'object') {
+        const activitiesTotal = lists.activities?.total;
+        if (typeof activitiesTotal === 'number') {
+            const preview = Array.isArray(lists.activities?.preview) ? lists.activities.preview.slice(0, 6) : [];
+            lines.push(`🗂️ Atividades no cockpit: ${activitiesTotal}`);
+            for (const a of preview) {
+                const t = clampText(a?.type, 30);
+                const title = clampText(a?.title, 120);
+                const date = clampText(a?.date, 40);
+                if (t || title) lines.push(`   - ${date ? `[${date}] ` : ''}${t ? `${t}: ` : ''}${title ?? ''}`.trim());
+            }
+        }
+
+        const notesTotal = lists.notes?.total;
+        if (typeof notesTotal === 'number') {
+            lines.push(`📝 Notas no cockpit: ${notesTotal}`);
+        }
+
+        const filesTotal = lists.files?.total;
+        if (typeof filesTotal === 'number') {
+            lines.push(`📎 Arquivos no cockpit: ${filesTotal}`);
+        }
+
+        const scriptsTotal = lists.scripts?.total;
+        if (typeof scriptsTotal === 'number') {
+            const preview = Array.isArray(lists.scripts?.preview) ? lists.scripts.preview.slice(0, 6) : [];
+            lines.push(`💬 Scripts no cockpit: ${scriptsTotal}`);
+            for (const s of preview) {
+                const title = clampText(s?.title, 80);
+                const cat = clampText(s?.category, 30);
+                if (title) lines.push(`   - ${cat ? `(${cat}) ` : ''}${title}`);
+            }
+        }
+    }
+
+    return lines;
+}
+
 function createRetryingFetch(
     baseFetch: typeof fetch,
     opts: {
@@ -112,11 +219,75 @@ function createRetryingFetch(
             return baseFetch(input, init);
         }
 
-        const makeRequest = (attempt: number, lastStatus?: number) => {
+        // Quando o SDK chama fetch passando um Request pronto, precisamos "bufferizar" o body
+        // para poder refazer a request (e aplicar fallback de model) em retries.
+        // Isso é especialmente importante para requests JSON do OpenAI.
+        let bufferedFromRequest:
+            | {
+                url: string;
+                init: RequestInit;
+                jsonBodyText?: string;
+                contentType?: string;
+            }
+            | undefined;
+
+        const getSignal = () => {
+            if (init?.signal) return init.signal;
+            if (input instanceof Request) return input.signal;
+            return undefined;
+        };
+
+        const makeRequest = async (attempt: number, lastStatus?: number) => {
             if (input instanceof Request) {
-                // Não temos como reescrever body com segurança em Request já construído.
-                // Nesses casos, só clone.
-                return input.clone();
+                // 1) Primeiro build: extrair headers/método/url e, se possível, o body JSON.
+                if (!bufferedFromRequest) {
+                    const headers = new Headers(input.headers);
+                    const contentType = headers.get('content-type') || undefined;
+
+                    let jsonBodyText: string | undefined;
+                    const method = input.method || 'GET';
+                    const hasBody = method !== 'GET' && method !== 'HEAD';
+
+                    if (hasBody) {
+                        try {
+                            // clone() para não consumir o Request original.
+                            const bodyText = await input.clone().text();
+                            // Só guardar se parece JSON; senão, não tentamos reescrever model.
+                            if (
+                                (contentType && /application\/json/i.test(contentType)) ||
+                                bodyText.trim().startsWith('{')
+                            ) {
+                                jsonBodyText = bodyText;
+                            }
+                        } catch {
+                            // Se não conseguimos ler o body, seguimos sem fallback de model.
+                            jsonBodyText = undefined;
+                        }
+                    }
+
+                    // Recriar RequestInit "mínimo". Não copiamos tudo porque alguns campos
+                    // podem não estar disponíveis/ser relevantes no runtime do Next.
+                    bufferedFromRequest = {
+                        url: input.url,
+                        contentType,
+                        jsonBodyText,
+                        init: {
+                            method,
+                            headers,
+                            // sinal/abort vem de getSignal(), aplicado no Request.
+                        },
+                    };
+                }
+
+                // 2) Se temos body JSON bufferizado, conseguimos aplicar fallback de model.
+                const rewritten = maybeRewriteModelInBody(bufferedFromRequest.jsonBodyText, attempt, lastStatus);
+                const nextInit: RequestInit = {
+                    ...bufferedFromRequest.init,
+                    body: rewritten as any,
+                    signal: getSignal(),
+                };
+
+                return new Request(bufferedFromRequest.url, nextInit);
             }
 
             const rewrittenBody = maybeRewriteModelInBody(init?.body, attempt, lastStatus);
@@ -127,13 +298,13 @@ function createRetryingFetch(
         let lastResponse: Response | undefined;
         let lastStatus: number | undefined;
         for (let attempt = 0; attempt <= retries; attempt++) {
-            if (init?.signal?.aborted) {
+            if (getSignal()?.aborted) {
                 // Respeitar abort sem tentar novamente.
                 throw new DOMException('The operation was aborted.', 'AbortError');
             }
 
             try {
-                const req = makeRequest(attempt, lastStatus);
+                const req = await makeRequest(attempt, lastStatus);
                 const res = await baseFetch(req);
                 lastResponse = res;
                 lastStatus = res.status;
@@ -210,6 +381,15 @@ function buildContextPrompt(options: CRMCallOptions): string {
 
     if (options.userName) {
         parts.push(`👋 Usuário: ${options.userName}`);
+    }
+
+    if ((options as any).cockpitSnapshot) {
+        const lines = formatCockpitSnapshotForPrompt((options as any).cockpitSnapshot);
+        if (lines.length > 0) {
+            parts.push('');
+            parts.push('====== CONTEXTO DO COCKPIT ======');
+            parts.push(...lines);
+        }
     }
 
     return parts.length > 0
