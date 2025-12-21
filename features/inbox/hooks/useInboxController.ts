@@ -37,7 +37,7 @@ export interface AISuggestion {
   createdAt: string;
 }
 
-export type ViewMode = 'list' | 'focus';
+export type ViewMode = 'overview' | 'list' | 'focus';
 
 // Item unificado para o modo Focus (atividade ou sugestão)
 export interface FocusItem {
@@ -73,7 +73,7 @@ export const useInboxController = () => {
   const { showToast } = useToast();
 
   // State para modo de visualização (persiste no localStorage)
-  const [viewMode, setViewMode] = usePersistedState<ViewMode>('inbox_view_mode', 'list');
+  const [viewMode, setViewMode] = usePersistedState<ViewMode>('inbox_view_mode', 'overview');
   const [focusIndex, setFocusIndex] = useState(0);
 
   // Persisted AI suggestion interactions
@@ -440,11 +440,27 @@ export const useInboxController = () => {
 
       case 'STALLED':
         if (suggestion.data.deal) {
-          updateDealMutation.mutate({
-            id: suggestion.data.deal.id,
-            updates: {},
+          const deal = suggestion.data.deal;
+
+          // Transforme “deal parado” em trabalho rastreável (não só um update vazio).
+          const due = new Date();
+          due.setDate(due.getDate() + 1);
+          due.setHours(10, 0, 0, 0);
+
+          createActivityMutation.mutate({
+            activity: {
+              title: `Follow-up: ${deal.title}`,
+              type: 'TASK',
+              description: 'Deal parado — fazer follow-up para destravar o próximo passo',
+              date: due.toISOString(),
+              dealId: deal.id,
+              dealTitle: deal.title,
+              completed: false,
+              user: { name: 'Eu', avatar: '' },
+            },
           });
-          showToast('Negócio reativado!', 'success');
+
+          showToast('Follow-up criado para reativar o negócio', 'success');
         }
         break;
 
@@ -478,11 +494,24 @@ export const useInboxController = () => {
   };
 
   const handleDismissSuggestion = (suggestionId: string) => {
-    // Parse suggestionId format: "type-entityId" (e.g., "stalled-abc123")
-    const [typeStr, entityId] = suggestionId.split('-');
-    const suggestionType = typeStr.toUpperCase() as SuggestionType;
     const suggestion = aiSuggestions.find(s => s.id === suggestionId);
-    const entityType = suggestion?.data.deal ? 'deal' : 'contact';
+
+    // IMPORTANT: UUIDs contain '-', so never do suggestionId.split('-').
+    const suggestionType = (suggestion?.type || suggestionId.slice(0, suggestionId.indexOf('-') === -1 ? undefined : suggestionId.indexOf('-')))
+      .toString()
+      .toUpperCase() as SuggestionType;
+
+    const entityId = suggestion?.data.deal?.id
+      || suggestion?.data.contact?.id
+      || (suggestionId.includes('-') ? suggestionId.slice(suggestionId.indexOf('-') + 1) : '');
+
+    const entityType: 'deal' | 'contact' = suggestion?.data.deal
+      ? 'deal'
+      : suggestion?.data.contact
+        ? 'contact'
+        : (suggestionType === 'RESCUE' ? 'contact' : 'deal');
+
+    if (!entityId) return;
 
     recordInteraction.mutate({
       suggestionType,
@@ -494,11 +523,24 @@ export const useInboxController = () => {
   };
 
   const handleSnoozeSuggestion = (suggestionId: string) => {
-    // Parse suggestionId format: "type-entityId"
-    const [typeStr, entityId] = suggestionId.split('-');
-    const suggestionType = typeStr.toUpperCase() as SuggestionType;
     const suggestion = aiSuggestions.find(s => s.id === suggestionId);
-    const entityType = suggestion?.data.deal ? 'deal' : 'contact';
+
+    // IMPORTANT: UUIDs contain '-', so never do suggestionId.split('-').
+    const suggestionType = (suggestion?.type || suggestionId.slice(0, suggestionId.indexOf('-') === -1 ? undefined : suggestionId.indexOf('-')))
+      .toString()
+      .toUpperCase() as SuggestionType;
+
+    const entityId = suggestion?.data.deal?.id
+      || suggestion?.data.contact?.id
+      || (suggestionId.includes('-') ? suggestionId.slice(suggestionId.indexOf('-') + 1) : '');
+
+    const entityType: 'deal' | 'contact' = suggestion?.data.deal
+      ? 'deal'
+      : suggestion?.data.contact
+        ? 'contact'
+        : (suggestionType === 'RESCUE' ? 'contact' : 'deal');
+
+    if (!entityId) return;
 
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);

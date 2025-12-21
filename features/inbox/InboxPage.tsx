@@ -1,6 +1,7 @@
 import React from 'react';
 import { useInboxController } from './hooks/useInboxController';
 import { ViewModeToggle } from './components/ViewModeToggle';
+import { InboxOverviewView } from './components/InboxOverviewView';
 import { InboxListView } from './components/InboxListView';
 import { InboxFocusView } from './components/InboxFocusView';
 
@@ -30,9 +31,6 @@ export const InboxPage: React.FC = () => {
     handleFocusDone,
     handleFocusSnooze,
 
-    // Stats
-    stats,
-
     // Handlers Atividades
     handleCompleteActivity,
     handleSnoozeActivity,
@@ -59,7 +57,21 @@ export const InboxPage: React.FC = () => {
       </div>
 
       {/* Views */}
-      {viewMode === 'list' ? (
+      {viewMode === 'overview' ? (
+        <InboxOverviewView
+          overdueActivities={overdueActivities}
+          todayMeetings={todayMeetings}
+          todayTasks={todayTasks}
+          upcomingActivities={upcomingActivities}
+          aiSuggestions={aiSuggestions}
+          onGoToList={() => setViewMode('list')}
+          onStartFocus={() => {
+            setFocusIndex(0);
+            setViewMode('focus');
+          }}
+          onAcceptSuggestion={handleAcceptSuggestion}
+        />
+      ) : viewMode === 'list' ? (
         <InboxListView
           overdueActivities={overdueActivities}
           todayMeetings={todayMeetings}
