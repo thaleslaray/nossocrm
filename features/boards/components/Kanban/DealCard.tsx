@@ -10,7 +10,7 @@ interface DealCardProps {
   activityStatus: string;
   isDragging: boolean;
   onDragStart: (e: React.DragEvent, id: string) => void;
-  onClick: () => void;
+  onSelectDeal: (id: string) => void;
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
   onQuickAddActivity: (
@@ -47,13 +47,13 @@ const getInitials = (name: string) => {
     .toUpperCase();
 };
 
-export const DealCard: React.FC<DealCardProps> = ({
+export const DealCard = React.memo<DealCardProps>(({
   deal,
   isRotting,
   activityStatus,
   isDragging,
   onDragStart,
-  onClick,
+  onSelectDeal,
   openMenuId,
   setOpenMenuId,
   onQuickAddActivity,
@@ -158,13 +158,13 @@ export const DealCard: React.FC<DealCardProps> = ({
       onMouseDown={() => setLastMouseDownDealId(deal.id)}
       onClick={e => {
         if ((e.target as HTMLElement).closest('button')) return;
-        onClick();
+        onSelectDeal(deal.id);
       }}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           if (!(e.target as HTMLElement).closest('button')) {
-            onClick();
+            onSelectDeal(deal.id);
           }
         }
       }}
@@ -278,4 +278,6 @@ export const DealCard: React.FC<DealCardProps> = ({
       </div>
     </div>
   );
-};
+});
+
+DealCard.displayName = 'DealCard';

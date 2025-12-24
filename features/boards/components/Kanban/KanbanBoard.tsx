@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { DealView, BoardStage } from '@/types';
 import { DealCard } from './DealCard';
 import { isDealRotting, getActivityStatus } from '@/features/boards/hooks/useBoardsController';
@@ -50,7 +50,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   } | null>(null);
 
   // Handler to open move-to-stage modal
-  const handleOpenMoveToStage = (dealId: string) => {
+  const handleOpenMoveToStage = useCallback((dealId: string) => {
     const deal = filteredDeals.find(d => d.id === dealId);
     if (deal) {
       setMoveToStageModal({
@@ -59,7 +59,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         currentStageId: deal.status,
       });
     }
-  };
+  }, [filteredDeals]);
+
+  // Pre-group deals by stage to avoid O(N*M) filtering in render loop
+  const dealsByStage = useMemo(() => {
+    const map: Record<string, DealView[]> = {};
+    // Initialize arrays for all stages
+    stages.forEach(s => {
+      map[s.id] = [];
+    });
+
+    // Distribute deals
+    filteredDeals.forEach(deal => {
+      if (map[deal.status]) {
+        map[deal.status].push(deal);
+      }
+    });
+
+    return map;
+  }, [filteredDeals, stages]);
 
   // Handler to confirm move to a new stage
   const handleConfirmMoveToStage = (dealId: string, newStageId: string) => {
@@ -72,7 +90,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   return (
     <div className="flex gap-4 h-full overflow-x-auto pb-2 w-full">
       {stages.map(stage => {
-        const stageDeals = filteredDeals.filter(l => l.status === stage.id);
+        const stageDeals = dealsByStage[stage.id] || [];
         const stageValue = stageDeals.reduce((sum, l) => sum + l.value, 0);
         const isOver = dragOverStage === stage.id && draggingId !== null;
 
@@ -163,7 +181,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   activityStatus={getActivityStatus(deal)}
                   isDragging={draggingId === deal.id}
                   onDragStart={handleDragStart}
-                  onClick={() => setSelectedDealId(deal.id)}
+                  onSelectDeal={setSelectedDealId}
                   openMenuId={openActivityMenuId}
                   setOpenMenuId={setOpenActivityMenuId}
                   onQuickAddActivity={handleQuickAddActivity}
