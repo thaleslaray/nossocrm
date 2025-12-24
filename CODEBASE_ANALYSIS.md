@@ -26,7 +26,7 @@ Observação importante: o roteamento é **100% Next App Router** (sem `react-ro
 Nota de terminologia (evita confusão):
 
 - **Proxy** = feature do Next (`proxy.ts` na raiz, ex-`middleware.ts`).
-- **ai-proxy** = nome legado usado na codebase para o endpoint interno de IA (hoje: Route Handler em `/api/ai/actions`), não tem relação com a convenção do Next.
+- **ai-proxy** = nome legado usado na codebase para um endpoint interno de IA (removido no corte seco). Hoje o padrão é `/api/ai/chat` (chat) e `/api/ai/tasks/*` (tasks).
 
 ---
 
@@ -70,7 +70,8 @@ Além disso, existem contexts “por domínio” que hoje funcionam como **faça
 - `client.ts`: browser client (retorna `null` se envs faltarem)
 - `server.ts`: server client (usa `!` nos envs; pode quebrar se envs faltarem)
 - `middleware.ts`: função `updateSession()` para refresh + redirects
-- `ai-proxy.ts`: cliente para chamar `/api/ai/actions` (nome legado “ai-proxy”)
+
+Obs.: o antigo cliente “ai-proxy” foi removido no corte seco; IA agora usa `/api/ai/chat` e `/api/ai/tasks/*`.
 
 Observação: há um `.env` no root com placeholders (e já está ignorado no git). Variáveis essenciais:
 
@@ -83,8 +84,14 @@ Observação: há um `.env` no root com placeholders (e já está ignorado no gi
 - `tools.ts`: implementa ferramentas (CRUD/queries) via **service role**
 - `actions.tsx`: server action com `streamUI` (parece uma implementação paralela/legada)
 
+### `lib/ai/tasks/`
+- `schemas.ts`: contratos Zod das tasks
+- `server.ts`: helper de auth/contexto (same-origin + profile/org settings)
+- `tasksClient.ts`: cliente para chamar `POST /api/ai/tasks/*`
+
 ### `services/`
-- `geminiService.ts`: camada de IA não-streaming via `callAIProxy()` (Route Handler) com LGPD/consent/rate-limit
+
+Obs.: a camada não-streaming legada foi removida; tarefas determinísticas agora vivem em `/api/ai/tasks/*`.
 
 ### `lib/query/` (TanStack Query)
 
@@ -145,18 +152,12 @@ Pontos de atenção:
   - Isso é aceitável se (e somente se) `organizationId` for confiável (hoje vem do profile server-side).
   - Ainda assim, exige auditoria: logs + validações + limites.
 
-### 4) IA (implementação “legada” — Route Handler `/api/ai/actions`)
+### 4) Tasks/IA (implementação atual — AI SDK v6, JSON)
 
-- `services/geminiService.ts` chama `callAIProxy()` (Route Handler `/api/ai/actions`). Tem tratamento de consentimento e rate limit.
+- API: `app/api/ai/tasks/**/route.ts`
+- Client: `lib/ai/tasksClient.ts`
 
-⚠️ A base tem **duas arquiteturas de IA** convivendo:
-- Nova (streaming): `/api/ai/chat` + tools + approval
-- “Legada” (JSON, não-streaming): `/api/ai/actions` + `geminiService`
-
-E uma terceira variação “RPC-style” (não streaming):
-
-- `app/api/ai/actions/route.ts`: endpoint **non-streaming** que usa `generateText`/`generateObject`, pega chave em `organization_settings`, e retorna `{ result | error }` sempre em JSON.
-- `app/api/ai/legacy/route.ts`: alias deprecated para `actions`.
+Essas rotas cobrem tarefas determinísticas (ex.: wizards/modais/briefings) com validação de input/output (Zod) e execução via `generateObject`/`generateText`.
 
 ⚠️ Atenção: existe `app/api/ai/test/route.ts` (dev-only) com comentário "DELETE THIS FILE BEFORE PRODUCTION". Hoje ela está **desabilitada por padrão** e só habilita em desenvolvimento com `ALLOW_AI_TEST_ROUTE=true`, além de aplicar mitigação same-origin. Mesmo assim, trate como rota interna e nunca habilite em produção.
 

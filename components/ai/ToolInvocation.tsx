@@ -16,29 +16,13 @@ export const ToolInvocation: React.FC<ToolInvocationProps> = ({ toolInvocation, 
     const handleApprove = async () => {
         setIsExecuting(true);
         try {
-            // Execute server-side via Next.js (cookie auth)
-            const response = await fetch('/api/ai/actions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                body: JSON.stringify({ action: toolName, data: args })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Execution failed: ${response.statusText}`);
-            }
-
-            const data = await response.json().catch(() => ({}));
-            if (data?.error) {
-                throw new Error(data.error);
-            }
-            const result = data?.result ?? data; // Handle { result: ... } wrapper if present
-
-            // Report success back to the chat loop
-            addToolResult({ toolCallId, result: JSON.stringify(result) });
-        } catch (error) {
+            // Este componente fazia aprovações de ferramentas via `/api/ai/actions`.
+            // Como adotamos corte seco, o endpoint foi removido.
+            // Migração: ferramentas devem ser executadas pelo agente em `POST /api/ai/chat` (stack novo).
+            throw new Error(
+                'Aprovação/executar ferramentas via /api/ai/actions foi removida. Use o chat novo (/api/ai/chat) e as tools do agente.'
+            );
+        } catch (error: unknown) {
             console.error('Tool execution error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             addToolResult({ toolCallId, result: `Error: ${errorMessage}` });

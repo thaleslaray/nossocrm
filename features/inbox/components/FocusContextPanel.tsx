@@ -40,7 +40,7 @@ import { useAI } from '@/context/AIContext';
 import { CallModal, CallLogData } from './CallModal';
 import { ScriptEditorModal, ScriptFormData } from './ScriptEditorModal';
 import { ScheduleModal, ScheduleData, ScheduleType } from './ScheduleModal';
-import { callAIProxy } from '@/lib/supabase/ai-proxy';
+import { generateSalesScript } from '@/lib/ai/tasksClient';
 import type { ScriptCategory } from '@/lib/supabase/quickScripts';
 
 interface FocusContextPanelProps {
@@ -1357,17 +1357,13 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                                                     key={type}
                                                     onClick={async () => {
                                                         try {
-                                                            const result = await callAIProxy<{ script: string }>('generateSalesScript', {
-                                                                deal: {
-                                                                    title: deal.title,
-                                                                    value: deal.value,
-                                                                    contactName: contact?.name,
-                                                                    companyName: 'Empresa',
-                                                                },
-                                                                stageLabel: currentStage?.label,
+                                                            const result = await generateSalesScript({
+                                                                deal: { title: deal.title },
                                                                 scriptType: type,
+                                                                context: `Estágio: ${currentStage?.label || deal.status}. Contato: ${contact?.name || 'Cliente'}.`,
                                                             });
-                                                            if (result.script) {
+
+                                                            if (result?.script) {
                                                                 setNote(result.script);
                                                                 navigator.clipboard.writeText(result.script);
                                                             }

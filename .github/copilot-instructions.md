@@ -20,14 +20,16 @@
 - Obrigatórias no client/dev: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 - Server-only: `SUPABASE_SERVICE_ROLE_KEY` (nunca expor no client; usado por scripts e por `lib/ai/tools.ts`).
 
-## IA (existem 2 stacks convivendo)
-- **Chat novo (AI SDK v6)**:
+## IA (padrão atual)
+- **Chat (AI SDK v6, streaming)**:
   - UI: `components/ai/UIChat.tsx` usa `useChat()` e chama `POST /api/ai/chat`.
   - API: `app/api/ai/chat/route.ts` aplica same-origin (`lib/security/sameOrigin.ts`), valida usuário, resolve `organizationId` via `profiles` e cria agente (`lib/ai/crmAgent.ts`).
   - Chave/modelo: **org-wide** em `organization_settings` (fonte de verdade).
     - Qualquer fallback para `user_settings` deve ser tratado como legado/compat e não como fluxo recomendado.
   - Ferramentas: `lib/ai/tools.ts` usa service role e **sempre filtra por `organization_id`** do contexto.
-- **IA “legada” (não-streaming, via Route Handler)**: ver `services/geminiService.ts` e `app/api/ai/actions/route.ts`.
+- **Tasks (AI SDK v6, output estruturado/JSON)**:
+  - API: `app/api/ai/tasks/**/route.ts`.
+  - Client: `lib/ai/tasksClient.ts`.
 - Rotas internas de teste (dev-only): `ALLOW_AI_TEST_ROUTE=true` (ver README).
 
 ## Workflows do dia a dia

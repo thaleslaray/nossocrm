@@ -41,7 +41,7 @@ Notas rápidas:
 - Só existe **um** `proxy.ts` por projeto; use `config.matcher` para limitar onde roda.
 - Neste repo, o `proxy.ts` **não intercepta** `/api/*` (Route Handlers devem responder com 401/403). Isso evita redirects 307 para `/login` quebrando `fetch`/SDKs.
 
-Importante: aqui “Proxy” é uma feature do Next. Não confundir com o endpoint interno de IA (**`/api/ai/actions`**, às vezes chamado de “ai-proxy” por legado) usado pela camada de IA.
+Importante: aqui “Proxy” é uma feature do Next. Não confundir com as rotas internas de IA (ex.: **`/api/ai/chat`** e **`/api/ai/tasks/*`**) usadas pela camada de IA.
 
 ## Permissões (RBAC)
 

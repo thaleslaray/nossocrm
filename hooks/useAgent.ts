@@ -94,61 +94,34 @@ export function useAgent({ initialMessages = [], system, onFinish, id, context }
       setMessages(prev => [...prev, userMessage]);
 
       try {
-        // 2. Call Next.js legacy AI endpoint (simple chat fallback)
-        // Nota: este hook é legado e NÃO suporta ferramentas/aprovações.
-        const response = await fetch('/api/ai/actions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            action: 'chatWithCRM',
-            data: {
-              message: content,
-              context,
-              // Mantemos o histórico para eventual uso futuro no server,
-              // mas o handler atual pode ignorar.
-              history: [...messages, userMessage],
-              system,
-            },
-          }),
-        });
+        // Este hook era um fallback non-streaming baseado em `/api/ai/actions`.
+        // Como adotamos *corte seco*, o endpoint legado foi removido.
+        // Migração recomendada:
+        // - Chat: `components/ai/UIChat.tsx` (useChat) + `POST /api/ai/chat` (streaming)
+        // - Tasks determinísticas: `POST /api/ai/tasks/*`
+        throw new Error(
+          'useAgent foi descontinuado: o endpoint /api/ai/actions foi removido. Use /api/ai/chat (streaming) ou /api/ai/tasks/*.'
+        );
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `AI request failed: ${response.status}`);
-        }
+        // 3. Add assistant message (unreachable)
+        // const assistantMessage: Message = {
+        //   id: generateId(),
+        //   role: 'assistant',
+        //   content: data.result || '',
+        // };
 
-        const data = await response.json().catch(() => ({}));
-        console.log('[useAgent] Response data:', data);
-
-        if (data?.error) {
-          throw new Error(data.error);
-        }
-
-        // 3. Add assistant message
-        const assistantMessage: Message = {
-          id: generateId(),
-          role: 'assistant',
-          content: data.result || '',
-          // Sem ferramentas no fluxo legado.
-        };
-
-        setMessages(prev => [...prev, assistantMessage]);
-
-        if (onFinish) {
-          onFinish(assistantMessage);
-        }
-      } catch (err: any) {
+        // setMessages(prev => [...prev, assistantMessage]);
+        // if (onFinish) onFinish(assistantMessage);
+      } catch (err: unknown) {
         console.error('[useAgent] Error:', err);
-        setError(err);
+        const asError = err instanceof Error ? err : new Error('Falha na comunicação com a IA');
+        setError(asError);
 
         // Add error message to chat
         const errorMessage: Message = {
           id: generateId(),
           role: 'assistant',
-          content: `❌ Erro: ${err.message || 'Falha na comunicação com a IA'}`,
+          content: `❌ Erro: ${asError.message}`,
         };
         setMessages(prev => [...prev, errorMessage]);
       } finally {

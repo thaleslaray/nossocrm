@@ -7,10 +7,8 @@ import {
   generateBoardStrategy,
   refineBoardWithAI,
   GeneratedBoard,
-} from '@/lib/ai/actionsClient';
-import { isConsentError } from '@/lib/supabase/ai-proxy';
+} from '@/lib/ai/tasksClient';
 import { Board, BoardStage } from '@/types';
-import { useCRM } from '@/context/CRMContext';
 import { AIProcessingModal, ProcessingStep, SimulatorPhase } from './Modals/AIProcessingModal';
 import { fetchRegistry, fetchTemplateJourney } from '@/services/registryService';
 import { RegistryIndex, RegistryTemplate, JourneyDefinition } from '@/types';
@@ -38,7 +36,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
   onOpenCustomModal,
 }) => {
   const router = useRouter();
-  const { aiProvider, aiApiKey, aiModel, aiThinking, aiSearch, aiAnthropicCaching } = useCRM();
   const [step, setStep] = useState<'select' | 'ai-input' | 'ai-preview' | 'playbook-preview'>(
     'select'
   );
@@ -217,11 +214,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
   const handleAIGenerate = async () => {
     if (!aiInput.trim()) return;
 
-    if (!aiApiKey?.trim()) {
-      setError('Configure sua chave de API em Configurações → Inteligência Artificial para usar este recurso.');
-      return;
-    }
-
     setIsGenerating(true);
     setIsProcessingModalOpen(true);
     setProcessingPhase('structure');
@@ -232,18 +224,9 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     try {
-      const config = {
-        provider: aiProvider,
-        apiKey: aiApiKey,
-        model: aiModel,
-        thinking: aiThinking,
-        search: aiSearch,
-        anthropicCaching: aiAnthropicCaching,
-      };
-
       // Step 1: Structure
       setProcessingStep('structure');
-      const boardData = await generateBoardStructure(aiInput, [], config);
+      const boardData = await generateBoardStructure(aiInput, []);
 
       // Placeholder Strategy (Will be generated in Phase 2)
       const placeholderStrategy = {
@@ -282,7 +265,8 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
       setStep('ai-preview');
     } catch (err) {
       console.error(err);
-      setError('Erro ao gerar board. Tente novamente ou escolha um template.');
+      const message = (err as any)?.message;
+      setError(message || 'Erro ao gerar board. Tente novamente ou escolha um template.');
     } finally {
       setIsGenerating(false);
       setIsProcessingModalOpen(false);
@@ -291,11 +275,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
 
   const handleRefineBoard = async () => {
     if (!chatInput.trim() || !generatedBoard) return;
-
-    if (!aiApiKey?.trim()) {
-      setError('Configure sua chave de API em Configurações → Inteligência Artificial para usar este recurso.');
-      return;
-    }
 
     const userMessage = chatInput;
     setChatInput('');
@@ -310,14 +289,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
       const response = await refineBoardWithAI(
         boardToRefine,
         userMessage,
-        {
-          provider: aiProvider,
-          apiKey: aiApiKey,
-          model: aiModel,
-          thinking: aiThinking,
-          search: aiSearch,
-          anthropicCaching: aiAnthropicCaching,
-        },
         chatMessages.map(m => ({ role: m.role, content: m.content }))
       );
 
@@ -390,15 +361,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     };
 
     try {
-      const config = {
-        provider: aiProvider,
-        apiKey: aiApiKey,
-        model: aiModel,
-        thinking: aiThinking,
-        search: aiSearch,
-        anthropicCaching: aiAnthropicCaching,
-      };
-
       // Generate fresh strategy based on the FINAL board structure
       // Convert GeneratedBoard to BoardStructureResult format
       const boardForStrategy = {
@@ -407,7 +369,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
         stages: boardToCreate.stages,
         automationSuggestions: boardToCreate.automationSuggestions,
       };
-      const strategyData = await generateBoardStrategy(boardForStrategy, config);
+      const strategyData = await generateBoardStrategy(boardForStrategy);
       finalStrategy = strategyData;
 
       setProcessingStep('finalizing');
@@ -594,7 +556,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                     <div className="bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 p-3 rounded-xl rounded-bl-none flex items-center gap-2">
                       <Loader2 size={14} className="animate-spin text-primary-500" />
                       <span className="text-xs text-slate-500">
-                        {aiSearch ? 'Pesquisando...' : 'Pensando...'}
+                        Pensando...
                       </span>
                     </div>
                   </div>
@@ -896,93 +858,47 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
 
             {step === 'ai-input' && (
               <div className="space-y-6">
-                {/* Bloqueio quando API não está configurada */}
-                {!aiApiKey?.trim() ? (
-                  <div className="flex flex-col items-center justify-center py-8">
-                    <div className="text-center max-w-md">
-                      {/* Icon */}
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white mb-5 shadow-lg shadow-orange-500/30">
-                        <AlertCircle size={32} />
-                      </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Sparkles size={20} className="text-primary-600 dark:text-primary-400" />
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                      Descreva seu negócio em 1 frase:
+                    </h3>
+                  </div>
 
-                      {/* Title */}
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
-                        Configure a Inteligência Artificial
-                      </h3>
+                  <input
+                    type="text"
+                    value={aiInput}
+                    onChange={e => setAiInput(e.target.value)}
+                    placeholder="Ex: Sou tatuador, Vendo cursos online, Consultoria de TI..."
+                    className="w-full px-4 py-3 rounded-lg border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    autoFocus
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleAIGenerate();
+                    }}
+                  />
 
-                      {/* Description */}
-                      <p className="text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
-                        Para criar boards com IA, você precisa configurar uma chave de API.
-                        Suportamos <strong className="text-slate-800 dark:text-slate-200">Google Gemini</strong>, <strong className="text-slate-800 dark:text-slate-200">OpenAI</strong> e <strong className="text-slate-800 dark:text-slate-200">Anthropic</strong>.
-                      </p>
-
-                      {/* Card with instructions */}
-                      <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-5 border border-slate-200 dark:border-white/10 mb-5 text-left">
-                        <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
-                          <Sparkles size={16} className="text-purple-500" />
-                          Como configurar:
-                        </h4>
-                        <ol className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                          <li className="flex gap-2">
-                            <span className="font-bold text-purple-500">1.</span>
-                            Acesse as Configurações
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="font-bold text-purple-500">2.</span>
-                            Vá em "Inteligência Artificial"
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="font-bold text-purple-500">3.</span>
-                            Escolha um provedor e insira sua API Key
-                          </li>
-                        </ol>
-                      </div>
-
-                      {/* CTA Button */}
+                  {error && (
+                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/20 rounded-lg">
+                      <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
                       <button
                         onClick={() => {
                           onClose();
                           router.push('/settings#ai-config');
                         }}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-purple-500/25 transition-all active:scale-95"
+                        className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-white/10 hover:bg-slate-50 dark:hover:bg-white/15 text-slate-800 dark:text-white font-semibold rounded-lg border border-slate-200 dark:border-white/10 transition-colors"
+                        type="button"
                       >
                         <Settings size={16} />
-                        Ir para Configurações
+                        Configurar IA
                       </button>
                     </div>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <Sparkles size={20} className="text-primary-600 dark:text-primary-400" />
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                        Descreva seu negócio em 1 frase:
-                      </h3>
-                    </div>
+                  )}
 
-                    <input
-                      type="text"
-                      value={aiInput}
-                      onChange={e => setAiInput(e.target.value)}
-                      placeholder="Ex: Sou tatuador, Vendo cursos online, Consultoria de TI..."
-                      className="w-full px-4 py-3 rounded-lg border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      autoFocus
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') handleAIGenerate();
-                      }}
-                    />
-
-                    {error && (
-                      <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/20 rounded-lg">
-                        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-                      </div>
-                    )}
-
-                    <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-                      💡 A IA vai criar um board personalizado para você!
-                    </p>
-                  </div>
-                )}
+                  <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                    💡 A IA vai criar um board personalizado para você!
+                  </p>
+                </div>
               </div>
             )}
 
@@ -1125,25 +1041,23 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
               >
                 Voltar
               </button>
-              {aiApiKey?.trim() && (
-                <button
-                  onClick={handleAIGenerate}
-                  disabled={!aiInput.trim() || isGenerating}
-                  className="px-6 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Gerando...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={16} />
-                      Gerar Board
-                    </>
-                  )}
-                </button>
-              )}
+              <button
+                onClick={handleAIGenerate}
+                disabled={!aiInput.trim() || isGenerating}
+                className="px-6 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Gerando...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} />
+                    Gerar Board
+                  </>
+                )}
+              </button>
             </div>
           )}
 

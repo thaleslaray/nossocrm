@@ -3,7 +3,7 @@
  * Fetches real AI analysis for a deal using the AI Proxy
  */
 import { useQuery } from '@tanstack/react-query';
-import { analyzeLead } from '@/lib/ai/actionsClient';
+import { analyzeLead } from '@/lib/ai/tasksClient';
 import { Deal, DealView } from '@/types';
 
 export interface AIAnalysis {
@@ -40,7 +40,7 @@ export function useAIDealAnalysis(
             }
 
             try {
-                const result = await analyzeLead(deal, undefined, stageLabel);
+                const result = await analyzeLead(deal, stageLabel);
 
                 return result as AIAnalysis;
             } catch (error) {

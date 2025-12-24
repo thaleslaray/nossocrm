@@ -12,7 +12,7 @@ import {
   analyzeLead,
   generateEmailDraft,
   generateObjectionResponse,
-} from '@/lib/ai/actionsClient';
+} from '@/lib/ai/tasksClient';
 import {
   BrainCircuit,
   Mail,
@@ -66,12 +66,6 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
     activeBoard,
     boards,
     lifecycleStages,
-    aiProvider,
-    aiApiKey,
-    aiModel,
-    aiThinking,
-    aiSearch,
-    aiAnthropicCaching,
   } = useCRM();
   const { profile } = useAuth();
   const { addToast } = useToast();
@@ -157,44 +151,40 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
   if (!isOpen || !deal) return null;
 
   const handleAnalyzeDeal = async () => {
-    if (!aiApiKey?.trim()) {
-      addToast('Configure sua chave de API em Configurações → Inteligência Artificial', 'warning');
-      return;
-    }
     setIsAnalyzing(true);
-    // Buscar label do estágio para não enviar UUID para a IA
-    const stageLabel = dealBoard?.stages.find(s => s.id === deal.status)?.label;
-    const result = await analyzeLead(deal, {
-      provider: aiProvider,
-      apiKey: aiApiKey,
-      model: aiModel,
-      thinking: aiThinking,
-      search: aiSearch,
-      anthropicCaching: aiAnthropicCaching,
-    }, stageLabel);
-    setAiResult({ suggestion: result.suggestion, score: result.probabilityScore });
-    setIsAnalyzing(false);
-    updateDeal(deal.id, { aiSummary: result.suggestion, probability: result.probabilityScore });
+    try {
+      // Buscar label do estágio para não enviar UUID para a IA
+      const stageLabel = dealBoard?.stages.find(s => s.id === deal.status)?.label;
+      const result = await analyzeLead(deal, stageLabel);
+      setAiResult({ suggestion: result.suggestion, score: result.probabilityScore });
+      updateDeal(deal.id, { aiSummary: result.suggestion, probability: result.probabilityScore });
+    } catch (error: any) {
+      console.error('[DealDetailModal] analyzeLead failed:', error);
+      addToast(
+        error?.message || 'Falha ao analisar deal com IA. Verifique Configurações → Inteligência Artificial.',
+        'warning'
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleDraftEmail = async () => {
-    if (!aiApiKey?.trim()) {
-      addToast('Configure sua chave de API em Configurações → Inteligência Artificial', 'warning');
-      return;
-    }
     setIsDrafting(true);
-    // Buscar label do estágio para não enviar UUID para a IA
-    const stageLabel = dealBoard?.stages.find(s => s.id === deal.status)?.label;
-    const draft = await generateEmailDraft(deal, {
-      provider: aiProvider,
-      apiKey: aiApiKey,
-      model: aiModel,
-      thinking: aiThinking,
-      search: aiSearch,
-      anthropicCaching: aiAnthropicCaching,
-    }, stageLabel);
-    setEmailDraft(draft);
-    setIsDrafting(false);
+    try {
+      // Buscar label do estágio para não enviar UUID para a IA
+      const stageLabel = dealBoard?.stages.find(s => s.id === deal.status)?.label;
+      const draft = await generateEmailDraft(deal, stageLabel);
+      setEmailDraft(draft);
+    } catch (error: any) {
+      console.error('[DealDetailModal] generateEmailDraft failed:', error);
+      addToast(
+        error?.message || 'Falha ao gerar e-mail com IA. Verifique Configurações → Inteligência Artificial.',
+        'warning'
+      );
+    } finally {
+      setIsDrafting(false);
+    }
   };
 
   const startRecording = () => {
@@ -218,21 +208,19 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
 
   const handleObjection = async () => {
     if (!objection.trim()) return;
-    if (!aiApiKey?.trim()) {
-      addToast('Configure sua chave de API em Configurações → Inteligência Artificial', 'warning');
-      return;
-    }
     setIsGeneratingObjections(true);
-    const responses = await generateObjectionResponse(deal, objection, {
-      provider: aiProvider,
-      apiKey: aiApiKey,
-      model: aiModel,
-      thinking: aiThinking,
-      search: aiSearch,
-      anthropicCaching: aiAnthropicCaching,
-    });
-    setObjectionResponses(responses);
-    setIsGeneratingObjections(false);
+    try {
+      const responses = await generateObjectionResponse(deal, objection);
+      setObjectionResponses(responses);
+    } catch (error: any) {
+      console.error('[DealDetailModal] generateObjectionResponse failed:', error);
+      addToast(
+        error?.message || 'Falha ao gerar respostas. Verifique Configurações → Inteligência Artificial.',
+        'warning'
+      );
+    } finally {
+      setIsGeneratingObjections(false);
+    }
   };
 
   const handleAddNote = () => {

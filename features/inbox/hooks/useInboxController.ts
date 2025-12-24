@@ -328,9 +328,8 @@ export const useInboxController = () => {
           upsellDeals: upsellDeals.length,
         };
 
-        // Import dynamically to avoid circular dependency
-        const { callAIProxy } = await import('@/lib/supabase/ai-proxy');
-        const text = await callAIProxy<string>('generateDailyBriefing', { radarData });
+        const { generateDailyBriefing } = await import('@/lib/ai/tasksClient');
+        const text = await generateDailyBriefing(radarData);
 
         if (isMounted) {
           setBriefing(text || 'Nenhuma pendência crítica. Bom trabalho!');
