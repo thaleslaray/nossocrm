@@ -21,10 +21,27 @@ export const stagnantDealsConfig: AnalyzerConfig = {
   cooldownDays: 3,
 };
 
-function getLastActivityForDeal(dealId: string, activities: Activity[]): Activity | undefined {
-  return activities
-    .filter(a => a.dealId === dealId && a.completed)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+/**
+ * Performance: `getLastActivityForDeal` used to filter+sort for every deal.
+ * We now pre-index latest completed activity per deal in O(A).
+ */
+function buildLatestCompletedActivityByDealId(activities: Activity[]): Map<string, Activity> {
+  const map = new Map<string, Activity>();
+  const tsByDealId = new Map<string, number>();
+
+  for (const a of activities) {
+    if (!a.dealId) continue;
+    if (!a.completed) continue;
+
+    const ts = Date.parse(a.date);
+    const prev = tsByDealId.get(a.dealId);
+    if (prev === undefined || ts > prev) {
+      tsByDealId.set(a.dealId, ts);
+      map.set(a.dealId, a);
+    }
+  }
+
+  return map;
 }
 
 function generateReasoning(
@@ -164,7 +181,8 @@ export function analyzeStagnantDeals(
     minDealValue: number;
   };
 
-  const now = new Date();
+  const nowTs = Date.now();
+  const nowIso = new Date(nowTs).toISOString();
   const decisions: Decision[] = [];
   let analyzed = 0;
 
@@ -175,15 +193,17 @@ export function analyzeStagnantDeals(
     return true;
   });
 
+  const latestCompletedActivityByDealId = buildLatestCompletedActivityByDealId(activities);
+
   for (const deal of eligibleDeals) {
     analyzed++;
     
-    const lastActivity = getLastActivityForDeal(deal.id, activities);
+    const lastActivity = latestCompletedActivityByDealId.get(deal.id);
     
     let daysSinceActivity: number;
     if (lastActivity) {
       daysSinceActivity = Math.floor(
-        (now.getTime() - new Date(lastActivity.date).getTime()) / (1000 * 60 * 60 * 24)
+        (nowTs - Date.parse(lastActivity.date)) / (1000 * 60 * 60 * 24)
       );
     } else {
       // If no activity, use deal creation date (approximate with 30 days)
@@ -207,8 +227,8 @@ export function analyzeStagnantDeals(
         suggestedAction: generateSuggestedAction(deal, lastActivity),
         alternativeActions: generateAlternativeActions(deal),
         status: 'pending',
-        createdAt: now.toISOString(),
-        expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+        createdAt: nowIso,
+        expiresAt: new Date(nowTs + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
       });
 
       // Respect max decisions limit
@@ -229,7 +249,7 @@ export function analyzeStagnantDeals(
     analyzerName: config.name,
     decisions,
     metadata: {
-      executedAt: now.toISOString(),
+      executedAt: nowIso,
       itemsAnalyzed: analyzed,
       decisionsGenerated: decisions.length,
     },

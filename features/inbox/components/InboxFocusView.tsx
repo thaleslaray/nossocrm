@@ -25,6 +25,9 @@ import { useCRM } from '@/context/CRMContext';
 import { useMoveDealSimple } from '@/lib/query/hooks';
 import { useAuth } from '@/context/AuthContext';
 
+// Performance: reuse Intl formatter instances (avoid per-render allocations).
+const PT_BR_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
 interface InboxFocusViewProps {
   currentItem: FocusItem | null;
   currentIndex: number;
@@ -61,6 +64,30 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
   } = useCRM();
   const { profile } = useAuth();
 
+  // Performance: build lookup maps once to avoid repeated `.find(...)` in `contextData`.
+  const dealsById = useMemo(() => new Map(deals.map(d => [d.id, d])), [deals]);
+  const contactsById = useMemo(() => new Map(contacts.map(c => [c.id, c])), [contacts]);
+  const boardsById = useMemo(() => new Map(boards.map(b => [b.id, b])), [boards]);
+
+  /**
+   * Performance: group & sort activities by dealId once.
+   * Avoid `activities.filter(...).sort(...)` every time the focused item changes.
+   */
+  const activitiesByDealIdSorted = useMemo(() => {
+    const map = new Map<string, Activity[]>();
+    for (const a of activities) {
+      if (!a.dealId) continue;
+      const list = map.get(a.dealId);
+      if (list) list.push(a);
+      else map.set(a.dealId, [a]);
+    }
+    for (const [dealId, list] of map) {
+      list.sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+      map.set(dealId, list);
+    }
+    return map;
+  }, [activities]);
+
   // Context data for Cockpit
   const contextData = useMemo(() => {
     if (!currentItem) return null;
@@ -89,20 +116,21 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
       contactId = sugg.data.contact?.id || '';
     }
 
-    const deal = deals.find(d => d.id === dealId);
+    const deal = dealId ? dealsById.get(dealId) : undefined;
 
     // Busca contato por ID, por contactId do deal, ou pelo nome extraído
-    let contact = contacts.find(c => c.id === (contactId || deal?.contactId));
+    const primaryContactId = contactId || deal?.contactId || '';
+    let contact = primaryContactId ? contactsById.get(primaryContactId) : undefined;
     if (!contact && extractedContactName) {
-      contact = contacts.find(c =>
-        c.name?.toLowerCase().includes(extractedContactName.toLowerCase())
-      );
+      const needle = extractedContactName.toLowerCase();
+      contact = contacts.find(c => c.name?.toLowerCase().includes(needle));
     }
 
-    const dealActivities = deal ? activities.filter(a => a.dealId === deal.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
-    const board = deal ? (boards.find(b => b.id === deal.boardId) ?? null) : activeBoard;
+    const dealActivities = deal ? (activitiesByDealIdSorted.get(deal.id) ?? []) : [];
+    const board = deal ? (boardsById.get(deal.boardId) ?? null) : activeBoard;
 
     // Se não tem deal mas tem contact, cria um placeholder para o Cockpit
+    const nowIso = new Date().toISOString();
     const placeholderDeal = !deal && contact ? {
       id: `placeholder-${contact.id}`,
       title: `Reativar: ${contact.name}`,
@@ -112,8 +140,8 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
       status: activeBoard?.stages[0]?.id || '',
       isWon: false,
       isLost: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: nowIso,
+      updatedAt: nowIso,
       probability: 30,
       priority: 'medium' as const,
       owner: { name: 'Eu', avatar: '' },
@@ -128,7 +156,7 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
       board,
       isPlaceholder: !deal && !!placeholderDeal
     };
-  }, [currentItem, deals, contacts, activities, boards, activeBoard, companies]);
+  }, [currentItem, dealsById, contactsById, contacts, activitiesByDealIdSorted, boardsById, activeBoard]);
 
   const { moveDeal } = useMoveDealSimple(contextData?.board ?? null, []);
 
@@ -204,7 +232,9 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
   const suggestion = !isActivity ? (currentItem.data as AISuggestion) : null;
 
   // Determinar se é atrasado
-  const isOverdue = activity && new Date(activity.date) < new Date(new Date().setHours(0, 0, 0, 0));
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const isOverdue = activity ? Date.parse(activity.date) < startOfToday.getTime() : false;
 
   // Ícone baseado no tipo
   const getIcon = () => {
@@ -257,7 +287,7 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
 
   // Horário (se for reunião/call)
   const isMeeting = activity?.type === 'MEETING' || activity?.type === 'CALL';
-  const timeString = activity ? new Date(activity.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+  const timeString = activity ? PT_BR_TIME_FORMATTER.format(new Date(activity.date)) : '';
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] py-8 animate-fade-in">

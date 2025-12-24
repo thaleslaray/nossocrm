@@ -14,49 +14,80 @@ interface ActivityFeedItemProps {
     activity: Activity;
 }
 
+// Performance: reuse Intl formatter instead of instantiating options object per render.
+const ACTIVITY_FEED_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+});
+
 export const ActivityFeedItem: React.FC<ActivityFeedItemProps> = ({ activity }) => {
     // Smart Icon Logic: Corrigir visualmente inconsistências de dados legados/seed
-    const getVisualType = () => {
-        const titleLower = activity.title.toLowerCase();
-        if (titleLower.includes('call') || titleLower.includes('ligação')) return 'CALL';
-        if (titleLower.includes('email')) return 'EMAIL';
-        if (titleLower.includes('reunião') || titleLower.includes('meeting') || titleLower.includes('demo')) return 'MEETING';
-        return activity.type;
-    };
+    const titleLower = activity.title.toLowerCase();
+    const visualType =
+        titleLower.includes('call') || titleLower.includes('ligação')
+            ? 'CALL'
+            : titleLower.includes('email')
+              ? 'EMAIL'
+              : titleLower.includes('reunião') || titleLower.includes('meeting') || titleLower.includes('demo')
+                ? 'MEETING'
+                : activity.type;
 
-    const visualType = getVisualType();
-
-    const getIcon = () => {
+    const icon = (() => {
         switch (visualType) {
             case 'CALL':
-                return <div className="bg-blue-500/10 text-blue-500 p-2 rounded-full ring-1 ring-blue-500/20"><Phone size={16} /></div>;
+                return (
+                    <div className="bg-blue-500/10 text-blue-500 p-2 rounded-full ring-1 ring-blue-500/20">
+                        <Phone size={16} />
+                    </div>
+                );
             case 'EMAIL':
-                return <div className="bg-purple-500/10 text-purple-500 p-2 rounded-full ring-1 ring-purple-500/20"><Mail size={16} /></div>;
+                return (
+                    <div className="bg-purple-500/10 text-purple-500 p-2 rounded-full ring-1 ring-purple-500/20">
+                        <Mail size={16} />
+                    </div>
+                );
             case 'MEETING':
-                return <div className="bg-orange-500/10 text-orange-500 p-2 rounded-full ring-1 ring-orange-500/20"><Calendar size={16} /></div>;
+                return (
+                    <div className="bg-orange-500/10 text-orange-500 p-2 rounded-full ring-1 ring-orange-500/20">
+                        <Calendar size={16} />
+                    </div>
+                );
             case 'TASK':
-                return <div className="bg-emerald-500/10 text-emerald-500 p-2 rounded-full ring-1 ring-emerald-500/20"><CheckCircle size={16} /></div>;
+                return (
+                    <div className="bg-emerald-500/10 text-emerald-500 p-2 rounded-full ring-1 ring-emerald-500/20">
+                        <CheckCircle size={16} />
+                    </div>
+                );
             case 'NOTE':
-                return <div className="bg-yellow-500/10 text-yellow-500 p-2 rounded-full ring-1 ring-yellow-500/20"><StickyNote size={16} /></div>;
+                return (
+                    <div className="bg-yellow-500/10 text-yellow-500 p-2 rounded-full ring-1 ring-yellow-500/20">
+                        <StickyNote size={16} />
+                    </div>
+                );
             case 'STATUS_CHANGE':
-                return <div className="bg-slate-500/10 text-slate-500 p-2 rounded-full ring-1 ring-slate-500/20"><ArrowRightLeft size={16} /></div>;
+                return (
+                    <div className="bg-slate-500/10 text-slate-500 p-2 rounded-full ring-1 ring-slate-500/20">
+                        <ArrowRightLeft size={16} />
+                    </div>
+                );
             default:
-                return <div className="bg-slate-500/10 text-slate-500 p-2 rounded-full ring-1 ring-slate-500/20"><AlertCircle size={16} /></div>;
+                return (
+                    <div className="bg-slate-500/10 text-slate-500 p-2 rounded-full ring-1 ring-slate-500/20">
+                        <AlertCircle size={16} />
+                    </div>
+                );
         }
-    };
+    })();
 
     // Formatar data relativa ou absoluta melhorada
-    const formattedDate = new Date(activity.date).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    const formattedDate = ACTIVITY_FEED_DATE_FORMATTER.format(new Date(activity.date));
 
     return (
         <div className="flex items-start gap-3 py-3 border-b border-slate-100 dark:border-white/5 last:border-0 hover:bg-slate-50 dark:hover:bg-white/5 px-2 rounded-lg transition-colors group">
             <div className="mt-0.5 shrink-0">
-                {getIcon()}
+                {icon}
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">

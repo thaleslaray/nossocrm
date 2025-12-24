@@ -310,6 +310,18 @@ export const useDashboardMetrics = (period: PeriodFilter = 'this_month', boardId
   // Mock Trend Data
   // Real Trend Data (Last 6 Months)
   const trendData = React.useMemo(() => {
+    /**
+     * Performance: avoid O(6*N) by pre-aggregating revenue by month once.
+     * (Previously: for each month, `wonDeals.reduce(...)`.)
+     */
+    const revenueByMonthKey = new Map<string, number>();
+    for (const deal of wonDeals) {
+      if (!deal.updatedAt) continue;
+      const dt = new Date(deal.updatedAt);
+      const key = `${dt.getMonth()}-${dt.getFullYear()}`;
+      revenueByMonthKey.set(key, (revenueByMonthKey.get(key) ?? 0) + deal.value);
+    }
+
     const last6Months = Array.from({ length: 6 }, (_, i) => {
       const d = new Date();
       d.setMonth(d.getMonth() - (5 - i));
@@ -319,14 +331,7 @@ export const useDashboardMetrics = (period: PeriodFilter = 'this_month', boardId
     return last6Months.map(date => {
       const monthName = date.toLocaleString('default', { month: 'short' });
       const monthKey = `${date.getMonth()}-${date.getFullYear()}`;
-
-      const monthlyRevenue = wonDeals.reduce((acc, deal) => {
-        if (!deal.updatedAt) return acc;
-        const dealDate = new Date(deal.updatedAt);
-        const dealMonthKey = `${dealDate.getMonth()}-${dealDate.getFullYear()}`;
-
-        return dealMonthKey === monthKey ? acc + deal.value : acc;
-      }, 0);
+      const monthlyRevenue = revenueByMonthKey.get(monthKey) ?? 0;
 
       return {
         month: monthName.charAt(0).toUpperCase() + monthName.slice(1),
@@ -337,51 +342,76 @@ export const useDashboardMetrics = (period: PeriodFilter = 'this_month', boardId
 
   // Wallet Health Metrics - Usa TODOS os contatos (não filtrados por período)
   // A saúde da carteira é um snapshot atual, não depende do período selecionado
-  const activeContacts = allContacts.filter(c => c.status === 'ACTIVE');
-  const inactiveContacts = allContacts.filter(c => c.status === 'INACTIVE');
-  const churnedContacts = allContacts.filter(c => c.status === 'CHURNED');
+  /**
+   * Performance: compute contact buckets in a single pass (avoid 3 filters + 1 reduce).
+   */
+  const contactsBuckets = React.useMemo(() => {
+    const active: typeof allContacts = [];
+    const inactive: typeof allContacts = [];
+    const churned: typeof allContacts = [];
+    let totalLTV = 0;
+    for (const c of allContacts) {
+      totalLTV += c.totalValue || 0;
+      if (c.status === 'ACTIVE') active.push(c);
+      else if (c.status === 'INACTIVE') inactive.push(c);
+      else if (c.status === 'CHURNED') churned.push(c);
+    }
+    return { active, inactive, churned, totalLTV };
+  }, [allContacts]);
+
+  const activeContacts = contactsBuckets.active;
+  const inactiveContacts = contactsBuckets.inactive;
+  const churnedContacts = contactsBuckets.churned;
   const totalContacts = allContacts.length || 1; // Avoid division by zero
 
   const activePercent = Math.round((activeContacts.length / totalContacts) * 100);
   const inactivePercent = Math.round((inactiveContacts.length / totalContacts) * 100);
   const churnedPercent = Math.round((churnedContacts.length / totalContacts) * 100);
 
-  const totalLTV = allContacts.reduce((acc, c) => acc + (c.totalValue || 0), 0);
-  const avgLTV = activeContacts.length > 0 ? totalLTV / activeContacts.length : 0;
+  const avgLTV = activeContacts.length > 0 ? contactsBuckets.totalLTV / activeContacts.length : 0;
 
   // Calculate Stagnant Deals (no stage change > 10 days)
-  const tenDaysAgo = new Date();
-  tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-  const openDeals = allDeals.filter(d => !d.isWon && !d.isLost);
-  const stagnantDeals = openDeals.filter(deal => {
-    const lastChange = deal.lastStageChangeDate
-      ? new Date(deal.lastStageChangeDate)
-      : new Date(deal.createdAt);
-    return lastChange < tenDaysAgo;
-  });
-  const stagnantDealsCount = stagnantDeals.length;
-  const stagnantDealsValue = stagnantDeals.reduce((sum, d) => sum + d.value, 0);
+  const tenDaysAgoTs = Date.now() - 10 * 24 * 60 * 60 * 1000;
+  let stagnantDealsCount = 0;
+  let stagnantDealsValue = 0;
+  for (const deal of allDeals) {
+    if (deal.isWon || deal.isLost) continue;
+    const lastChangeTs = deal.lastStageChangeDate ? Date.parse(deal.lastStageChangeDate) : Date.parse(deal.createdAt);
+    if (lastChangeTs < tenDaysAgoTs) {
+      stagnantDealsCount += 1;
+      stagnantDealsValue += deal.value;
+    }
+  }
 
   // Calculate Deals without scheduled activities
   // (simplified - would need activities data for full implementation)
   const riskyCount = stagnantDealsCount; // Using stagnant as risk indicator
 
   // Sales Cycle Metrics
-  const closedDeals = [...wonDeals, ...lostDeals];
   const wonDealsWithDates = wonDeals.filter(d => d.createdAt && d.updatedAt);
-
-  const salesCycles = wonDealsWithDates.map(d => {
-    const created = new Date(d.createdAt);
-    const closed = new Date(d.updatedAt);
-    return Math.floor((closed.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
-  });
-
-  const avgSalesCycle = salesCycles.length > 0
-    ? Math.round(salesCycles.reduce((sum, days) => sum + days, 0) / salesCycles.length)
-    : 0;
-
-  const fastestDeal = salesCycles.length > 0 ? Math.min(...salesCycles) : 0;
-  const slowestDeal = salesCycles.length > 0 ? Math.max(...salesCycles) : 0;
+  /**
+   * Performance: compute avg/min/max in one pass (avoid allocating `salesCycles` array + spreading).
+   */
+  let salesCycleCount = 0;
+  let salesCycleSum = 0;
+  let fastestDeal = 0;
+  let slowestDeal = 0;
+  for (const d of wonDealsWithDates) {
+    const createdTs = Date.parse(d.createdAt);
+    const closedTs = Date.parse(d.updatedAt);
+    const days = Math.floor((closedTs - createdTs) / (1000 * 60 * 60 * 24));
+    if (!Number.isFinite(days)) continue;
+    salesCycleCount += 1;
+    salesCycleSum += days;
+    if (salesCycleCount === 1) {
+      fastestDeal = days;
+      slowestDeal = days;
+    } else {
+      fastestDeal = Math.min(fastestDeal, days);
+      slowestDeal = Math.max(slowestDeal, days);
+    }
+  }
+  const avgSalesCycle = salesCycleCount > 0 ? Math.round(salesCycleSum / salesCycleCount) : 0;
 
   // Conversion Funnel Metrics (lostDeals já calculado acima)
   const totalClosedDeals = wonDeals.length + lostDeals.length;
@@ -394,9 +424,24 @@ export const useDashboardMetrics = (period: PeriodFilter = 'this_month', boardId
     return acc;
   }, {} as Record<string, number>);
 
-  const topLossReasons = Object.entries(lossReasons)
-    .sort(([, a], [, b]) => (b as number) - (a as number))
-    .slice(0, 3);
+  /**
+   * Performance: avoid sorting all entries; keep top 3 while scanning.
+   */
+  const topLossReasons = (() => {
+    const top: Array<[string, number]> = [];
+    for (const [k, v] of Object.entries(lossReasons)) {
+      if (top.length < 3) {
+        top.push([k, v]);
+        top.sort((a, b) => b[1] - a[1]);
+        continue;
+      }
+      if (v > top[2][1]) {
+        top[2] = [k, v];
+        top.sort((a, b) => b[1] - a[1]);
+      }
+    }
+    return top;
+  })();
 
   return {
     isLoading,

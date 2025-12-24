@@ -13,6 +13,9 @@ import {
 import { Board } from '@/types';
 import { useCRM } from '@/context/CRMContext';
 
+// Performance: reuse formatter instances.
+const BRL_CURRENCY_FORMATTER = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
 interface BoardStrategyHeaderProps {
   board: Board;
 }
@@ -24,24 +27,32 @@ export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board 
 
   // Calculate Progress Automatically
   const calculatedProgress = React.useMemo(() => {
-    const boardDeals = deals.filter(d => d.boardId === board.id);
     const type = board.goal?.type || 'number';
 
+    /**
+     * Performance: avoid `deals.filter(...)` + extra passes over the boardDeals.
+     * We scan once and compute the aggregates we need.
+     */
+    let dealCount = 0;
+    let wonCount = 0;
+    let totalValue = 0;
+    for (const d of deals) {
+      if (d.boardId !== board.id) continue;
+      dealCount += 1;
+      totalValue += d.value || 0;
+      if (d.isWon) wonCount += 1;
+    }
+
     if (type === 'currency') {
-      const total = boardDeals.reduce((sum, deal) => sum + (deal.value || 0), 0);
       return {
-        value: total,
-        display: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-          total
-        ),
+        value: totalValue,
+        display: BRL_CURRENCY_FORMATTER.format(totalValue),
       };
     }
 
     if (type === 'percentage') {
-      const total = boardDeals.length;
-      if (total === 0) return { value: 0, display: '0%' };
-      const won = boardDeals.filter(d => d.isWon).length;
-      const percent = Math.round((won / total) * 100);
+      if (dealCount === 0) return { value: 0, display: '0%' };
+      const percent = Math.round((wonCount / dealCount) * 100);
       return {
         value: percent,
         display: `${percent}%`,
@@ -49,12 +60,29 @@ export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board 
     }
 
     // Default: Number
-    const count = boardDeals.length;
     return {
-      value: count,
-      display: count.toString(),
+      value: dealCount,
+      display: dealCount.toString(),
     };
   }, [deals, board.id, board.goal?.type]);
+
+  // Performance: parse target once per goal change (instead of per render).
+  // Hook must live before any early returns (rules-of-hooks).
+  const targetValueNumber = React.useMemo(() => {
+    if (!board.goal?.targetValue) return 0;
+
+    // Parse Target
+    const targetStr = board.goal.targetValue.replace(/[^0-9.]/g, '');
+    const target = parseFloat(targetStr);
+    return Number.isFinite(target) ? target : 0;
+  }, [board.goal?.targetValue]);
+
+  // Performance: compute progress as a derived value (and keep hooks order stable).
+  const progress = React.useMemo(() => {
+    if (targetValueNumber === 0) return 0;
+    const current = calculatedProgress.value;
+    return Math.min(100, Math.max(0, (current / targetValueNumber) * 100));
+  }, [calculatedProgress.value, targetValueNumber]);
 
   const hasStrategy = board.goal || board.agentPersona || board.entryTrigger;
 
@@ -90,22 +118,6 @@ export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board 
     setEditedBoard(board);
     setIsEditing(false);
   };
-
-  const getProgressPercentage = () => {
-    if (!board.goal?.targetValue) return 0;
-
-    // Parse Target
-    const targetStr = board.goal.targetValue.replace(/[^0-9.]/g, '');
-    const target = parseFloat(targetStr);
-
-    // Use Raw Value
-    const current = calculatedProgress.value;
-
-    if (isNaN(target) || target === 0) return 0;
-    return Math.min(100, Math.max(0, (current / target) * 100));
-  };
-
-  const progress = getProgressPercentage();
 
   return (
     <div className="relative mb-4 group/header z-20">

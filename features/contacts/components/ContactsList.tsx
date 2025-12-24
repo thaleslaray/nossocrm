@@ -3,14 +3,23 @@ import { Building2, Mail, Phone, Plus, Calendar, Pencil, Trash2, Globe, MoreHori
 import { Contact, Company, ContactSortableColumn } from '@/types';
 import { StageBadge } from './ContactsStageTabs';
 
+// Performance: reuse Intl formatters (they are relatively expensive to instantiate).
+const PT_BR_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR');
+const PT_BR_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+});
+
 /**
  * Formata uma data para exibição relativa (ex: "Hoje", "Ontem", "Há 3 dias", "15/11/2024")
  */
-function formatRelativeDate(dateString: string | undefined | null): string {
+function formatRelativeDate(dateString: string | undefined | null, now: Date): string {
     if (!dateString) return '---';
     
     const date = new Date(dateString);
-    const now = new Date();
     
     // Reset hours for accurate day comparison
     const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -25,7 +34,7 @@ function formatRelativeDate(dateString: string | undefined | null): string {
     if (diffDays < 30) return `Há ${Math.floor(diffDays / 7)} sem.`;
     
     // For older dates, show the actual date
-    return date.toLocaleDateString('pt-BR');
+    return PT_BR_DATE_FORMATTER.format(date);
 }
 
 /** Props for sortable column header */
@@ -99,6 +108,22 @@ export const ContactsList: React.FC<ContactsListProps> = ({
 }) => {
     const allSelected = filteredContacts.length > 0 && selectedIds.size === filteredContacts.length;
     const someSelected = selectedIds.size > 0 && selectedIds.size < filteredContacts.length;
+
+    // Performance: compute "contacts by company" once (avoids N filters per company row).
+    const contactsByCompanyId = React.useMemo(() => {
+        const map = new Map<string, Contact[]>();
+        for (const c of contacts) {
+            const companyId = c.clientCompanyId;
+            if (!companyId) continue;
+            const list = map.get(companyId);
+            if (list) list.push(c);
+            else map.set(companyId, [c]);
+        }
+        return map;
+    }, [contacts]);
+
+    // Performance: avoid creating `new Date()` for each row in formatRelativeDate.
+    const now = new Date();
     
     return (
         <div className="glass rounded-xl border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden">
@@ -208,15 +233,21 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-xs" title={contact.createdAt ? new Date(contact.createdAt).toLocaleString('pt-BR') : undefined}>
+                                        <div
+                                            className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-xs"
+                                            title={contact.createdAt ? PT_BR_DATE_TIME_FORMATTER.format(new Date(contact.createdAt)) : undefined}
+                                        >
                                             <Calendar size={14} className="text-slate-400" />
-                                            <span>{formatRelativeDate(contact.createdAt)}</span>
+                                            <span>{formatRelativeDate(contact.createdAt, now)}</span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-xs" title={contact.updatedAt ? new Date(contact.updatedAt).toLocaleString('pt-BR') : undefined}>
+                                        <div
+                                            className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-xs"
+                                            title={contact.updatedAt ? PT_BR_DATE_TIME_FORMATTER.format(new Date(contact.updatedAt)) : undefined}
+                                        >
                                             <Calendar size={14} className="text-slate-400" />
-                                            <span>{formatRelativeDate(contact.updatedAt)}</span>
+                                            <span>{formatRelativeDate(contact.updatedAt, now)}</span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
@@ -283,17 +314,21 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className="text-slate-600 dark:text-slate-400 text-xs">
-                                            {new Date(company.createdAt).toLocaleDateString('pt-BR')}
+                                            {PT_BR_DATE_FORMATTER.format(new Date(company.createdAt))}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">
+                                        {/*
+                                          Performance: this row used to call `contacts.filter(...)` twice per company.
+                                          We pre-index contactsByCompanyId above to make this O(C + P) instead of O(C * P).
+                                        */}
                                         <div className="flex -space-x-2 overflow-hidden">
-                                            {contacts.filter(c => c.clientCompanyId === company.id).map(c => (
+                                            {(contactsByCompanyId.get(company.id) ?? []).map(c => (
                                                 <div key={c.id} className="h-6 w-6 rounded-full ring-2 ring-white dark:ring-dark-card bg-primary-100 dark:bg-primary-900 flex items-center justify-center text-[10px] font-bold text-primary-700 dark:text-primary-300" title={c.name || 'Sem nome'}>
                                                     {(c.name || '?').charAt(0)}
                                                 </div>
                                             ))}
-                                            {contacts.filter(c => c.clientCompanyId === company.id).length === 0 && (
+                                            {(contactsByCompanyId.get(company.id) ?? []).length === 0 && (
                                                 <span className="text-slate-400 text-xs italic">Ninguém</span>
                                             )}
                                         </div>

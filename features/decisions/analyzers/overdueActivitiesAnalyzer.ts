@@ -6,6 +6,9 @@
 import { Activity, DealView } from '@/types';
 import { Decision, AnalyzerResult, AnalyzerConfig, SuggestedAction } from '../types';
 
+// Performance: reuse date formatter to avoid repeated `toLocaleDateString` allocations.
+const PT_BR_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR');
+
 export const overdueActivitiesConfig: AnalyzerConfig = {
   id: 'overdue_activities',
   name: 'Atividades Atrasadas',
@@ -66,7 +69,7 @@ function generateSuggestedActions(activity: Activity, deal?: DealView): {
       activityType: validType,
       activityTitle: activity.title,
       activityDate: tomorrow.toISOString(),
-      activityDescription: `Reagendado de ${new Date(activity.date).toLocaleDateString('pt-BR')}. ${activity.description || ''}`,
+      activityDescription: `Reagendado de ${PT_BR_DATE_FORMATTER.format(new Date(activity.date))}. ${activity.description || ''}`,
       dealId: activity.dealId,
     },
     preview: {
@@ -104,7 +107,7 @@ function generateSuggestedActions(activity: Activity, deal?: DealView): {
       payload: {
         channel: 'whatsapp',
         recipient: deal?.contactName,
-        messageTemplate: `Olá! Não consegui falar com você ${activity.type === 'CALL' ? 'por telefone' : 'na reunião'} no dia ${new Date(activity.date).toLocaleDateString('pt-BR')}. Podemos remarcar?`,
+        messageTemplate: `Olá! Não consegui falar com você ${activity.type === 'CALL' ? 'por telefone' : 'na reunião'} no dia ${PT_BR_DATE_FORMATTER.format(new Date(activity.date))}. Podemos remarcar?`,
         dealId: activity.dealId,
         contactId: deal?.contactId,
       },
@@ -126,33 +129,32 @@ export function analyzeOverdueActivities(
     includedTypes: string[];
   };
 
-  const now = new Date();
+  const nowTs = Date.now();
+  const nowIso = new Date(nowTs).toISOString();
   const decisions: Decision[] = [];
   let analyzed = 0;
 
   // Create deal lookup map
   const dealMap = new Map(deals.map(d => [d.id, d]));
 
-  // Filter overdue activities
-  const overdueActivities = activities.filter(activity => {
-    if (activity.completed) return false;
-    if (!params.includedTypes.includes(activity.type)) return false;
-    
-    const activityDate = new Date(activity.date);
-    return activityDate < now;
-  });
+  /**
+   * Performance: parse dates once and sort by timestamp (avoid `new Date(...)` in comparator).
+   */
+  const overdueActivities = activities
+    .filter(activity => {
+      if (activity.completed) return false;
+      if (!params.includedTypes.includes(activity.type)) return false;
+      return Date.parse(activity.date) < nowTs;
+    })
+    .map((activity) => ({ activity, ts: Date.parse(activity.date) }))
+    // Sort by how overdue they are (oldest first)
+    .sort((a, b) => a.ts - b.ts);
 
-  // Sort by how overdue they are (most overdue first)
-  overdueActivities.sort((a, b) => 
-    new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
-
-  for (const activity of overdueActivities) {
+  for (const { activity, ts } of overdueActivities) {
     analyzed++;
     
-    const activityDate = new Date(activity.date);
     const daysOverdue = Math.floor(
-      (now.getTime() - activityDate.getTime()) / (1000 * 60 * 60 * 24)
+      (nowTs - ts) / (1000 * 60 * 60 * 24)
     );
     
     const deal = activity.dealId ? dealMap.get(activity.dealId) : undefined;
@@ -180,8 +182,8 @@ export function analyzeOverdueActivities(
       suggestedAction: primary,
       alternativeActions: alternatives,
       status: 'pending',
-      createdAt: now.toISOString(),
-      expiresAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days
+      createdAt: nowIso,
+      expiresAt: new Date(nowTs + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days
     });
 
     if (decisions.length >= config.maxDecisionsPerRun) {
@@ -194,7 +196,7 @@ export function analyzeOverdueActivities(
     analyzerName: config.name,
     decisions,
     metadata: {
-      executedAt: now.toISOString(),
+      executedAt: nowIso,
       itemsAnalyzed: analyzed,
       decisionsGenerated: decisions.length,
     },

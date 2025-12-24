@@ -111,33 +111,41 @@ export const useInboxController = () => {
     return d;
   }, []);
 
-  // --- Atividades Filtradas ---
-  const overdueActivities = useMemo(() => {
-    return activities
-      .filter(a => {
-        const date = new Date(a.date);
-        return !a.completed && date < today;
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [activities, today]);
+  /**
+   * Performance: avoid parsing/sorting dates three times.
+   * We bucket activities in one pass using timestamps, then sort once per bucket.
+   */
+  const activityBuckets = useMemo(() => {
+    const overdue: Array<{ a: Activity; ts: number }> = [];
+    const todayList: Array<{ a: Activity; ts: number }> = [];
+    const upcoming: Array<{ a: Activity; ts: number }> = [];
 
-  const todayActivities = useMemo(() => {
-    return activities
-      .filter(a => {
-        const date = new Date(a.date);
-        return !a.completed && date >= today && date < tomorrow;
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const todayTs = today.getTime();
+    const tomorrowTs = tomorrow.getTime();
+
+    for (const a of activities) {
+      if (a.completed) continue;
+      const ts = Date.parse(a.date);
+      if (ts < todayTs) overdue.push({ a, ts });
+      else if (ts < tomorrowTs) todayList.push({ a, ts });
+      else upcoming.push({ a, ts });
+    }
+
+    overdue.sort((x, y) => x.ts - y.ts);
+    todayList.sort((x, y) => x.ts - y.ts);
+    upcoming.sort((x, y) => x.ts - y.ts);
+
+    return {
+      overdue: overdue.map(x => x.a),
+      today: todayList.map(x => x.a),
+      upcoming: upcoming.map(x => x.a),
+    };
   }, [activities, today, tomorrow]);
 
-  const upcomingActivities = useMemo(() => {
-    return activities
-      .filter(a => {
-        const date = new Date(a.date);
-        return !a.completed && date >= tomorrow;
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [activities, tomorrow]);
+  // --- Atividades Filtradas ---
+  const overdueActivities = activityBuckets.overdue;
+  const todayActivities = activityBuckets.today;
+  const upcomingActivities = activityBuckets.upcoming;
 
   // Separar Compromissos (CALL, MEETING) vs Tarefas (TASK, EMAIL, NOTE)
   const todayMeetings = useMemo(
@@ -169,8 +177,8 @@ export const useInboxController = () => {
     () =>
       deals.filter(d => {
         const isClosed = d.isWon || d.isLost;
-        const lastUpdate = new Date(d.updatedAt);
-        return !isClosed && lastUpdate < sevenDaysAgo;
+        const lastUpdateTs = Date.parse(d.updatedAt);
+        return !isClosed && lastUpdateTs < sevenDaysAgo.getTime();
       }),
     [deals, sevenDaysAgo]
   );
@@ -180,8 +188,8 @@ export const useInboxController = () => {
     () =>
       deals.filter(d => {
         const isWon = d.isWon;
-        const lastUpdate = new Date(d.updatedAt);
-        return isWon && lastUpdate < thirtyDaysAgo;
+        const lastUpdateTs = Date.parse(d.updatedAt);
+        return isWon && lastUpdateTs < thirtyDaysAgo.getTime();
       }),
     [deals, thirtyDaysAgo]
   );
@@ -194,18 +202,19 @@ export const useInboxController = () => {
         if (c.status !== 'ACTIVE') return false;
 
         // Verifica última interação ou última compra
-        const lastInteraction = c.lastInteraction ? new Date(c.lastInteraction) : null;
-        const lastPurchase = c.lastPurchaseDate ? new Date(c.lastPurchaseDate) : null;
+        const lastInteractionTs = c.lastInteraction ? Date.parse(c.lastInteraction) : null;
+        const lastPurchaseTs = c.lastPurchaseDate ? Date.parse(c.lastPurchaseDate) : null;
 
         // Usa a data mais recente entre interação e compra
-        const lastActivity = lastInteraction && lastPurchase
-          ? (lastInteraction > lastPurchase ? lastInteraction : lastPurchase)
-          : lastInteraction || lastPurchase;
+        const lastActivityTs =
+          lastInteractionTs != null && lastPurchaseTs != null
+            ? Math.max(lastInteractionTs, lastPurchaseTs)
+            : lastInteractionTs ?? lastPurchaseTs;
 
         // Se não tem dados de atividade, considera em risco
-        if (!lastActivity) return true;
+        if (!lastActivityTs) return true;
 
-        return lastActivity < thirtyDaysAgo;
+        return lastActivityTs < thirtyDaysAgo.getTime();
       }),
     [contacts, thirtyDaysAgo]
   );
@@ -215,7 +224,7 @@ export const useInboxController = () => {
   const calculateDealScore = useCallback((deal: DealView, type: 'STALLED' | 'UPSELL'): number => {
     const value = deal.value || 0;
     const probability = deal.probability || 50;
-    const daysSinceUpdate = Math.floor((Date.now() - new Date(deal.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
+    const daysSinceUpdate = Math.floor((Date.now() - Date.parse(deal.updatedAt)) / (1000 * 60 * 60 * 24));
 
     // Base score from value (log scale to handle big differences)
     const valueScore = Math.log10(Math.max(value, 1)) * 10;
@@ -232,6 +241,7 @@ export const useInboxController = () => {
   // Gerar sugestões de IA como objetos com scoring inteligente
   const aiSuggestions = useMemo((): AISuggestion[] => {
     const suggestions: AISuggestion[] = [];
+    const nowIso = new Date().toISOString();
 
     // Stalled/Rescue - Score and rank
     const scoredStalledDeals = stalledDeals
@@ -241,7 +251,7 @@ export const useInboxController = () => {
     scoredStalledDeals.forEach(({ deal, score }) => {
       const id = `stalled-${deal.id}`;
       if (!hiddenSuggestionIds.has(id)) {
-        const daysSinceUpdate = Math.floor((Date.now() - new Date(deal.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
+        const daysSinceUpdate = Math.floor((Date.now() - Date.parse(deal.updatedAt)) / (1000 * 60 * 60 * 24));
         suggestions.push({
           id,
           type: 'STALLED',
@@ -249,7 +259,7 @@ export const useInboxController = () => {
           description: `${deal.title} - R$ ${deal.value.toLocaleString('pt-BR')} • ${deal.probability}% probabilidade`,
           priority: score > 30 ? 'high' : score > 15 ? 'medium' : 'low',
           data: { deal },
-          createdAt: new Date().toISOString(),
+          createdAt: nowIso,
         });
       }
     });
@@ -262,7 +272,7 @@ export const useInboxController = () => {
     scoredUpsellDeals.forEach(({ deal, score }) => {
       const id = `upsell-${deal.id}`;
       if (!hiddenSuggestionIds.has(id)) {
-        const daysSinceClose = Math.floor((Date.now() - new Date(deal.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
+        const daysSinceClose = Math.floor((Date.now() - Date.parse(deal.updatedAt)) / (1000 * 60 * 60 * 24));
         suggestions.push({
           id,
           type: 'UPSELL',
@@ -270,7 +280,7 @@ export const useInboxController = () => {
           description: `${deal.companyName} fechou há ${daysSinceClose} dias • R$ ${deal.value.toLocaleString('pt-BR')}`,
           priority: score > 25 ? 'high' : score > 10 ? 'medium' : 'low',
           data: { deal },
-          createdAt: new Date().toISOString(),
+          createdAt: nowIso,
         });
       }
     });
@@ -281,7 +291,7 @@ export const useInboxController = () => {
       if (!hiddenSuggestionIds.has(id)) {
         const lastDate = contact.lastInteraction || contact.lastPurchaseDate;
         const daysSince = lastDate
-          ? Math.floor((Date.now() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24))
+          ? Math.floor((Date.now() - Date.parse(lastDate)) / (1000 * 60 * 60 * 24))
           : null;
 
         suggestions.push({
@@ -293,7 +303,7 @@ export const useInboxController = () => {
             : `${contact.name} nunca interagiu - reative!`,
           priority: daysSince && daysSince > 60 ? 'high' : 'medium',
           data: { contact },
-          createdAt: new Date().toISOString(),
+          createdAt: nowIso,
         });
       }
     });

@@ -45,6 +45,9 @@ import { MessageComposerModal, type MessageChannel } from './MessageComposerModa
 import { callAIProxy } from '@/lib/supabase/ai-proxy';
 import type { ScriptCategory } from '@/lib/supabase/quickScripts';
 
+// Performance: reuse Intl formatter instances.
+const PT_BR_SHORT_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR');
+
 interface FocusContextPanelProps {
     deal: Deal;
     contact?: Contact;
@@ -80,13 +83,15 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
     // AI Context Injection
     const { setContext, clearContext } = useAI();
 
-    useEffect(() => {
-        // Format recent activities for context
-        const recentHistory = activities
+    // Performance: derive recentHistory once (avoid recomputing in the effect body).
+    const recentHistory = useMemo(() => {
+        return activities
             .slice(0, 5) // Last 5 activities
-            .map(a => `[${new Date(a.date).toLocaleDateString()}] ${a.type}: ${a.title} (${a.description})`)
+            .map(a => `[${PT_BR_SHORT_DATE_FORMATTER.format(new Date(a.date))}] ${a.type}: ${a.title} (${a.description})`)
             .join('\n');
+    }, [activities]);
 
+    useEffect(() => {
         setContext({
             view: { type: 'cockpit', name: 'Cockpit de Vendas' },
             activeObject: {
@@ -109,11 +114,20 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
         return () => {
             clearContext();
         };
-    }, [deal, contact, activities, setContext, clearContext]);
+    }, [deal, contact, recentHistory, setContext, clearContext]);
 
     // Get current stage info
-    const currentStage = board?.stages.find(s => s.id === deal.status);
-    const currentIdx = board?.stages.findIndex(s => s.id === deal.status) ?? 0;
+    // Performance: compute stage lookup once instead of `find` + `findIndex`.
+    const stageInfo = useMemo(() => {
+        if (!board) return { stage: undefined, idx: 0 };
+        for (let i = 0; i < board.stages.length; i += 1) {
+            const s = board.stages[i];
+            if (s.id === deal.status) return { stage: s, idx: i };
+        }
+        return { stage: undefined, idx: 0 };
+    }, [board, deal.status]);
+    const currentStage = stageInfo.stage;
+    const currentIdx = stageInfo.idx;
 
     // === REAL DATA HOOKS ===
 

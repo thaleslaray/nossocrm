@@ -34,7 +34,8 @@ export async function POST(req: Request) {
 
   const { data: invite, error: inviteError } = await admin
     .from('organization_invites')
-    .select('*')
+    // Performance: fetch only what we need (keeps payload small and avoids extra parsing).
+    .select('id, token, email, role, expires_at, used_at, organization_id')
     .eq('token', token)
     .is('used_at', null)
     .single();
@@ -43,7 +44,9 @@ export async function POST(req: Request) {
     return json({ error: 'Convite inválido ou já foi utilizado' }, 400);
   }
 
-  if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+  // Performance: avoid multiple Date allocations.
+  const nowIso = new Date().toISOString();
+  if (invite.expires_at && Date.parse(invite.expires_at) < Date.now()) {
     return json({ error: 'Convite expirado' }, 400);
   }
 
@@ -78,7 +81,7 @@ export async function POST(req: Request) {
         first_name: displayName,
         organization_id: invite.organization_id,
         role: invite.role,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       },
       { onConflict: 'id' }
     );
@@ -90,7 +93,7 @@ export async function POST(req: Request) {
 
   await admin
     .from('organization_invites')
-    .update({ used_at: new Date().toISOString() })
+    .update({ used_at: nowIso })
     .eq('id', invite.id);
 
   return json({ ok: true, user: { id: userId, email } });

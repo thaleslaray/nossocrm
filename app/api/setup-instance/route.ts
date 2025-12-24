@@ -39,7 +39,8 @@ export async function POST(req: Request) {
   const { data: organization, error: orgError } = await admin
     .from('organizations')
     .insert({ name: companyName })
-    .select()
+    // Performance: only the id/name are used downstream; keep payload minimal.
+    .select('id, name')
     .single();
 
   if (orgError) return json({ error: orgError.message }, 500);

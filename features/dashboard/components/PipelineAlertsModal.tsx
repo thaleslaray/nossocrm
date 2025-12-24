@@ -28,31 +28,40 @@ export const PipelineAlertsModal: React.FC<PipelineAlertsModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const now = new Date();
-  const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+  // Performance: use timestamps for comparisons to reduce Date allocations.
+  const nowTs = Date.now();
+  const now = new Date(nowTs);
+  const tenDaysAgoTs = nowTs - 10 * 24 * 60 * 60 * 1000;
 
   // Deals ativos (não ganhos nem perdidos)
   const activeDeals = deals.filter(d => !d.isWon && !d.isLost);
 
   // 1. Negócios Estagnados - sem mudança de estágio há mais de 10 dias
   const stagnantDeals = activeDeals.filter(deal => {
-    const lastChange = deal.lastStageChangeDate 
-      ? new Date(deal.lastStageChangeDate) 
-      : new Date(deal.createdAt);
-    return lastChange < tenDaysAgo;
+    const lastChangeTs = deal.lastStageChangeDate
+      ? Date.parse(deal.lastStageChangeDate)
+      : Date.parse(deal.createdAt);
+    return lastChangeTs < tenDaysAgoTs;
   });
 
   // 2. Deals sem próxima atividade agendada
-  const dealsWithoutActivity = activeDeals.filter(deal => {
-    const futureActivities = activities.filter(
-      a => a.dealId === deal.id && !a.completed && new Date(a.date) >= now
-    );
-    return futureActivities.length === 0;
-  });
+  /**
+   * Performance: avoid N+1 scans (`activities.filter(...)` for each deal).
+   * Build a Set of dealIds that have at least one future pending activity.
+   */
+  const dealIdsWithFutureActivity = new Set<string>();
+  for (const a of activities) {
+    if (a.completed) continue;
+    if (Date.parse(a.date) >= nowTs) {
+      dealIdsWithFutureActivity.add(a.dealId);
+    }
+  }
+  const dealsWithoutActivity = activeDeals.filter(deal => !dealIdsWithFutureActivity.has(deal.id));
 
   // 3. Deals prontos para fechar (alta probabilidade ou em estágios finais)
   const readyToCloseDeals = activeDeals.filter(deal => {
-    return deal.probability >= 70 || deal.status?.toLowerCase().includes('proposta');
+    // Performance: avoid creating multiple strings when status is nullish.
+    return deal.probability >= 70 || (deal.status ? deal.status.toLowerCase().includes('proposta') : false);
   });
 
   const alerts: PipelineAlert[] = [

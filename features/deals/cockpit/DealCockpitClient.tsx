@@ -40,6 +40,15 @@ import type { Activity, Board, BoardStage, Contact, DealView } from '@/types';
 
 type Tab = 'chat' | 'notas' | 'scripts' | 'arquivos';
 
+// Performance: reuse Intl formatter instances (avoid creating them per call).
+const PT_BR_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR');
+const PT_BR_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const BRL_CURRENCY_FORMATTER = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  maximumFractionDigits: 2,
+});
+
 type StageTone = 'blue' | 'violet' | 'amber' | 'green' | 'slate';
 
 type Stage = {
@@ -324,18 +333,14 @@ function uid(prefix = 'id'): string {
 
 function formatAtISO(iso: string): string {
   const d = new Date(iso);
-  const dd = d.toLocaleDateString('pt-BR');
-  const tt = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const dd = PT_BR_DATE_FORMATTER.format(d);
+  const tt = PT_BR_TIME_FORMATTER.format(d);
   return `${dd} · ${tt}`;
 }
 
 function formatCurrencyBRL(value: number): string {
   try {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      maximumFractionDigits: 2,
-    }).format(value);
+    return BRL_CURRENCY_FORMATTER.format(value);
   } catch {
     return `R$ ${value.toFixed(2)}`;
   }
@@ -643,10 +648,34 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
     };
   }, [profile?.avatar_url, profile?.first_name, profile?.last_name, profile?.nickname, user?.email]);
 
+  // Performance: build lookup maps once (avoid repeated `.find(...)` in memos).
+  const dealsById = useMemo(() => new Map(deals.map((d) => [d.id, d])), [deals]);
+  const contactsById = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
+  const boardsById = useMemo(() => new Map(boards.map((b) => [b.id, b])), [boards]);
+
+  /**
+   * Performance: group & sort activities by dealId once.
+   * Avoid filter+sort per selectedDeal change.
+   */
+  const activitiesByDealIdSorted = useMemo(() => {
+    const map = new Map<string, Activity[]>();
+    for (const a of activities ?? []) {
+      if (!a.dealId) continue;
+      const list = map.get(a.dealId);
+      if (list) list.push(a);
+      else map.set(a.dealId, [a]);
+    }
+    for (const [id, list] of map) {
+      list.sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+      map.set(id, list);
+    }
+    return map;
+  }, [activities]);
+
   const selectedDeal = useMemo(() => {
-    if (dealId) return deals.find((d) => d.id === dealId) ?? null;
+    if (dealId) return dealsById.get(dealId) ?? null;
     return deals[0] ?? null;
-  }, [deals, dealId]);
+  }, [deals, dealsById, dealId]);
 
   const sortedDeals = useMemo(() => {
     return (deals ?? []).slice().sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
@@ -654,13 +683,13 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
 
   const selectedContact = useMemo(() => {
     if (!selectedDeal) return null;
-    return contacts.find((c) => c.id === selectedDeal.contactId) ?? null;
-  }, [contacts, selectedDeal]);
+    return contactsById.get(selectedDeal.contactId) ?? null;
+  }, [contactsById, selectedDeal]);
 
   const selectedBoard = useMemo(() => {
     if (!selectedDeal) return null;
-    return boards.find((b) => b.id === selectedDeal.boardId) ?? null;
-  }, [boards, selectedDeal]);
+    return boardsById.get(selectedDeal.boardId) ?? null;
+  }, [boardsById, selectedDeal]);
 
   const templateVariables = useMemo(() => {
     const nome = selectedContact?.name?.split(' ')[0]?.trim() || 'Cliente';
@@ -685,11 +714,8 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
 
   const dealActivities = useMemo(() => {
     if (!selectedDeal) return [] as Activity[];
-    return (activities ?? [])
-      .filter((a) => a.dealId === selectedDeal.id)
-      .slice()
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [activities, selectedDeal]);
+    return activitiesByDealIdSorted.get(selectedDeal.id) ?? [];
+  }, [activitiesByDealIdSorted, selectedDeal]);
 
   const { moveDeal } = useMoveDealSimple(selectedBoard as Board | null, []);
 
@@ -704,8 +730,19 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
   }, [selectedBoard]);
 
   const stageId = selectedDeal?.status ?? '';
-  const stageIndex = Math.max(0, stages.findIndex((s) => s.id === stageId));
-  const activeStage = stages.find((s) => s.id === stageId) ?? stages[0];
+  const stageSelection = useMemo(() => {
+    if (!stages.length) return { stageIndex: 0, activeStage: undefined as Stage | undefined };
+    let idx = 0;
+    for (let i = 0; i < stages.length; i += 1) {
+      if (stages[i]?.id === stageId) {
+        idx = i;
+        break;
+      }
+    }
+    return { stageIndex: Math.max(0, idx), activeStage: stages[idx] ?? stages[0] };
+  }, [stageId, stages]);
+  const stageIndex = stageSelection.stageIndex;
+  const activeStage = stageSelection.activeStage ?? stages[0];
 
   const { data: aiAnalysis, isLoading: aiLoading, refetch: refetchAI } = useAIDealAnalysis(
     selectedDeal,

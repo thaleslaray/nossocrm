@@ -448,10 +448,22 @@ export const useContactsController = () => {
     );
   }, [companies, search]);
 
-  const getCompanyName = (clientCompanyId: string | undefined | null) => {
-    if (!clientCompanyId) return 'Empresa não vinculada';
-    return companies.find(c => c.id === clientCompanyId)?.name || 'Empresa não vinculada';
-  };
+  // Performance: O(1) lookups instead of calling `companies.find(...)` for every row render.
+  const companyNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of companies) {
+      if (c?.id) map.set(c.id, c.name || 'Empresa não vinculada');
+    }
+    return map;
+  }, [companies]);
+
+  const getCompanyName = useCallback(
+    (clientCompanyId: string | undefined | null) => {
+      if (!clientCompanyId) return 'Empresa não vinculada';
+      return companyNameById.get(clientCompanyId) || 'Empresa não vinculada';
+    },
+    [companyNameById]
+  );
 
   // T031: Stage counts from server (RPC)
   // Uses dedicated query for accurate totals across all contacts
