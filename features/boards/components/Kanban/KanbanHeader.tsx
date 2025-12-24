@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Search, LayoutGrid, Table as TableIcon, User, Settings, Lightbulb } from 'lucide-react';
+import { Plus, Search, LayoutGrid, Table as TableIcon, User, Settings, Lightbulb, Download } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Board } from '@/types';
 import { BoardSelector } from '../BoardSelector';
@@ -12,6 +12,7 @@ interface KanbanHeaderProps {
     onCreateBoard: () => void;
     onEditBoard?: (board: Board) => void;
     onDeleteBoard?: (id: string) => void;
+    onExportTemplates?: () => void;
     // View
     viewMode: 'kanban' | 'list';
     setViewMode: (mode: 'kanban' | 'list') => void;
@@ -31,6 +32,7 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
     onCreateBoard,
     onEditBoard,
     onDeleteBoard,
+    onExportTemplates,
     viewMode, setViewMode,
     searchTerm, setSearchTerm,
     ownerFilter, setOwnerFilter,
@@ -58,6 +60,17 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                         title="Configurações do Board"
                     >
                         <Settings size={20} />
+                    </button>
+                )}
+
+                {/* Export Template Button */}
+                {onExportTemplates && (
+                    <button
+                        onClick={onExportTemplates}
+                        className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors"
+                        title="Exportar template (comunidade)"
+                    >
+                        <Download size={20} />
                     </button>
                 )}
 

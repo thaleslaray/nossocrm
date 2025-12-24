@@ -10,6 +10,8 @@ import { KanbanList } from './Kanban/KanbanList';
 import { DeleteBoardModal } from './Modals/DeleteBoardModal';
 import { LossReasonModal } from '@/components/ui/LossReasonModal';
 import { DealView, CustomFieldDefinition, Board, BoardStage } from '@/types';
+import { ExportTemplateModal } from './Modals/ExportTemplateModal';
+import { useAuth } from '@/context/AuthContext';
 
 interface PipelineViewProps {
   // Boards
@@ -124,6 +126,10 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
   handleLossReasonConfirm,
   handleLossReasonClose,
 }) => {
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  const [isExportModalOpen, setIsExportModalOpen] = React.useState(false);
+
   const handleUpdateStage = (updatedStage: BoardStage) => {
     if (!activeBoard) return;
     const newStages = activeBoard.stages.map(s => (s.id === updatedStage.id ? updatedStage : s));
@@ -166,6 +172,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
             onCreateBoard={() => setIsWizardOpen(true)}
             onEditBoard={handleEditBoard}
             onDeleteBoard={handleDeleteBoard}
+            onExportTemplates={isAdmin ? () => setIsExportModalOpen(true) : undefined}
             viewMode={viewMode}
             setViewMode={setViewMode}
             searchTerm={searchTerm}
@@ -258,6 +265,15 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
         onConfirm={handleLossReasonConfirm}
         dealTitle={lossReasonModal?.dealTitle}
       />
+
+      {activeBoard && (
+        <ExportTemplateModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          boards={boards}
+          activeBoard={activeBoard}
+        />
+      )}
     </div>
   );
 };
