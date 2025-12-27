@@ -63,6 +63,43 @@ export const DataStorageSettings: React.FC = () => {
                 .neq('id', '00000000-0000-0000-0000-000000000000'); // Update all
             if (boardsRefsError) throw boardsRefsError;
 
+            // 0.1 Integrações/Webhooks (novas FKs para board_stages/boards)
+            // Se houver fontes de entrada apontando para um stage, o delete de `board_stages` falha com:
+            // "violates foreign key constraint integration_inbound_sources_entry_stage_id_fkey".
+            // Por isso, limpamos tudo que depende de integrações antes de mexer em stages/boards.
+            //
+            // Ordem sugerida:
+            // - webhook_deliveries -> webhook_events_out -> webhook_events_in -> endpoints -> inbound_sources
+            const { error: deliveriesError } = await sb
+                .from('webhook_deliveries')
+                .delete()
+                .neq('id', '00000000-0000-0000-0000-000000000000');
+            if (deliveriesError) console.warn('Aviso: erro ao limpar webhook_deliveries:', deliveriesError);
+
+            const { error: eventsOutError } = await sb
+                .from('webhook_events_out')
+                .delete()
+                .neq('id', '00000000-0000-0000-0000-000000000000');
+            if (eventsOutError) console.warn('Aviso: erro ao limpar webhook_events_out:', eventsOutError);
+
+            const { error: eventsInError } = await sb
+                .from('webhook_events_in')
+                .delete()
+                .neq('id', '00000000-0000-0000-0000-000000000000');
+            if (eventsInError) console.warn('Aviso: erro ao limpar webhook_events_in:', eventsInError);
+
+            const { error: outboundError } = await sb
+                .from('integration_outbound_endpoints')
+                .delete()
+                .neq('id', '00000000-0000-0000-0000-000000000000');
+            if (outboundError) console.warn('Aviso: erro ao limpar integration_outbound_endpoints:', outboundError);
+
+            const { error: inboundError } = await sb
+                .from('integration_inbound_sources')
+                .delete()
+                .neq('id', '00000000-0000-0000-0000-000000000000');
+            if (inboundError) console.warn('Aviso: erro ao limpar integration_inbound_sources:', inboundError);
+
             // 1. Activities (depende de deals)
             const { error: activitiesError } = await sb.from('activities').delete().neq('id', '00000000-0000-0000-0000-000000000000');
             if (activitiesError) throw activitiesError;

@@ -24,6 +24,7 @@ import { FocusContextPanel } from './FocusContextPanel';
 import { useCRM } from '@/context/CRMContext';
 import { useMoveDealSimple } from '@/lib/query/hooks';
 import { useAuth } from '@/context/AuthContext';
+import { InboxZeroState } from './InboxZeroState';
 
 // Performance: reuse Intl formatter instances (avoid per-render allocations).
 const PT_BR_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -303,19 +304,7 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
   }, [deals, normalizedContextSearch]);
 
   if (!currentItem) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
-        <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-green-500/30">
-          <Check size={48} className="text-white" />
-        </div>
-        <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
-          Inbox Zero! 🎉
-        </h2>
-        <p className="text-slate-500 dark:text-slate-400 text-center max-w-md">
-          Você zerou tudo. Aproveite o momento ou planeje o futuro.
-        </p>
-      </div>
-    );
+    return <InboxZeroState />;
   }
 
   const isActivity = currentItem.type === 'activity';

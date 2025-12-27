@@ -39,7 +39,16 @@ function buildWebhookUrl(sourceId: string) {
 }
 
 function buildCurlExample(url: string, secret: string) {
-  return `curl -X POST '${url}' \\\n+  -H 'Content-Type: application/json' \\\n+  -H 'X-Webhook-Secret: ${secret}' \\\n+  -d '{\n+    \"external_event_id\": \"teste-123\",\n+    \"name\": \"Lead Teste\",\n+    \"email\": \"teste@exemplo.com\",\n+    \"phone\": \"+55...\",\n+    \"source\": \"webhook\"\n+  }'`;
+  return `curl -X POST '${url}' \\
+  -H 'Content-Type: application/json' \\
+  -H 'X-Webhook-Secret: ${secret}' \\
+  -d '{
+    "external_event_id": "teste-123",
+    "name": "Lead Teste",
+    "email": "teste@exemplo.com",
+    "phone": "+55...",
+    "source": "webhook"
+  }'`;
 }
 
 /**

@@ -30,6 +30,8 @@ export const ActivitiesPage: React.FC = () => {
         setFormData,
         filteredActivities,
         deals,
+        contacts,
+        companies,
         handleNewActivity,
         handleEditActivity,
         handleDeleteActivity,
@@ -90,6 +92,8 @@ export const ActivitiesPage: React.FC = () => {
                     <ActivitiesList
                         activities={filteredActivities}
                         deals={deals}
+                        contacts={contacts}
+                        companies={companies}
                         onToggleComplete={handleToggleComplete}
                         onEdit={handleEditActivity}
                         onDelete={handleDeleteActivity}

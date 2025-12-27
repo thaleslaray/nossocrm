@@ -6,13 +6,15 @@
 
 import React from 'react';
 import { Sparkles } from 'lucide-react';
-import { isDebugMode, debugButtonStyles } from '@/lib/debug';
+import { debugButtonStyles } from '@/lib/debug';
+import { useDebugMode } from '@/lib/debug/useDebugMode';
 
 interface DebugFillButtonProps {
   onClick: () => void;
   label?: string;
   variant?: 'primary' | 'secondary' | 'danger';
   className?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -36,14 +38,17 @@ export const DebugFillButton: React.FC<DebugFillButtonProps> = ({
   label = 'Fake',
   variant = 'primary',
   className = '',
+  disabled = false,
 }) => {
-  if (!isDebugMode()) return null;
+  const debugEnabled = useDebugMode();
+  if (!debugEnabled) return null;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`${debugButtonStyles.base} ${debugButtonStyles[variant]} ${className}`}
+      disabled={disabled}
+      className={`${debugButtonStyles.base} ${debugButtonStyles[variant]} ${disabled ? 'opacity-60 cursor-not-allowed' : ''} ${className}`}
       title="Preencher com dados fake (Debug Mode)"
     >
       <Sparkles className="w-3 h-3" />
@@ -56,7 +61,8 @@ export const DebugFillButton: React.FC<DebugFillButtonProps> = ({
  * DebugBadge - Badge indicando modo debug ativo
  */
 export const DebugBadge: React.FC = () => {
-  if (!isDebugMode()) return null;
+  const debugEnabled = useDebugMode();
+  if (!debugEnabled) return null;
 
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
@@ -70,7 +76,8 @@ export const DebugBadge: React.FC = () => {
  * DebugPanel - Painel flutuante com controles de debug
  */
 export const DebugPanel: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
-  if (!isDebugMode()) return null;
+  const debugEnabled = useDebugMode();
+  if (!debugEnabled) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-50 p-3 bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 rounded-lg shadow-lg">

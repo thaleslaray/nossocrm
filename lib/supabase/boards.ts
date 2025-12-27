@@ -17,6 +17,17 @@ import { supabase } from './client';
 import { Board, BoardStage, BoardGoal, AgentPersona, OrganizationId } from '@/types';
 import { sanitizeUUID, requireUUID } from './utils';
 
+function isMissingColumnInSchemaCache(error: unknown, table: string, column: string): boolean {
+  const message = String((error as any)?.message ?? '');
+  // PostgREST error example:
+  // "Could not find the 'default_product_id' column of 'boards' in the schema cache"
+  return (
+    message.includes(`Could not find the '${column}' column`) &&
+    message.includes(`'${table}'`) &&
+    message.includes('schema cache')
+  );
+}
+
 // =============================================================================
 // Organization inference (client-side, RLS-safe)
 // =============================================================================
@@ -206,29 +217,42 @@ const transformBoard = (db: DbBoard, stages: DbBoardStage[]): Board => {
  * @param order - Posição na lista (opcional).
  * @returns Board parcial no formato do banco.
  */
-const transformToDb = (board: Omit<Board, 'id' | 'createdAt'>, order?: number): Partial<DbBoard> => ({
-  name: board.name,
-  description: board.description || null,
-  is_default: board.isDefault || false,
-  template: board.template || null,
-  linked_lifecycle_stage: board.linkedLifecycleStage || null,
-  next_board_id: sanitizeUUID(board.nextBoardId),
-  won_stage_id: sanitizeUUID(board.wonStageId),
-  lost_stage_id: sanitizeUUID(board.lostStageId),
-  default_product_id: sanitizeUUID(board.defaultProductId),
-  won_stay_in_stage: board.wonStayInStage || false,
-  lost_stay_in_stage: board.lostStayInStage || false,
-  goal_description: board.goal?.description || null,
-  goal_kpi: board.goal?.kpi || null,
-  goal_target_value: board.goal?.targetValue || null,
-  goal_type: board.goal?.type || null,
-  agent_name: board.agentPersona?.name || null,
-  agent_role: board.agentPersona?.role || null,
-  agent_behavior: board.agentPersona?.behavior || null,
-  entry_trigger: board.entryTrigger || null,
-  automation_suggestions: board.automationSuggestions || null,
-  position: order ?? 0,
-});
+const transformToDb = (board: Omit<Board, 'id' | 'createdAt'>, order?: number): Partial<DbBoard> => {
+  // NOTE: sanitizeUUID returns null (not undefined). If we include a null key for a column that
+  // doesn't exist yet (older DB / migrations not applied), PostgREST errors with:
+  // "Could not find the '<col>' column of '<table>' in the schema cache".
+  // To keep backwards-compat during rollout, we omit optional columns when not set.
+  const defaultProductId = sanitizeUUID(board.defaultProductId);
+
+  const db: Partial<DbBoard> = {
+    name: board.name,
+    description: board.description || null,
+    is_default: board.isDefault || false,
+    template: board.template || null,
+    linked_lifecycle_stage: board.linkedLifecycleStage || null,
+    next_board_id: sanitizeUUID(board.nextBoardId),
+    won_stage_id: sanitizeUUID(board.wonStageId),
+    lost_stage_id: sanitizeUUID(board.lostStageId),
+    won_stay_in_stage: board.wonStayInStage || false,
+    lost_stay_in_stage: board.lostStayInStage || false,
+    goal_description: board.goal?.description || null,
+    goal_kpi: board.goal?.kpi || null,
+    goal_target_value: board.goal?.targetValue || null,
+    goal_type: board.goal?.type || null,
+    agent_name: board.agentPersona?.name || null,
+    agent_role: board.agentPersona?.role || null,
+    agent_behavior: board.agentPersona?.behavior || null,
+    entry_trigger: board.entryTrigger || null,
+    automation_suggestions: board.automationSuggestions || null,
+    position: order ?? 0,
+  };
+
+  if (defaultProductId) {
+    db.default_product_id = defaultProductId;
+  }
+
+  return db;
+};
 
 /**
  * Transforma estágio do formato da aplicação para o formato DB.
@@ -366,11 +390,27 @@ export const boardsService = {
         lost_stage_id: null,
       };
 
-      const { data: newBoard, error: boardError } = await supabase
+      let { data: newBoard, error: boardError } = await supabase
         .from('boards')
         .insert(boardData)
         .select()
         .single();
+
+      // Backwards-compat: DB may not have default_product_id yet (migration not applied).
+      // If the user is creating boards without a product, we can safely retry without the column.
+      if (boardError && isMissingColumnInSchemaCache(boardError, 'boards', 'default_product_id')) {
+        const retryData = { ...(boardData as any) };
+        delete retryData.default_product_id;
+
+        const retry = await supabase
+          .from('boards')
+          .insert(retryData)
+          .select()
+          .single();
+
+        newBoard = retry.data as any;
+        boardError = retry.error as any;
+      }
 
       if (boardError) {
         console.error('[boardsService.create] Board insert error:', boardError);
@@ -468,6 +508,7 @@ export const boardsService = {
       if (updates.lostStageId !== undefined) dbUpdates.lost_stage_id = updates.lostStageId || null;
       if (updates.wonStayInStage !== undefined) dbUpdates.won_stay_in_stage = updates.wonStayInStage;
       if (updates.lostStayInStage !== undefined) dbUpdates.lost_stay_in_stage = updates.lostStayInStage;
+      if (updates.defaultProductId !== undefined) dbUpdates.default_product_id = sanitizeUUID(updates.defaultProductId as any);
       if (updates.entryTrigger !== undefined) dbUpdates.entry_trigger = updates.entryTrigger || null;
       if (updates.automationSuggestions !== undefined) dbUpdates.automation_suggestions = updates.automationSuggestions || null;
 
@@ -487,10 +528,23 @@ export const boardsService = {
 
       dbUpdates.updated_at = new Date().toISOString();
 
-      const { error } = await supabase
+      let { error } = await supabase
         .from('boards')
         .update(dbUpdates)
         .eq('id', id);
+
+      // Backwards-compat: ignore default_product_id updates if column isn't present yet.
+      if (error && isMissingColumnInSchemaCache(error, 'boards', 'default_product_id')) {
+        const retryUpdates = { ...(dbUpdates as any) };
+        delete retryUpdates.default_product_id;
+
+        const retry = await supabase
+          .from('boards')
+          .update(retryUpdates)
+          .eq('id', id);
+
+        error = retry.error as any;
+      }
 
       if (error) return { error };
 

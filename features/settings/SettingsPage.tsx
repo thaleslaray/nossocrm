@@ -5,16 +5,15 @@ import { TagsManager } from './components/TagsManager';
 import { CustomFieldsManager } from './components/CustomFieldsManager';
 import { ApiKeysSection } from './components/ApiKeysSection';
 import { WebhooksSection } from './components/WebhooksSection';
-import { AIConfigSection } from './components/AIConfigSection';
 import { DataStorageSettings } from './components/DataStorageSettings';
 import { ProductsCatalogManager } from './components/ProductsCatalogManager';
 import { AICenterSettings } from './AICenterSettings';
 
 import { UsersPage } from './UsersPage';
 import { useAuth } from '@/context/AuthContext';
-import { Settings as SettingsIcon, Users, Database, Sparkles, Plug } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package } from 'lucide-react';
 
-type SettingsTab = 'general' | 'integrations' | 'ai' | 'data' | 'users';
+type SettingsTab = 'general' | 'products' | 'integrations' | 'ai' | 'data' | 'users';
 
 interface GeneralSettingsProps {
   hash?: string;
@@ -88,13 +87,17 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({ hash, isAdmin }) => {
             onSaveField={controller.handleSaveField}
             onRemoveField={controller.removeCustomField}
           />
-
-          <ProductsCatalogManager />
         </>
       )}
 
-      <AIConfigSection />
+    </div>
+  );
+};
 
+const ProductsSettings: React.FC = () => {
+  return (
+    <div className="pb-10">
+      <ProductsCatalogManager />
     </div>
   );
 };
@@ -130,6 +133,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
   useEffect(() => {
     if (pathname?.includes('/settings/ai')) {
       setActiveTab('ai');
+    } else if (pathname?.includes('/settings/products')) {
+      setActiveTab('products');
     } else if (pathname?.includes('/settings/integracoes')) {
       setActiveTab('integrations');
     } else if (pathname?.includes('/settings/data')) {
@@ -143,6 +148,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
 
   const tabs = [
     { id: 'general' as SettingsTab, name: 'Geral', icon: SettingsIcon },
+    ...(profile?.role === 'admin' ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
     ...(profile?.role === 'admin' ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
     { id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles },
     { id: 'data' as SettingsTab, name: 'Dados', icon: Database },
@@ -151,6 +157,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'products':
+        return <ProductsSettings />;
       case 'integrations':
         return <IntegrationsSettings />;
       case 'ai':

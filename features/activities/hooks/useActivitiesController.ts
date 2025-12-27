@@ -10,6 +10,7 @@ import {
   useDeleteActivity,
 } from '@/lib/query/hooks/useActivitiesQuery';
 import { useDeals } from '@/lib/query/hooks/useDealsQuery';
+import { useContacts, useCompanies } from '@/lib/query/hooks/useContactsQuery';
 import { useRealtimeSync } from '@/lib/realtime/useRealtimeSync';
 
 /**
@@ -25,6 +26,8 @@ export const useActivitiesController = () => {
   // TanStack Query hooks
   const { data: activities = [], isLoading: activitiesLoading } = useActivities();
   const { data: deals = [], isLoading: dealsLoading } = useDeals();
+  const { data: contacts = [], isLoading: contactsLoading } = useContacts();
+  const { data: companies = [], isLoading: companiesLoading } = useCompanies();
   const createActivityMutation = useCreateActivity();
   const updateActivityMutation = useUpdateActivity();
   const deleteActivityMutation = useDeleteActivity();
@@ -65,11 +68,12 @@ export const useActivitiesController = () => {
     dealId: '',
   });
 
-  const isLoading = activitiesLoading || dealsLoading;
+  const isLoading = activitiesLoading || dealsLoading || contactsLoading || companiesLoading;
 
   // Performance: build lookups once (avoid `.find(...)` in handlers).
   const activitiesById = useMemo(() => new Map(activities.map((a) => [a.id, a])), [activities]);
   const dealsById = useMemo(() => new Map(deals.map((d) => [d.id, d])), [deals]);
+  const contactsById = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
 
   // Performance: compute date boundaries once per render (used inside memoized filters).
   const dateBoundaries = useMemo(() => {
@@ -169,6 +173,9 @@ export const useActivitiesController = () => {
 
     const date = new Date(`${formData.date}T${formData.time}`);
     const selectedDeal = formData.dealId ? dealsById.get(formData.dealId) : undefined;
+    const selectedContact = selectedDeal?.contactId ? contactsById.get(selectedDeal.contactId) : undefined;
+    const clientCompanyId = selectedDeal?.clientCompanyId || selectedContact?.clientCompanyId || undefined;
+    const participantContactIds = selectedContact?.id ? [selectedContact.id] : [];
 
     if (editingActivity) {
       updateActivityMutation.mutate(
@@ -180,6 +187,9 @@ export const useActivitiesController = () => {
             description: formData.description,
             date: date.toISOString(),
             dealId: formData.dealId || '',
+            contactId: selectedContact?.id || '',
+            clientCompanyId,
+            participantContactIds,
           },
         },
         {
@@ -198,6 +208,9 @@ export const useActivitiesController = () => {
             description: formData.description,
             date: date.toISOString(),
             dealId: formData.dealId || '',
+            contactId: selectedContact?.id || '',
+            clientCompanyId,
+            participantContactIds,
             dealTitle: selectedDeal?.title || '',
             completed: false,
             user: { name: 'Eu', avatar: '' },
@@ -231,6 +244,8 @@ export const useActivitiesController = () => {
     setFormData,
     filteredActivities,
     deals,
+    contacts,
+    companies,
     isLoading,
     handleNewActivity,
     handleEditActivity,

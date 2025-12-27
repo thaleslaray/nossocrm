@@ -357,7 +357,7 @@ export const ProductsCatalogManager: React.FC = () => {
                         aria-label={isActive ? 'Desativar produto' : 'Ativar produto'}
                         disabled={loading}
                       >
-                        {isActive ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-slate-500" />}
+                        {isActive ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-red-500" />}
                       </button>
                       <button
                         type="button"

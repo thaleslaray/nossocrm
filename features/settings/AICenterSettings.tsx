@@ -4,7 +4,6 @@ import React from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useCRM } from '@/context/CRMContext';
 import { AIConfigSection } from './components/AIConfigSection';
-import { AIPromptsManager } from './components/AIPromptsManager';
 import { AIFeaturesSection } from './components/AIFeaturesSection';
 
 /**
@@ -28,7 +27,7 @@ export const AICenterSettings: React.FC = () => {
       </div>
 
       {/* Org-wide toggle (admin-only) — sempre visível no topo */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl p-4 shadow-sm mb-6">
+      <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-6 mb-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -61,10 +60,6 @@ export const AICenterSettings: React.FC = () => {
 
       <div className="mt-6">
         <AIFeaturesSection />
-      </div>
-
-      <div className="mt-10">
-        <AIPromptsManager isAdmin={isAdmin} />
       </div>
     </div>
   );

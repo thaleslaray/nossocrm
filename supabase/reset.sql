@@ -54,6 +54,27 @@ BEGIN
     DELETE FROM custom_field_definitions;
     RAISE NOTICE '   ✓ custom_field_definitions deletadas';
     
+    -- ==========================================================================
+    -- Webhooks/Integrações (podem referenciar board_stages/boards)
+    -- ==========================================================================
+
+    -- Outbound deliveries/events (podem depender de deals/stages)
+    DELETE FROM webhook_deliveries;
+    RAISE NOTICE '   ✓ webhook_deliveries deletadas';
+
+    DELETE FROM webhook_events_out;
+    RAISE NOTICE '   ✓ webhook_events_out deletadas';
+
+    -- Inbound events/sources (source referencia board_stages)
+    DELETE FROM webhook_events_in;
+    RAISE NOTICE '   ✓ webhook_events_in deletadas';
+
+    DELETE FROM integration_outbound_endpoints;
+    RAISE NOTICE '   ✓ integration_outbound_endpoints deletados';
+
+    DELETE FROM integration_inbound_sources;
+    RAISE NOTICE '   ✓ integration_inbound_sources deletadas';
+
     -- Board stages (dependem de boards)
     DELETE FROM board_stages;
     RAISE NOTICE '   ✓ board_stages deletadas';

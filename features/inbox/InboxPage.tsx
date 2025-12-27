@@ -5,6 +5,7 @@ import { ViewModeToggle } from './components/ViewModeToggle';
 import { InboxOverviewView } from './components/InboxOverviewView';
 import { InboxListView } from './components/InboxListView';
 import { InboxFocusView } from './components/InboxFocusView';
+import { DebugFillButton } from '@/components/debug/DebugFillButton';
 
 /**
  * Componente React `InboxPage`.
@@ -50,6 +51,7 @@ export const InboxPage: React.FC = () => {
     handleAcceptSuggestion,
     handleDismissSuggestion,
     handleSnoozeSuggestion,
+    seedInboxDebug,
   } = useInboxController();
 
   const listDefaults = useMemo(
@@ -69,6 +71,9 @@ export const InboxPage: React.FC = () => {
             Inbox
           </h1>
           <p className="text-slate-500 dark:text-slate-400">Sua mesa de trabalho.</p>
+          <div className="mt-4 flex gap-2">
+            <DebugFillButton onClick={seedInboxDebug} label="Seed Inbox" variant="secondary" />
+          </div>
         </div>
 
         <ViewModeToggle mode={viewMode} onChange={setViewMode} />

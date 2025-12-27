@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React, { useId, useState } from 'react';
 import { X } from 'lucide-react';
 import { Contact } from '@/types';
 import { DebugFillButton } from '@/components/debug/DebugFillButton';
@@ -20,6 +20,7 @@ interface ContactFormModalProps {
   formData: ContactFormData;
   setFormData: (data: ContactFormData) => void;
   editingContact: Contact | null;
+  createFakeContactsBatch?: (count: number) => Promise<void>;
 }
 
 /**
@@ -49,9 +50,11 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
   formData,
   setFormData,
   editingContact,
+  createFakeContactsBatch,
 }) => {
   const headingId = useId();
   useFocusReturn({ enabled: isOpen });
+  const [isCreatingBatch, setIsCreatingBatch] = useState(false);
   
   if (!isOpen) return null;
 
@@ -85,6 +88,23 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
                 {editingContact ? 'Editar Contato' : 'Novo Contato'}
               </h2>
               <DebugFillButton onClick={fillWithFakeData} />
+              {createFakeContactsBatch && (
+                <DebugFillButton
+                  onClick={async () => {
+                    setIsCreatingBatch(true);
+                    try {
+                      await createFakeContactsBatch(10);
+                      onClose();
+                    } finally {
+                      setIsCreatingBatch(false);
+                    }
+                  }}
+                  label={isCreatingBatch ? 'Criando...' : 'Fake x10'}
+                  variant="secondary"
+                  className="ml-1"
+                  disabled={isCreatingBatch}
+                />
+              )}
             </div>
             <button
               onClick={onClose}
@@ -143,23 +163,23 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               />
             </div>
           </div>
-          {!editingContact && (
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                Empresa
-              </label>
-              <input
-                type="text"
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="Nome da Empresa"
-                value={formData.companyName}
-                onChange={e => setFormData({ ...formData, companyName: e.target.value })}
-              />
-              <p className="text-[10px] text-slate-400 mt-1">
-                Se a empresa já existir, o contato será vinculado a ela.
-              </p>
-            </div>
-          )}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+              Empresa
+            </label>
+            <input
+              type="text"
+              className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder="Nome da Empresa"
+              value={formData.companyName}
+              onChange={e => setFormData({ ...formData, companyName: e.target.value })}
+            />
+            <p className="text-[10px] text-slate-400 mt-1">
+              {editingContact
+                ? 'Edite para alterar a empresa. Deixe em branco para desvincular.'
+                : 'Se a empresa já existir, o contato será vinculado a ela.'}
+            </p>
+          </div>
 
           <button
             type="submit"

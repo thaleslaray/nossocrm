@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { Activity } from '@/types';
 import { AISuggestion } from '../hooks/useInboxController';
 import { InboxSection } from './InboxSection';
+import { InboxZeroState } from './InboxZeroState';
 import {
   ChevronDown,
   ChevronRight,
@@ -284,6 +285,17 @@ export const InboxListView: React.FC<InboxListViewProps> = ({
   suggestionsDefaultOpen,
   suggestionsDefaultShowAll,
 }) => {
+  const isEmpty =
+    overdueActivities.length === 0
+    && todayMeetings.length === 0
+    && todayTasks.length === 0
+    && upcomingActivities.length === 0
+    && aiSuggestions.length === 0;
+
+  if (isEmpty) {
+    return <InboxZeroState />;
+  }
+
   return (
     <div className="space-y-6">
       {/* AI Suggestions (Card único colapsável) */}

@@ -429,6 +429,15 @@ export const contactsService = {
       if (!supabase) {
         return { error: new Error('Supabase não configurado') };
       }
+      // UX: ao excluir contato, também removemos atividades "contact-only"
+      // (FK em activities.contact_id é SET NULL, então deletamos explicitamente
+      // para evitar tarefas órfãs aparecerem no Inbox/Focus.)
+      const { error: activitiesError } = await supabase
+        .from('activities')
+        .delete()
+        .eq('contact_id', id);
+      if (activitiesError) return { error: activitiesError };
+
       const { error } = await supabase
         .from('contacts')
         .delete()
@@ -605,6 +614,20 @@ export const companiesService = {
       if (!supabase) {
         return { error: new Error('Supabase não configurado') };
       }
+
+      // Primeiro, remove vínculo para evitar erro de FK.
+      const { error: contactsUpdateError } = await supabase
+        .from('contacts')
+        .update({ client_company_id: null })
+        .eq('client_company_id', id);
+      if (contactsUpdateError) return { error: contactsUpdateError };
+
+      const { error: dealsUpdateError } = await supabase
+        .from('deals')
+        .update({ client_company_id: null })
+        .eq('client_company_id', id);
+      if (dealsUpdateError) return { error: dealsUpdateError };
+
       const { error } = await supabase
         .from('crm_companies')
         .delete()

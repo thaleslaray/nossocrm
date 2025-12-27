@@ -119,15 +119,17 @@ export const ContactFormModalV2: React.FC<ContactFormModalProps> = ({
           />
         </div>
 
-        {!editingContact && (
-          <InputField
-            label="Empresa"
-            placeholder="Nome da Empresa"
-            hint="Se a empresa já existir, o contato será vinculado a ela."
-            error={errors.companyName}
-            registration={register('companyName')}
-          />
-        )}
+        <InputField
+          label="Empresa"
+          placeholder="Nome da Empresa"
+          hint={
+            editingContact
+              ? 'Edite para alterar a empresa. Deixe em branco para desvincular.'
+              : 'Se a empresa já existir, o contato será vinculado a ela.'
+          }
+          error={errors.companyName}
+          registration={register('companyName')}
+        />
 
         <SubmitButton isLoading={isSubmitting}>
           {editingContact ? 'Salvar Alterações' : 'Criar Contato'}

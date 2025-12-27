@@ -1,11 +1,14 @@
 import React from 'react';
-import { Phone, Users, Mail, CheckSquare, Calendar, Clock, MoreHorizontal, Trash2, Edit2, CheckCircle2, Circle } from 'lucide-react';
+import Link from 'next/link';
+import { Phone, Users, Mail, CheckSquare, Clock, Trash2, Edit2, CheckCircle2, Circle, Building2 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
-import { Activity, Deal } from '@/types';
+import { Activity, Deal, Contact, Company } from '@/types';
 
 interface ActivityRowProps {
     activity: Activity;
     deal?: Deal;
+    contact?: Contact;
+    company?: Company;
     onToggleComplete: (id: string) => void;
     onEdit: (activity: Activity) => void;
     onDelete: (id: string) => void;
@@ -20,6 +23,8 @@ interface ActivityRowProps {
 const ActivityRowComponent: React.FC<ActivityRowProps> = ({
     activity,
     deal,
+    contact,
+    company,
     onToggleComplete,
     onEdit,
     onDelete,
@@ -161,6 +166,22 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
                         <span className="flex items-center gap-1.5 text-primary-600 dark:text-primary-400 font-medium">
                             <Circle size={8} fill="currentColor" />
                             {deal.title}
+                        </span>
+                    )}
+                    {!deal && contact && (
+                        <Link
+                            href={`/contacts?contactId=${contact.id}`}
+                            className="flex items-center gap-1.5 text-primary-600 dark:text-primary-400 font-medium hover:underline"
+                            title={`Abrir contato: ${contact.name}`}
+                        >
+                            <Users size={14} />
+                            <span className="truncate max-w-[280px]">{contact.name}</span>
+                        </Link>
+                    )}
+                    {!deal && company && (
+                        <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                            <Building2 size={14} />
+                            <span className="truncate max-w-[280px]">{company.name}</span>
                         </span>
                     )}
                     <span className="flex items-center gap-1.5">

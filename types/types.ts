@@ -259,6 +259,12 @@ export interface Activity {
   id: string;
   organizationId?: OrganizationId; // Tenant FK (for RLS) - optional during migration
   dealId: string;
+  /** ID do contato associado (opcional). Útil para tarefas sem deal. */
+  contactId?: string;
+  /** ID da empresa CRM associada (opcional). Derivado do deal ou contato. */
+  clientCompanyId?: ClientCompanyId;
+  /** IDs dos contatos participantes (opcional). */
+  participantContactIds?: string[];
   dealTitle: string;
   type: 'CALL' | 'MEETING' | 'EMAIL' | 'TASK' | 'NOTE' | 'STATUS_CHANGE';
   title: string;

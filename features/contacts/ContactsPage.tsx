@@ -8,6 +8,7 @@ import { ContactsTabs } from './components/ContactsTabs';
 import { ContactsStageTabs } from './components/ContactsStageTabs';
 import { ContactsList } from './components/ContactsList';
 import { ContactFormModal } from './components/ContactFormModal';
+import { CompanyFormModal } from './components/CompanyFormModal';
 import { SelectBoardModal } from './components/SelectBoardModal';
 import { PaginationControls } from './components/PaginationControls';
 import { ContactsImportExportModal } from './components/ContactsImportExportModal';
@@ -81,7 +82,7 @@ export const ContactsPage: React.FC = () => {
                 <div className="flex items-center justify-between bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg px-4 py-3">
                     <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-primary-700 dark:text-primary-300">
-                            {controller.selectedIds.size} contato(s) selecionado(s)
+                            {controller.selectedIds.size} {controller.viewMode === 'people' ? 'contato(s)' : 'empresa(s)'} selecionado(s)
                         </span>
                         <button
                             onClick={controller.clearSelection}
@@ -115,6 +116,8 @@ export const ContactsPage: React.FC = () => {
                 convertContactToDeal={controller.convertContactToDeal}
                 openEditModal={controller.openEditModal}
                 setDeleteId={controller.setDeleteId}
+                openEditCompanyModal={controller.openEditCompanyModal}
+                setDeleteCompanyId={controller.setDeleteCompanyId}
                 sortBy={controller.sortBy}
                 sortOrder={controller.sortOrder}
                 onSort={controller.handleSort}
@@ -138,6 +141,14 @@ export const ContactsPage: React.FC = () => {
                 formData={controller.formData}
                 setFormData={controller.setFormData}
                 editingContact={controller.editingContact}
+                createFakeContactsBatch={controller.createFakeContactsBatch}
+            />
+
+            <CompanyFormModal
+                isOpen={controller.isCompanyModalOpen}
+                onClose={() => controller.setIsCompanyModalOpen(false)}
+                onSubmit={controller.handleCompanySubmit}
+                editingCompany={controller.editingCompany}
             />
 
             <SelectBoardModal
@@ -154,6 +165,16 @@ export const ContactsPage: React.FC = () => {
                 onConfirm={controller.confirmDelete}
                 title="Excluir Contato"
                 message="Tem certeza que deseja excluir este contato? Esta ação não pode ser desfeita."
+                confirmText="Excluir"
+                variant="danger"
+            />
+
+            <ConfirmModal
+                isOpen={!!controller.deleteCompanyId}
+                onClose={() => controller.setDeleteCompanyId(null)}
+                onConfirm={controller.confirmDeleteCompany}
+                title="Excluir Empresa"
+                message="Tem certeza que deseja excluir esta empresa? Esta ação não pode ser desfeita."
                 confirmText="Excluir"
                 variant="danger"
             />
@@ -191,14 +212,25 @@ export const ContactsPage: React.FC = () => {
                 isOpen={controller.bulkDeleteConfirm}
                 onClose={() => controller.setBulkDeleteConfirm(false)}
                 onConfirm={controller.confirmBulkDelete}
-                title="Excluir Contatos em Massa"
+                title={controller.viewMode === 'people' ? 'Excluir Contatos em Massa' : 'Excluir Empresas em Massa'}
                 message={
                     <div className="space-y-2">
-                        <p>Tem certeza que deseja excluir <strong>{controller.selectedIds.size}</strong> contato(s)?</p>
-                        <p className="text-red-500 dark:text-red-400 text-sm">Todos os negócios vinculados também serão excluídos. Esta ação não pode ser desfeita.</p>
+                        <p>
+                            Tem certeza que deseja excluir <strong>{controller.selectedIds.size}</strong>{' '}
+                            {controller.viewMode === 'people' ? 'contato(s)' : 'empresa(s)'}?
+                        </p>
+                        {controller.viewMode === 'people' ? (
+                            <p className="text-red-500 dark:text-red-400 text-sm">
+                                Todos os negócios vinculados também serão excluídos. Esta ação não pode ser desfeita.
+                            </p>
+                        ) : (
+                            <p className="text-red-500 dark:text-red-400 text-sm">
+                                Contatos/negócios vinculados serão desvinculados da empresa antes da exclusão. Esta ação não pode ser desfeita.
+                            </p>
+                        )}
                     </div>
                 }
-                confirmText={`Excluir ${controller.selectedIds.size} contato(s)`}
+                confirmText={`Excluir ${controller.selectedIds.size} ${controller.viewMode === 'people' ? 'contato(s)' : 'empresa(s)'}`}
                 variant="danger"
             />
         </div>

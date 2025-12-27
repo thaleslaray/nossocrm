@@ -557,9 +557,24 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const riskyContacts = contacts.filter(c => {
-      if (c.status !== 'ACTIVE') return false;
-      if (!c.lastPurchaseDate) return true;
-      return new Date(c.lastPurchaseDate) < thirtyDaysAgo;
+      // Padrão de mercado: só considerar clientes ativos (não leads)
+      if (c.status !== 'ACTIVE' || c.stage !== 'CUSTOMER') return false;
+
+      const createdAtTs = Date.parse(c.createdAt);
+
+      // Sem histórico: carência de 30 dias após criação
+      if (!c.lastPurchaseDate && !c.lastInteraction) {
+        return createdAtTs < thirtyDaysAgo.getTime();
+      }
+
+      const lastInteractionTs = c.lastInteraction ? Date.parse(c.lastInteraction) : null;
+      const lastPurchaseTs = c.lastPurchaseDate ? Date.parse(c.lastPurchaseDate) : null;
+      const lastActivityTs =
+        lastInteractionTs != null && lastPurchaseTs != null
+          ? Math.max(lastInteractionTs, lastPurchaseTs)
+          : lastInteractionTs ?? lastPurchaseTs;
+
+      return lastActivityTs !== null && lastActivityTs < thirtyDaysAgo.getTime();
     });
 
     let newActivitiesCount = 0;
@@ -578,7 +593,7 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           dealTitle: 'Carteira de Clientes',
           type: 'TASK',
           title: 'Análise de Carteira: Risco de Churn',
-          description: `O cliente ${contact.name} ${companies.find(c => c.id === contact.companyId)?.name ? `(Empresa: ${companies.find(c => c.id === contact.companyId)?.name})` : ''} não compra há mais de 30 dias.`,
+          description: `O cliente ${contact.name} ${companies.find(c => c.id === (contact.clientCompanyId || contact.companyId))?.name ? `(Empresa: ${companies.find(c => c.id === (contact.clientCompanyId || contact.companyId))?.name})` : ''} está inativo há mais de 30 dias.`,
           date: new Date().toISOString(),
           user: { name: 'Sistema', avatar: '' },
           completed: false,

@@ -1,5 +1,42 @@
 # Changelog
 
+## 27/12/2025
+
+- **CRM (reaplicação de mudanças pendentes)**:
+  - Reaplicadas e persistidas no código as melhorias de **Empresas (CRUD + UI padronizada)**, **Inbox (Seed + regra de churn)** e **Atividades (contexto empresa/participantes + ESC no modal)** que estavam visíveis no editor, mas não tinham sido materializadas em commit.
+- **Boards (fix)**:
+  - Corrigido erro ao criar/atualizar board quando o Supabase/PostgREST ainda não tem a coluna `boards.default_product_id` (migration não aplicada ou schema cache desatualizado).
+  - Detalhe técnico: `boardsService` agora **omite** `default_product_id` quando não há produto e faz **retry** removendo o campo ao detectar o erro “schema cache”.
+- **Settings (UI)**:
+  - `SettingsSection` foi padronizado para o layout de card `rounded-2xl` com header mais clean, alinhando com o padrão visual recente das telas de Configurações.
+  - Abas/rotas:
+    - Nova aba **Produtos/Serviços** (admin) e rota `/settings/products` (catálogo não fica mais em “Geral”).
+    - Nova rota `/settings/integracoes` abrindo a aba “Integrações”.
+  - **Central de I.A**:
+    - “Funções de IA” voltou para o padrão visual de “row-card” com ações por ícone (editar prompt + toggle por ícone).
+    - Toggle por ícone padronizado: **ativo verde** / **desativado vermelho**.
+    - Fix: editor de prompt dentro de “Funções de IA” agora carrega o **template padrão do catálogo** quando não existe override ativo (antes podia abrir vazio).
+  - **Integrações → Webhooks**: corrigido exemplo de `curl` (remoção de caracteres `+` no output).
+- **Debug Mode (UX)**:
+  - Debug agora é **reativo** (sem refresh): toggle dispara evento (`DEBUG_MODE_EVENT`) e `DebugFillButton` usa `useDebugMode`.
+  - Fix: geração de telefone fake agora é determinística (sem `fromRegExp`, evitando `\\` no número).
+- **Contatos (UX)**:
+  - Campo **Empresa** agora aparece também no **Editar Contato**; limpar o campo **desvincula** a empresa do contato.
+  - Botão de debug **“Fake x10”** volta a funcionar com estado de loading (`disabled`).
+- **Atividades (contexto)**:
+  - `Activity` suporta `contactId`, `clientCompanyId` e `participantContactIds`.
+  - `activitiesService` agora persiste esses campos (com retry safe quando migration ainda não existe).
+- **Inbox (debug)**:
+  - Botão **Seed Inbox** (apenas em debug) para criar dados que disparam sugestões de **Upsell**, **Stalled** e **Rescue**.
+- **Contatos / Empresas (UX + fix)**:
+  - Modal **Editar Contato** agora exibe e pré-preenche o campo **Empresa** (e permite **desvincular** deixando em branco).
+  - Ícones clicáveis para abrir edição de contato:
+    - Na aba **Pessoas**, clicar no **avatar** abre o modal de edição.
+    - Na aba **Empresas**, clicar no **ícone da empresa** abre um contato vinculado (primeiro da lista).
+    - Na aba **Empresas**, clicar no avatar em **“Pessoas Vinc.”** abre o modal de edição daquele contato.
+- **Inbox (UX)**:
+  - Empty-state **“Inbox Zero”** agora aparece também na view **Lista** (igual ao modo Foco), reutilizando `InboxZeroState`.
+
 ## 26/12/2025
 
 - **Documentação (JSDoc em pt-BR)**:
@@ -14,6 +51,8 @@
   - Edge Function `supabase/functions/webhook-in` implementa o endpoint público de entrada com `X-Webhook-Secret`.
 - **Settings (UX)**:
   - Criada a aba **Integrações** em Configurações e movidas para lá as seções de **Chaves de API** e **Webhooks** (admin-only).
+- **Fix (Zerar Database)**:
+  - Ajustada a ordem de deleção para limpar **Integrações/Webhooks** antes de `board_stages`, evitando erro de FK (`integration_inbound_sources_entry_stage_id_fkey`).
 - **Contatos (Importar/Exportar CSV)**:
   - Botão de **Importar/Exportar** no header de **Contatos → Pessoas**, abrindo modal com abas de import/export.
   - Exportação via endpoint `GET /api/contacts/export` respeitando **filtros/pesquisa/ordenação** atuais.
@@ -48,7 +87,7 @@
 - **CRUD inicial de Prompts (por organização)**:
   - Migration `supabase/migrations/20251225000000_ai_prompts.sql` cria `ai_prompt_templates` com versionamento simples (1 ativo por `key`).
   - APIs `app/api/settings/ai-prompts` (listar overrides ativos + salvar nova versão) e `app/api/settings/ai-prompts/[key]` (listar versões + reset).
-  - UI `features/settings/components/AIPromptsManager.tsx` para editar override e resetar.
+  - UI para editar override e resetar (removida posteriormente; edição passou a ficar dentro de “Funções de IA”).
 - **Integração backend com prompts editáveis**:
   - Rotas `app/api/ai/tasks/*` e parte de `app/api/ai/actions` passaram a resolver prompt via catálogo + override (`lib/ai/prompts/*`), permitindo mudar comportamento sem deploy.
 

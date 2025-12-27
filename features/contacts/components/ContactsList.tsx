@@ -83,6 +83,8 @@ interface ContactsListProps {
     convertContactToDeal: (id: string) => void;
     openEditModal: (contact: Contact) => void;
     setDeleteId: (id: string) => void;
+    openEditCompanyModal?: (company: Company) => void;
+    setDeleteCompanyId?: (id: string) => void;
     // Sorting props
     sortBy?: ContactSortableColumn;
     sortOrder?: 'asc' | 'desc';
@@ -140,12 +142,17 @@ export const ContactsList: React.FC<ContactsListProps> = ({
     convertContactToDeal,
     openEditModal,
     setDeleteId,
+    openEditCompanyModal,
+    setDeleteCompanyId,
     sortBy = 'created_at',
     sortOrder = 'desc',
     onSort,
 }) => {
-    const allSelected = filteredContacts.length > 0 && selectedIds.size === filteredContacts.length;
-    const someSelected = selectedIds.size > 0 && selectedIds.size < filteredContacts.length;
+    const activeListIds = viewMode === 'people'
+        ? filteredContacts.map(c => c.id)
+        : filteredCompanies.map(c => c.id);
+    const allSelected = activeListIds.length > 0 && selectedIds.size === activeListIds.length;
+    const someSelected = selectedIds.size > 0 && selectedIds.size < activeListIds.length;
 
     // Performance: compute "contacts by company" once (avoids N filters per company row).
     const contactsByCompanyId = React.useMemo(() => {
@@ -216,9 +223,15 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800 text-primary-700 dark:text-primary-200 flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-white dark:ring-white/5">
+                                            <button
+                                                type="button"
+                                                onClick={() => openEditModal(contact)}
+                                                className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800 text-primary-700 dark:text-primary-200 flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-white dark:ring-white/5 hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-dark-card"
+                                                aria-label={`Editar contato: ${contact.name || 'Sem nome'}`}
+                                                title={contact.name || 'Sem nome'}
+                                            >
                                                 {(contact.name || '?').charAt(0)}
-                                            </div>
+                                            </button>
                                             <div>
                                                 <span className="font-semibold text-slate-900 dark:text-white block">{contact.name}</span>
                                             </div>
@@ -315,7 +328,14 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                         <thead className="bg-slate-50/80 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
                             <tr>
                                 <th scope="col" className="w-12 px-6 py-4">
-                                    <input type="checkbox" aria-label="Selecionar todas as empresas" className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 dark:bg-white/5 dark:border-white/10" />
+                                    <input
+                                        type="checkbox"
+                                        checked={allSelected}
+                                        ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                                        onChange={toggleSelectAll}
+                                        aria-label={allSelected ? 'Desmarcar todas as empresas' : 'Selecionar todas as empresas'}
+                                        className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 dark:bg-white/5 dark:border-white/10"
+                                    />
                                 </th>
                                 <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Empresa</th>
                                 <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Setor</th>
@@ -326,15 +346,47 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                             {filteredCompanies.map((company) => (
-                                <tr key={company.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group">
+                                <tr key={company.id} className={`hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group ${selectedIds.has(company.id) ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''}`}>
                                     <td className="px-6 py-4">
-                                        <input type="checkbox" aria-label={`Selecionar ${company.name}`} className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 dark:bg-white/5 dark:border-white/10" />
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(company.id)}
+                                            onChange={() => toggleSelect(company.id)}
+                                            aria-label={`Selecionar ${company.name}`}
+                                            className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 dark:bg-white/5 dark:border-white/10"
+                                        />
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-sm">
-                                                <Building2 size={18} />
-                                            </div>
+                                            {(() => {
+                                                const firstLinkedContact = (contactsByCompanyId.get(company.id) ?? [])[0];
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (firstLinkedContact) openEditModal(firstLinkedContact);
+                                                        }}
+                                                        disabled={!firstLinkedContact}
+                                                        className={`w-9 h-9 rounded-lg bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-dark-card ${
+                                                            firstLinkedContact
+                                                                ? 'hover:bg-slate-200 dark:hover:bg-white/15'
+                                                                : 'opacity-50 cursor-not-allowed'
+                                                        }`}
+                                                        aria-label={
+                                                            firstLinkedContact
+                                                                ? `Abrir contato vinculado de ${company.name}`
+                                                                : `Sem contatos vinculados para ${company.name}`
+                                                        }
+                                                        title={
+                                                            firstLinkedContact
+                                                                ? `Abrir: ${firstLinkedContact.name || 'Contato'}`
+                                                                : 'Sem contatos vinculados'
+                                                        }
+                                                    >
+                                                        <Building2 size={18} />
+                                                    </button>
+                                                );
+                                            })()}
                                             <div>
                                                 <span className="font-semibold text-slate-900 dark:text-white block">{company.name}</span>
                                                 {company.website && (
@@ -362,9 +414,16 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                         */}
                                         <div className="flex -space-x-2 overflow-hidden">
                                             {(contactsByCompanyId.get(company.id) ?? []).map(c => (
-                                                <div key={c.id} className="h-6 w-6 rounded-full ring-2 ring-white dark:ring-dark-card bg-primary-100 dark:bg-primary-900 flex items-center justify-center text-[10px] font-bold text-primary-700 dark:text-primary-300" title={c.name || 'Sem nome'}>
+                                                <button
+                                                    key={c.id}
+                                                    type="button"
+                                                    onClick={() => openEditModal(c)}
+                                                    className="h-6 w-6 rounded-full ring-2 ring-white dark:ring-dark-card bg-primary-100 dark:bg-primary-900 flex items-center justify-center text-[10px] font-bold text-primary-700 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-dark-card"
+                                                    title={c.name || 'Sem nome'}
+                                                    aria-label={`Editar contato: ${c.name || 'Sem nome'}`}
+                                                >
                                                     {(c.name || '?').charAt(0)}
-                                                </div>
+                                                </button>
                                             ))}
                                             {(contactsByCompanyId.get(company.id) ?? []).length === 0 && (
                                                 <span className="text-slate-400 text-xs italic">Ninguém</span>
@@ -372,12 +431,22 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button
-                                            aria-label={`Mais opções para ${company.name}`}
-                                            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white opacity-0 group-hover:opacity-100 transition-all"
-                                        >
-                                            <MoreHorizontal size={16} aria-hidden="true" />
-                                        </button>
+                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                            <button
+                                                onClick={() => openEditCompanyModal?.(company)}
+                                                className="p-1.5 text-slate-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                                                aria-label={`Editar ${company.name}`}
+                                            >
+                                                <Pencil size={16} aria-hidden="true" />
+                                            </button>
+                                            <button
+                                                onClick={() => setDeleteCompanyId?.(company.id)}
+                                                className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-slate-400 hover:text-red-500 transition-colors"
+                                                aria-label={`Excluir ${company.name}`}
+                                            >
+                                                <Trash2 size={16} aria-hidden="true" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

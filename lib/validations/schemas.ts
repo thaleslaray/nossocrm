@@ -117,6 +117,26 @@ export const contactFormSchema = z.object({
 
 export type ContactFormData = z.infer<typeof contactFormSchema>;
 
+// ============ COMPANY SCHEMAS ============
+
+export const companyFormSchema = z.object({
+  name: requiredString('Nome da Empresa', MAX_LENGTHS.COMPANY_NAME),
+  industry: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
+  website: z
+    .string()
+    .max(MAX_LENGTHS.URL, `Website deve ter no máximo ${MAX_LENGTHS.URL} caracteres`)
+    .optional()
+    .or(z.literal(''))
+    .transform(val => (val || '').trim())
+    .transform(val => val.replace(/^https?:\/\//i, '').replace(/\/+$/g, ''))
+    .refine(
+      val => val === '' || /^[a-z0-9.-]+\.[a-z]{2,}.*$/i.test(val),
+      'Website inválido'
+    ),
+});
+
+export type CompanyFormData = z.infer<typeof companyFormSchema>;
+
 // ============ DEAL SCHEMAS ============
 
 export const dealFormSchema = z.object({

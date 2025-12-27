@@ -10,7 +10,7 @@ import {
   useDeleteActivity,
 } from '@/lib/query/hooks/useActivitiesQuery';
 import { useAuth } from '@/context/AuthContext';
-import { useContacts } from '@/lib/query/hooks/useContactsQuery';
+import { useContacts, useCreateContact, useUpdateContact } from '@/lib/query/hooks/useContactsQuery';
 import {
   useDealsView,
   useCreateDeal,
@@ -20,6 +20,8 @@ import { useDefaultBoard } from '@/lib/query/hooks/useBoardsQuery';
 import { useRealtimeSync } from '@/lib/realtime/useRealtimeSync';
 import { useHiddenSuggestionIds, useRecordSuggestionInteraction } from '@/lib/query/hooks/useAISuggestionsQuery';
 import { SuggestionType } from '@/lib/supabase/aiSuggestions';
+import { isDebugMode, generateFakeContacts, fakeDeal } from '@/lib/debug';
+import { supabase } from '@/lib/supabase/client';
 
 // Tipos para sugestões de IA (BIRTHDAY removido - será implementado em widget separado)
 export type AISuggestionType = 'UPSELL' | 'RESCUE' | 'STALLED';
@@ -64,6 +66,8 @@ export const useInboxController = () => {
   const createActivityMutation = useCreateActivity();
   const updateActivityMutation = useUpdateActivity();
   const deleteActivityMutation = useDeleteActivity();
+  const createContactMutation = useCreateContact();
+  const updateContactMutation = useUpdateContact();
   const createDealMutation = useCreateDeal();
   const updateDealMutation = useUpdateDeal();
 
@@ -202,23 +206,25 @@ export const useInboxController = () => {
   const rescueContacts = useMemo(
     () =>
       contacts.filter(c => {
-        // Só considera contatos ativos
-        if (c.status !== 'ACTIVE') return false;
+        // Padrão de mercado: considerar apenas clientes ativos (não leads)
+        if (c.status !== 'ACTIVE' || c.stage !== 'CUSTOMER') return false;
 
-        // Verifica última interação ou última compra
+        const createdAtTs = Date.parse(c.createdAt);
+
+        // Sem histórico: carência de 30d após criação
+        if (!c.lastInteraction && !c.lastPurchaseDate) {
+          return createdAtTs < thirtyDaysAgo.getTime();
+        }
+
+        // Com histórico: pega a data mais recente entre interação e compra
         const lastInteractionTs = c.lastInteraction ? Date.parse(c.lastInteraction) : null;
         const lastPurchaseTs = c.lastPurchaseDate ? Date.parse(c.lastPurchaseDate) : null;
-
-        // Usa a data mais recente entre interação e compra
         const lastActivityTs =
           lastInteractionTs != null && lastPurchaseTs != null
             ? Math.max(lastInteractionTs, lastPurchaseTs)
             : lastInteractionTs ?? lastPurchaseTs;
 
-        // Se não tem dados de atividade, considera em risco
-        if (!lastActivityTs) return true;
-
-        return lastActivityTs < thirtyDaysAgo.getTime();
+        return lastActivityTs !== null && lastActivityTs < thirtyDaysAgo.getTime();
       }),
     [contacts, thirtyDaysAgo]
   );
@@ -468,6 +474,9 @@ export const useInboxController = () => {
               description: 'Deal parado — fazer follow-up para destravar o próximo passo',
               date: due.toISOString(),
               dealId: deal.id,
+              contactId: deal.contactId,
+              clientCompanyId: deal.clientCompanyId,
+              participantContactIds: deal.contactId ? [deal.contactId] : [],
               dealTitle: deal.title,
               completed: false,
               user: { name: 'Eu', avatar: '' },
@@ -480,13 +489,17 @@ export const useInboxController = () => {
 
       case 'RESCUE':
         if (suggestion.data.contact) {
+          const c = suggestion.data.contact;
           createActivityMutation.mutate({
             activity: {
-              title: `Reativar cliente: ${suggestion.data.contact.name}`,
+              title: `Reativar cliente: ${c.name}`,
               type: 'CALL',
               description: 'Cliente em risco de churn - ligar para reativar',
               date: new Date().toISOString(),
               dealId: '',
+              contactId: c.id,
+              clientCompanyId: c.clientCompanyId || c.companyId,
+              participantContactIds: [c.id],
               dealTitle: '',
               completed: false,
               user: { name: 'Eu', avatar: '' },
@@ -506,6 +519,103 @@ export const useInboxController = () => {
       action: 'ACCEPTED',
     });
   };
+
+  const seedInboxDebug = useCallback(async () => {
+    if (!isDebugMode()) {
+      showToast('Ative o Debug Mode para usar o Seed Inbox.', 'info');
+      return;
+    }
+    if (!supabase || !profile?.id || !activeBoardId || !activeBoard?.stages?.length) {
+      showToast('Supabase/board não configurado para seed.', 'error');
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const fortyDaysAgo = new Date(now);
+      fortyDaysAgo.setDate(fortyDaysAgo.getDate() - 40);
+      const tenDaysAgo = new Date(now);
+      tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+
+      // Cliente em risco (sem interação, criado há > 30d)
+      const [seedContact] = generateFakeContacts(1);
+      const createdContact = await createContactMutation.mutateAsync({
+        name: seedContact.name,
+        email: seedContact.email,
+        phone: seedContact.phone,
+        role: seedContact.role,
+        companyId: '',
+        status: 'ACTIVE',
+        stage: 'CUSTOMER',
+        totalValue: 0,
+      } as any);
+
+      await supabase
+        .from('contacts')
+        .update({ created_at: fortyDaysAgo.toISOString() })
+        .eq('id', createdContact.id);
+
+      const firstStage = activeBoard.stages[0];
+
+      // Deal ganho há > 30d (Upsell)
+      const upsell = fakeDeal();
+      const upsellDeal = await createDealMutation.mutateAsync({
+        title: `Upsell - ${upsell.title}`,
+        contactId: createdContact.id,
+        companyId: createdContact.clientCompanyId || createdContact.companyId,
+        boardId: activeBoardId,
+        status: firstStage.id,
+        value: 12000,
+        probability: 90,
+        priority: 'high',
+        tags: ['Upsell'],
+        items: [],
+        customFields: {},
+        owner: { name: 'Eu', avatar: '' },
+        isWon: true,
+        isLost: false,
+      } as any);
+
+      await supabase
+        .from('deals')
+        .update({ updated_at: fortyDaysAgo.toISOString(), is_won: true })
+        .eq('id', upsellDeal.id);
+
+      // Deal parado há > 7d (Stalled)
+      const stalled = fakeDeal();
+      const stalledDeal = await createDealMutation.mutateAsync({
+        title: `Stalled - ${stalled.title}`,
+        contactId: createdContact.id,
+        companyId: createdContact.clientCompanyId || createdContact.companyId,
+        boardId: activeBoardId,
+        status: firstStage.id,
+        value: 8000,
+        probability: 60,
+        priority: 'medium',
+        tags: ['Stalled'],
+        items: [],
+        customFields: {},
+        owner: { name: 'Eu', avatar: '' },
+        isWon: false,
+        isLost: false,
+      } as any);
+
+      await supabase
+        .from('deals')
+        .update({ updated_at: tenDaysAgo.toISOString() })
+        .eq('id', stalledDeal.id);
+
+      // Garante que o cliente também tem histórico antigo (alternativo ao created_at)
+      updateContactMutation.mutate({
+        id: createdContact.id,
+        updates: { lastPurchaseDate: fortyDaysAgo.toISOString() },
+      } as any);
+
+      showToast('Seed Inbox criado (Upsell, Stalled, Rescue). Abra a Inbox.', 'success');
+    } catch (e) {
+      showToast(`Erro ao seedar Inbox: ${(e as Error).message}`, 'error');
+    }
+  }, [activeBoard, activeBoardId, createContactMutation, createDealMutation, profile?.id, showToast, updateContactMutation]);
 
   const handleDismissSuggestion = (suggestionId: string) => {
     const suggestion = aiSuggestions.find(s => s.id === suggestionId);
@@ -763,6 +873,7 @@ export const useInboxController = () => {
     handleAcceptSuggestion,
     handleDismissSuggestion,
     handleSnoozeSuggestion,
+    seedInboxDebug,
     handleSelectActivity: (id: string) => {
       const index = focusQueue.findIndex(item => item.id === id);
       if (index !== -1) {

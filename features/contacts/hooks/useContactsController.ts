@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/context/ToastContext';
-import { Contact, ContactStage, PaginationState, ContactsServerFilters, DEFAULT_PAGE_SIZE, ContactSortableColumn } from '@/types';
+import { Contact, Company, ContactStage, PaginationState, ContactsServerFilters, DEFAULT_PAGE_SIZE, ContactSortableColumn } from '@/types';
 import {
   useContacts,
   useContactsPaginated,
@@ -11,12 +11,15 @@ import {
   useUpdateContact,
   useDeleteContact,
   useCreateCompany,
+  useUpdateCompany,
+  useDeleteCompany,
   useContactHasDeals,
 } from '@/lib/query/hooks/useContactsQuery';
 import { useCreateDeal } from '@/lib/query/hooks/useDealsQuery';
 import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
 import { useRealtimeSync } from '@/lib/realtime/useRealtimeSync';
 import { normalizePhoneE164 } from '@/lib/phone';
+import { generateFakeContacts } from '@/lib/debug';
 
 /**
  * Hook React `useContactsController` que encapsula uma lógica reutilizável.
@@ -37,6 +40,8 @@ export const useContactsController = () => {
   const deleteContactMutation = useDeleteContact();
   const checkHasDealsMutation = useContactHasDeals();
   const createCompanyMutation = useCreateCompany();
+  const updateCompanyMutation = useUpdateCompany();
+  const deleteCompanyMutation = useDeleteCompany();
   const createDealMutation = useCreateDeal();
 
   // Enable realtime sync
@@ -141,6 +146,9 @@ export const useContactsController = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [deleteCompanyId, setDeleteCompanyId] = useState<string | null>(null);
   const [deleteWithDeals, setDeleteWithDeals] = useState<{ id: string; dealCount: number; deals: Array<{ id: string; title: string }> } | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [formData, setFormData] = useState({
@@ -158,6 +166,11 @@ export const useContactsController = () => {
   const isLoading = contactsLoading || companiesLoading;
 
   const openCreateModal = () => {
+    if (viewMode === 'companies') {
+      setEditingCompany(null);
+      setIsCompanyModalOpen(true);
+      return;
+    }
     setEditingContact(null);
     setFormData({ name: '', email: '', phone: '', role: '', companyName: '' });
     setIsModalOpen(true);
@@ -174,6 +187,53 @@ export const useContactsController = () => {
       companyName: company?.name || '',
     });
     setIsModalOpen(true);
+  };
+
+  const openEditCompanyModal = (company: Company) => {
+    setEditingCompany(company);
+    setIsCompanyModalOpen(true);
+  };
+
+  const handleCompanySubmit = (data: { name: string; industry?: string; website?: string }) => {
+    if (editingCompany) {
+      updateCompanyMutation.mutate(
+        { id: editingCompany.id, updates: { ...data } },
+        {
+          onSuccess: () => {
+            (addToast || showToast)('Empresa atualizada!', 'success');
+            setIsCompanyModalOpen(false);
+            setEditingCompany(null);
+          },
+          onError: (error: Error) => {
+            (addToast || showToast)(`Erro ao atualizar empresa: ${error.message}`, 'error');
+          },
+        }
+      );
+    } else {
+      createCompanyMutation.mutate(
+        { name: data.name, industry: data.industry || '', website: data.website || '' } as any,
+        {
+          onSuccess: () => {
+            (addToast || showToast)('Empresa criada!', 'success');
+            setIsCompanyModalOpen(false);
+          },
+          onError: (error: Error) => {
+            (addToast || showToast)(`Erro ao criar empresa: ${error.message}`, 'error');
+          },
+        }
+      );
+    }
+  };
+
+  const confirmDeleteCompany = async () => {
+    if (!deleteCompanyId) return;
+    try {
+      await deleteCompanyMutation.mutateAsync(deleteCompanyId);
+      (addToast || showToast)('Empresa excluída com sucesso', 'success');
+      setDeleteCompanyId(null);
+    } catch (e) {
+      (addToast || showToast)(`Erro ao excluir empresa: ${(e as Error).message}`, 'error');
+    }
   };
 
   const confirmDelete = async () => {
@@ -239,10 +299,11 @@ export const useContactsController = () => {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredContacts.length) {
+    const ids = viewMode === 'people' ? filteredContacts.map(c => c.id) : filteredCompanies.map(c => c.id);
+    if (selectedIds.size === ids.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredContacts.map(c => c.id)));
+      setSelectedIds(new Set(ids));
     }
   };
 
@@ -258,7 +319,11 @@ export const useContactsController = () => {
 
     for (const id of ids) {
       try {
-        await deleteContactMutation.mutateAsync({ id, forceDeleteDeals: true });
+        if (viewMode === 'companies') {
+          await deleteCompanyMutation.mutateAsync(id);
+        } else {
+          await deleteContactMutation.mutateAsync({ id, forceDeleteDeals: true });
+        }
         successCount++;
       } catch {
         errorCount++;
@@ -266,10 +331,16 @@ export const useContactsController = () => {
     }
 
     if (successCount > 0) {
-      (addToast || showToast)(`${successCount} contato(s) excluído(s)`, 'success');
+      (addToast || showToast)(
+        `${successCount} ${viewMode === 'companies' ? 'empresa(s)' : 'contato(s)'} excluído(s)`,
+        'success'
+      );
     }
     if (errorCount > 0) {
-      (addToast || showToast)(`Falha ao excluir ${errorCount} contato(s)`, 'error');
+      (addToast || showToast)(
+        `Falha ao excluir ${errorCount} ${viewMode === 'companies' ? 'empresa(s)' : 'contato(s)'}`,
+        'error'
+      );
     }
 
     setSelectedIds(new Set());
@@ -283,25 +354,29 @@ export const useContactsController = () => {
 
     // Find or create company
     let companyId: string | undefined;
-    const existingCompany = companies.find(
-      c => (c.name || '').toLowerCase() === (formData.companyName || '').toLowerCase()
-    );
+    const companyName = (formData.companyName || '').trim();
+    const companyNameKey = companyName.toLowerCase();
 
-    if (existingCompany) {
-      companyId = existingCompany.id;
-    } else if (formData.companyName) {
-      // Create new company and wait for result
-      const newCompany = await new Promise<{ id: string } | null>(resolve => {
-        createCompanyMutation.mutate(
-          { name: formData.companyName },
-          { onSuccess: resolve, onError: () => resolve(null) }
-        );
-      });
-      if (newCompany) {
-        companyId = newCompany.id;
+    if (companyName) {
+      const existingCompany = companies.find(c => (c.name || '').toLowerCase() === companyNameKey);
+
+      if (existingCompany) {
+        companyId = existingCompany.id;
+      } else {
+        // Create new company and wait for result
+        const newCompany = await new Promise<{ id: string } | null>(resolve => {
+          createCompanyMutation.mutate(
+            { name: companyName },
+            { onSuccess: resolve, onError: () => resolve(null) }
+          );
+        });
+        if (newCompany) {
+          companyId = newCompany.id;
+        }
       }
     } else if (editingContact) {
-      companyId = editingContact.companyId;
+      // Explicitly unlink company when clearing the field in Edit
+      companyId = '';
     }
 
     if (editingContact) {
@@ -344,6 +419,48 @@ export const useContactsController = () => {
       );
     }
   };
+
+  const createFakeContactsBatch = useCallback(async (count: number) => {
+    const fakeContacts = generateFakeContacts(count);
+    let createdCount = 0;
+
+    for (const fake of fakeContacts) {
+      let companyId: string | undefined;
+
+      if (fake.companyName) {
+        const existingCompany = companies.find(
+          c => (c.name || '').toLowerCase() === (fake.companyName || '').toLowerCase()
+        );
+
+        if (existingCompany) {
+          companyId = existingCompany.id;
+        } else {
+          const newCompany = await new Promise<{ id: string } | null>(resolve => {
+            createCompanyMutation.mutate(
+              { name: fake.companyName },
+              { onSuccess: resolve, onError: () => resolve(null) }
+            );
+          });
+          if (newCompany) companyId = newCompany.id;
+        }
+      }
+
+      await createContactMutation.mutateAsync({
+        name: fake.name,
+        email: fake.email,
+        phone: normalizePhoneE164(fake.phone),
+        role: fake.role,
+        companyId: companyId || '',
+        status: 'ACTIVE',
+        stage: ContactStage.LEAD,
+        totalValue: 0,
+      });
+
+      createdCount++;
+    }
+
+    (addToast || showToast)(`${createdCount} contatos fake criados!`, 'success');
+  }, [addToast, showToast, companies, createCompanyMutation, createContactMutation]);
 
   // Open modal to select board for deal creation (or create directly if only 1 board)
   const convertContactToDeal = (contactId: string) => {
@@ -503,8 +620,14 @@ export const useContactsController = () => {
     isModalOpen,
     setIsModalOpen,
     editingContact,
+    isCompanyModalOpen,
+    setIsCompanyModalOpen,
+    editingCompany,
+    setEditingCompany,
     deleteId,
     setDeleteId,
+    deleteCompanyId,
+    setDeleteCompanyId,
     deleteWithDeals,
     setDeleteWithDeals,
     bulkDeleteConfirm,
@@ -546,9 +669,13 @@ export const useContactsController = () => {
     // Actions
     openCreateModal,
     openEditModal,
+    openEditCompanyModal,
     confirmDelete,
+    confirmDeleteCompany,
     confirmDeleteWithDeals,
     handleSubmit,
+    handleCompanySubmit,
+    createFakeContactsBatch,
     getCompanyName,
     updateContact,
     convertContactToDeal,

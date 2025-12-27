@@ -13,6 +13,8 @@ import { faker } from '@faker-js/faker/locale/pt_BR';
 // DEBUG MODE CHECK
 // ============================================
 
+export const DEBUG_MODE_EVENT = 'debug_mode_changed';
+
 /**
  * Função pública `isDebugMode` do projeto.
  * @returns {boolean} Retorna um valor do tipo `boolean`.
@@ -28,7 +30,8 @@ export const isDebugMode = (): boolean => {
  */
 export const enableDebugMode = (): void => {
   localStorage.setItem('DEBUG_MODE', 'true');
-  console.log('🐛 Debug mode ENABLED - Refresh para ver os botões');
+  window.dispatchEvent(new CustomEvent(DEBUG_MODE_EVENT));
+  console.log('🐛 Debug mode ENABLED');
 };
 
 /**
@@ -37,7 +40,8 @@ export const enableDebugMode = (): void => {
  */
 export const disableDebugMode = (): void => {
   localStorage.removeItem('DEBUG_MODE');
-  console.log('🐛 Debug mode DISABLED - Refresh para esconder os botões');
+  window.dispatchEvent(new CustomEvent(DEBUG_MODE_EVENT));
+  console.log('🐛 Debug mode DISABLED');
 };
 
 // Expõe no window para fácil acesso via console
@@ -58,7 +62,12 @@ if (typeof window !== 'undefined') {
 export const fakeContact = () => ({
   name: faker.person.fullName(),
   email: faker.internet.email().toLowerCase(),
-  phone: faker.helpers.fromRegExp(/\+55[1-9]{2}9[0-9]{8}/),
+  // Evita `fromRegExp` (pode gerar barra invertida em alguns ambientes)
+  phone: (() => {
+    const ddd = faker.number.int({ min: 11, max: 99 });
+    const subscriber = `${faker.number.int({ min: 0, max: 99999999 })}`.padStart(8, '0');
+    return `+55${ddd}9${subscriber}`;
+  })(),
   role: faker.person.jobTitle(),
   companyName: faker.company.name(),
 });
