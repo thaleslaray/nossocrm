@@ -1,7 +1,9 @@
 export function parseLimit(value: string | null, opts?: { defaultLimit?: number; max?: number }) {
   const max = opts?.max ?? 250;
   const def = opts?.defaultLimit ?? 50;
-  const n = Number(value ?? '');
+  const raw = (value ?? '').trim();
+  if (!raw) return def;
+  const n = Number(raw);
   if (!Number.isFinite(n)) return def;
   return Math.max(1, Math.min(max, Math.floor(n)));
 }

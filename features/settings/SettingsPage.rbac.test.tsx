@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/settings',
@@ -44,9 +44,21 @@ vi.mock('./hooks/useSettingsController', () => ({
   }),
 }))
 
-// Evita precisar de providers (CRMContext/ToastContext) no teste.
-vi.mock('./components/AIConfigSection', () => ({
-  AIConfigSection: () => <div>AI_CONFIG_SECTION</div>,
+// Evita depender de providers (Toast/Boards/Supabase) ao renderizar a aba Integrações no teste.
+vi.mock('./components/ApiKeysSection', () => ({
+  ApiKeysSection: () => (
+    <div>
+      <h3>API (Integrações)</h3>
+    </div>
+  ),
+}))
+
+vi.mock('./components/WebhooksSection', () => ({
+  WebhooksSection: () => (
+    <div>
+      <h3>Webhooks</h3>
+    </div>
+  ),
 }))
 
 import SettingsPage from './SettingsPage'
@@ -73,16 +85,17 @@ describe('SettingsPage RBAC', () => {
       screen.queryByRole('heading', { name: /^Campos Personalizados$/i })
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('heading', { name: /^Chaves de API$/i })
+      screen.queryByRole('heading', { name: /^API \(Integrações\)$/i })
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /^Webhooks$/i })).not.toBeInTheDocument()
 
     // Preferências pessoais seguem visíveis
-    expect(screen.getByText('AI_CONFIG_SECTION')).toBeInTheDocument()
     expect(screen.getByText(/página inicial/i)).toBeInTheDocument()
+    // Tabs pessoais seguem visíveis
+    expect(screen.getByRole('button', { name: /central de i\.a/i })).toBeInTheDocument()
   })
 
-  it('admin vê seções de configuração do sistema', () => {
+  it('admin vê seções de configuração do sistema', async () => {
     useAuthMock.mockReturnValue({
       profile: { role: 'admin' },
     } as any)
@@ -95,11 +108,14 @@ describe('SettingsPage RBAC', () => {
     expect(
       screen.getByRole('heading', { name: /^Campos Personalizados$/i })
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: /^Chaves de API$/i })
-    ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /^Webhooks$/i })).toBeInTheDocument()
+    // Admin também vê as abas extras
+    const integrationsTab = screen.getByRole('button', { name: /integrações/i })
+    expect(integrationsTab).toBeInTheDocument()
+    fireEvent.click(integrationsTab)
 
-    expect(screen.getByText('AI_CONFIG_SECTION')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: /^API \(Integrações\)$/i })
+    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /^Webhooks$/i })).toBeInTheDocument()
   })
 })

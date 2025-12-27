@@ -22,9 +22,14 @@ type Step = {
   message?: string;
 };
 
+type FunctionResult =
+  | { slug: string; ok: true; response: unknown }
+  | { slug: string; ok: false; error: string; status?: number; response?: unknown };
+
 type RunResult = {
   ok: boolean;
   steps: Step[];
+  functions?: FunctionResult[];
   error?: string;
 };
 
@@ -60,6 +65,20 @@ export default function InstallWizardPage() {
   const [meta, setMeta] = useState<InstallerMeta | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
 
+  const inferProjectRefFromSupabaseUrl = (value: string): string | null => {
+    try {
+      const url = new URL(value);
+      const host = url.hostname.toLowerCase();
+      const m1 = host.match(/^([a-z0-9-]+)\.supabase\.co$/i);
+      if (m1?.[1]) return m1[1];
+      const m2 = host.match(/^([a-z0-9-]+)\.supabase\.in$/i);
+      if (m2?.[1]) return m2[1];
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const [installerToken, setInstallerToken] = useState('');
   const [vercelToken, setVercelToken] = useState('');
   const [project, setProject] = useState<ProjectInfo | null>(null);
@@ -69,6 +88,15 @@ export default function InstallWizardPage() {
   const [supabaseAnonKey, setSupabaseAnonKey] = useState('');
   const [supabaseServiceKey, setSupabaseServiceKey] = useState('');
   const [supabaseDbUrl, setSupabaseDbUrl] = useState('');
+  const [supabaseAccessToken, setSupabaseAccessToken] = useState('');
+  const [supabaseProjectRef, setSupabaseProjectRef] = useState('');
+  const [supabaseProjectRefTouched, setSupabaseProjectRefTouched] = useState(false);
+  const [supabaseDeployEdgeFunctions, setSupabaseDeployEdgeFunctions] = useState(true);
+  const [supabaseAdvanced, setSupabaseAdvanced] = useState(false);
+  const [supabaseResolving, setSupabaseResolving] = useState(false);
+  const [supabaseResolveError, setSupabaseResolveError] = useState<string | null>(null);
+  const [supabaseResolvedOk, setSupabaseResolvedOk] = useState(false);
+  const [supabaseResolvedLabel, setSupabaseResolvedLabel] = useState<string | null>(null);
 
   const [companyName, setCompanyName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
@@ -131,6 +159,19 @@ export default function InstallWizardPage() {
     }
   }, [installerToken]);
 
+  useEffect(() => {
+    if (!supabaseDeployEdgeFunctions) return;
+    if (supabaseProjectRefTouched) return;
+    const inferred = inferProjectRefFromSupabaseUrl(supabaseUrl.trim());
+    if (inferred) setSupabaseProjectRef(inferred);
+  }, [supabaseDeployEdgeFunctions, supabaseProjectRefTouched, supabaseUrl]);
+
+  useEffect(() => {
+    // If the user changes the base inputs, we should consider the previous resolution stale.
+    setSupabaseResolvedOk(false);
+    setSupabaseResolvedLabel(null);
+  }, [supabaseUrl, supabaseAccessToken]);
+
   const selectedTargets = useMemo(() => {
     return (Object.entries(targets).filter(([, v]) => v).map(([k]) => k) as Array<
       'production' | 'preview'
@@ -150,9 +191,7 @@ export default function InstallWizardPage() {
 
   const supabaseReady = Boolean(
     supabaseUrl.trim() &&
-      supabaseAnonKey.trim() &&
-      supabaseServiceKey.trim() &&
-      supabaseDbUrl.trim()
+      (!supabaseDeployEdgeFunctions || supabaseAccessToken.trim())
   );
 
   const adminReady = Boolean(
@@ -182,9 +221,12 @@ export default function InstallWizardPage() {
           },
           supabase: {
             url: supabaseUrl.trim(),
-            anonKey: supabaseAnonKey.trim(),
-            serviceRoleKey: supabaseServiceKey.trim(),
-            dbUrl: supabaseDbUrl.trim(),
+            anonKey: supabaseAnonKey.trim() || undefined,
+            serviceRoleKey: supabaseServiceKey.trim() || undefined,
+            dbUrl: supabaseDbUrl.trim() || undefined,
+            accessToken: supabaseAccessToken.trim() || undefined,
+            projectRef: supabaseProjectRef.trim() || undefined,
+            deployEdgeFunctions: supabaseDeployEdgeFunctions,
           },
           admin: {
             companyName: companyName.trim(),
@@ -238,6 +280,59 @@ export default function InstallWizardPage() {
 
   const goBack = () => {
     setCurrentStep((step) => Math.max(step - 1, 0));
+  };
+
+  const resolveSupabase = async () => {
+    if (supabaseResolving) return;
+    setSupabaseResolveError(null);
+    setSupabaseResolving(true);
+    setSupabaseResolvedOk(false);
+    setSupabaseResolvedLabel(null);
+
+    try {
+      const res = await fetch('/api/installer/supabase/resolve', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          installerToken: installerToken.trim() || undefined,
+          accessToken: supabaseAccessToken.trim(),
+          supabaseUrl: supabaseUrl.trim() || undefined,
+          projectRef: supabaseProjectRef.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || `Falha ao resolver Supabase (HTTP ${res.status})`);
+      }
+
+      if (data?.projectRef && !supabaseProjectRefTouched) {
+        setSupabaseProjectRef(String(data.projectRef));
+      }
+      if (typeof data?.publishableKey === 'string') setSupabaseAnonKey(data.publishableKey);
+      if (typeof data?.secretKey === 'string') setSupabaseServiceKey(data.secretKey);
+      if (typeof data?.dbUrl === 'string') setSupabaseDbUrl(data.dbUrl);
+
+      const warnings = Array.isArray(data?.warnings) ? data.warnings : [];
+      if (warnings.length > 0) {
+        setSupabaseResolveError(`Alguns itens não foram resolvidos: ${warnings.join(' | ')}`);
+        setSupabaseAdvanced(true);
+      } else {
+        const pubType =
+          typeof data?.publishableKeyType === 'string' ? String(data.publishableKeyType) : 'publishable/anon';
+        const secType =
+          typeof data?.secretKeyType === 'string' ? String(data.secretKeyType) : 'secret/service_role';
+
+        setSupabaseResolvedOk(true);
+        setSupabaseResolvedLabel(`OK — chaves (${pubType}/${secType}) e DB resolvidos`);
+        setSupabaseAdvanced(false);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Falha ao resolver Supabase';
+      setSupabaseResolveError(message);
+      setSupabaseAdvanced(true);
+    } finally {
+      setSupabaseResolving(false);
+    }
   };
 
   const handleResetProject = () => {
@@ -327,7 +422,7 @@ export default function InstallWizardPage() {
                 </div>
                 <div className="h-1 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-primary-500 to-primary-600 transition-all"
+                    className="h-full bg-linear-to-r from-primary-500 to-primary-600 transition-all"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -412,6 +507,33 @@ export default function InstallWizardPage() {
 
               {currentStep === 1 ? (
                 <div className="border-t border-slate-200 dark:border-white/10 pt-5 space-y-4">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-900/50 space-y-3">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      Preencher automaticamente (recomendado)
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Cole o <b>Supabase URL</b> e seu <b>PAT</b>. A gente busca automaticamente o
+                      <code> anon/service key</code> e cria uma credencial temporária para o
+                      <code> dbUrl</code> (migrations), deixando o setup praticamente “copiar/colar”.
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-900/50 space-y-2">
+                    <label className="flex items-center justify-between gap-3 text-sm text-slate-700 dark:text-slate-200">
+                      <span className="font-medium">Deploy Edge Functions (Management API)</span>
+                      <input
+                        type="checkbox"
+                        checked={supabaseDeployEdgeFunctions}
+                        onChange={(e) => setSupabaseDeployEdgeFunctions(e.target.checked)}
+                        className="accent-primary-600"
+                      />
+                    </label>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Quando ligado, o instalador vai setar secrets e fazer deploy das Edge
+                      Functions do repositório em <code>supabase/functions/*</code>.
+                    </p>
+                  </div>
+
                   <div className="space-y-2">
                     <label className="text-sm text-slate-600 dark:text-slate-300">
                       Project URL
@@ -424,44 +546,156 @@ export default function InstallWizardPage() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm text-slate-600 dark:text-slate-300">
-                      Anon key
-                    </label>
-                    <input
-                      value={supabaseAnonKey}
-                      onChange={(e) => setSupabaseAnonKey(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
-                      placeholder="eyJhbGciOi..."
-                    />
+                  {supabaseDeployEdgeFunctions ? (
+                    <div className="space-y-4 pt-2">
+                      <div className="space-y-2">
+                        <label className="text-sm text-slate-600 dark:text-slate-300">
+                          Supabase access token (PAT)
+                        </label>
+                        <input
+                          type="password"
+                          value={supabaseAccessToken}
+                          onChange={(e) => setSupabaseAccessToken(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
+                          placeholder="sbp_..."
+                        />
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Gere em{' '}
+                          <a
+                            href="https://supabase.com/dashboard/account/tokens"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline underline-offset-2"
+                          >
+                            supabase.com/dashboard/account/tokens
+                          </a>
+                          .
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm text-slate-600 dark:text-slate-300">
+                          Project ref (opcional)
+                        </label>
+                        <input
+                          value={supabaseProjectRef}
+                          onChange={(e) => {
+                            setSupabaseProjectRefTouched(true);
+                            setSupabaseProjectRef(e.target.value);
+                          }}
+                          className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
+                          placeholder="ex: abcdefghijklmnopqrst"
+                        />
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Se vazio, o instalador tenta inferir do host de{' '}
+                          <code>supabase.url</code> (ex: <code>https://&lt;ref&gt;.supabase.co</code>).
+                        </p>
+                        {!supabaseProjectRefTouched && supabaseUrl.trim() ? (
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Inferido do URL:{' '}
+                            <span className="font-mono">
+                              {inferProjectRefFromSupabaseUrl(supabaseUrl.trim()) || '—'}
+                            </span>
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={resolveSupabase}
+                        disabled={
+                          supabaseResolvedOk ||
+                          supabaseResolving ||
+                          !supabaseUrl.trim() ||
+                          !supabaseAccessToken.trim()
+                        }
+                        className="w-full flex justify-center items-center py-3 px-4 rounded-xl text-sm font-bold text-white bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-500/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 active:scale-[0.98]"
+                      >
+                        {supabaseResolving ? (
+                          <>
+                            <Loader2 className="animate-spin h-5 w-5 mr-2" />
+                            Preenchendo...
+                          </>
+                        ) : supabaseResolvedOk ? (
+                          supabaseResolvedLabel || 'OK — resolvido'
+                        ) : (
+                          'Preencher automaticamente'
+                        )}
+                      </button>
+
+                      {supabaseResolvedOk ? (
+                        <div className="flex items-start gap-2 rounded-lg border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-900/20 p-3 text-emerald-700 dark:text-emerald-300 text-sm">
+                          <CheckCircle2 size={16} className="mt-0.5" />
+                          <span>
+                            {supabaseResolvedLabel || 'Chaves e DB resolvidos automaticamente.'}
+                          </span>
+                        </div>
+                      ) : null}
+
+                      {supabaseResolveError ? (
+                        <div className="flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-900/20 p-3 text-amber-700 dark:text-amber-300 text-sm">
+                          <AlertCircle size={16} className="mt-0.5" />
+                          <span>{supabaseResolveError}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setSupabaseAdvanced((v) => !v)}
+                      className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-500 underline underline-offset-2"
+                    >
+                      {supabaseAdvanced ? 'Ocultar campos avançados' : 'Mostrar campos avançados'}
+                    </button>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm text-slate-600 dark:text-slate-300">
-                      Service role key
-                    </label>
-                    <input
-                      value={supabaseServiceKey}
-                      onChange={(e) => setSupabaseServiceKey(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
-                      placeholder="eyJhbGciOi..."
-                    />
-                  </div>
+                  {supabaseAdvanced ? (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm text-slate-600 dark:text-slate-300">
+                          Anon key
+                        </label>
+                        <input
+                          type="password"
+                          value={supabaseAnonKey}
+                          onChange={(e) => setSupabaseAnonKey(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
+                          placeholder="(auto)"
+                        />
+                      </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm text-slate-600 dark:text-slate-300">
-                      DB connection string
-                    </label>
-                    <input
-                      value={supabaseDbUrl}
-                      onChange={(e) => setSupabaseDbUrl(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
-                      placeholder="postgresql://postgres:password@db.xxx.supabase.co:5432/postgres"
-                    />
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Use a string de conexao do projeto (Settings &gt; Database).
-                    </p>
-                  </div>
+                      <div className="space-y-2">
+                        <label className="text-sm text-slate-600 dark:text-slate-300">
+                          Service role key
+                        </label>
+                        <input
+                          type="password"
+                          value={supabaseServiceKey}
+                          onChange={(e) => setSupabaseServiceKey(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
+                          placeholder="(auto)"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm text-slate-600 dark:text-slate-300">
+                          DB connection string
+                        </label>
+                        <input
+                          type="password"
+                          value={supabaseDbUrl}
+                          onChange={(e) => setSupabaseDbUrl(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
+                          placeholder="(auto)"
+                        />
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Só use se o auto-preenchimento falhar. (Settings &gt; Database)
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -569,6 +803,20 @@ export default function InstallWizardPage() {
                       <div className="text-xs text-slate-500 dark:text-slate-400">
                         DB: {maskValue(supabaseDbUrl, 12, 10)}
                       </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        Edge Functions:{' '}
+                        {supabaseDeployEdgeFunctions ? 'deploy via Management API' : 'skip'}
+                      </div>
+                      {supabaseDeployEdgeFunctions ? (
+                        <>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            Project ref: {supabaseProjectRef ? supabaseProjectRef : '(inferir do URL)'}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            PAT: {maskValue(supabaseAccessToken)}
+                          </div>
+                        </>
+                      ) : null}
                     </div>
                   </div>
 
@@ -668,6 +916,35 @@ export default function InstallWizardPage() {
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           O instalador sera desativado automaticamente apos o deploy.
                         </p>
+                      ) : null}
+
+                      {result.functions && result.functions.length > 0 ? (
+                        <div className="pt-2 space-y-2">
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Edge Functions
+                          </h4>
+                          <div className="space-y-1">
+                            {result.functions.map((fn) => (
+                              <div key={fn.slug} className="flex items-center gap-2 text-sm">
+                                <CheckCircle2
+                                  size={14}
+                                  className={fn.ok ? statusColor('ok') : statusColor('error')}
+                                />
+                                <span className="font-medium text-slate-700 dark:text-slate-300">
+                                  {fn.slug}
+                                </span>
+                                <span className={fn.ok ? statusColor('ok') : statusColor('error')}>
+                                  {fn.ok ? 'ok' : 'error'}
+                                </span>
+                                {!fn.ok ? (
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                                    {fn.error}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       ) : null}
                     </div>
                   ) : null}

@@ -2,6 +2,14 @@
 
 ## 27/12/2025
 
+- **Installer (Supabase Edge Functions / Management API)**:
+  - Novo step **`supabase_edge_functions`** no instalador: seta secrets e faz deploy automático das Edge Functions do repositório (`supabase/functions/*`).
+  - Inputs novos no Wizard: `supabase.accessToken` (PAT), `supabase.projectRef` (opcional; inferido de `supabase.url` quando vazio) e `supabase.deployEdgeFunctions` (default `true`).
+  - Detalhes técnicos:
+    - Secrets via `POST /v1/projects/{ref}/secrets` (cria `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
+    - Deploy via `POST /v1/projects/{ref}/functions/deploy?slug=<slug>` com `multipart/form-data` e `metadata` incluindo `entrypoint_path`, `verify_jwt` (lido de `supabase/config.toml`, default `true`) e `import_map_path` quando existir `import_map.json`.
+    - Resposta do instalador agora inclui `functions[]` com status por slug (`ok`/`error`); o step vira `warning` quando alguma function falha.
+
 - **Database (Migrations / Onboarding do aluno)**:
   - Consolidado o schema do Supabase para **1 única migration** em `supabase/migrations/20251201000000_schema_init.sql`.
   - Detalhes técnicos: baseline inclui `organization_settings.ai_enabled`, `ai_prompt_templates`, `ai_feature_flags`, `boards.default_product_id`, contexto de empresa/participantes em `activities`, e Integrações/Webhooks (`pg_net`, tabelas `integration_*`/`webhook_*` e trigger em `deals`).
@@ -53,6 +61,8 @@
   - Adicionado guia humano em `docs/public-api.md`.
   - Adicionada base da **Public API auth**: `api_keys` (schema consolidado) + RPCs `create_api_key`, `revoke_api_key`, `validate_api_key` e endpoint `GET /api/public/v1/me`.
   - Adicionados endpoints de **Boards**: `GET /api/public/v1/boards`, `GET /api/public/v1/boards/{boardKeyOrId}`, `GET /api/public/v1/boards/{boardKeyOrId}/stages`, e integração disso na UI (selecionar pipeline via `board_key`).
+  - Implementados endpoints essenciais (escopo B): **Companies**, **Contacts**, **Deals**, **Activities** e ações (`move-stage`, `mark-won`, `mark-lost`), com OpenAPI atualizado e botões “Copiar cURL”/“Testar agora” na UI.
+  - Swagger UI em `GET /api/public/v1/docs` (renderiza o OpenAPI do CRM), com CSS refinado para um visual mais clean e legível.
 - **Debug Mode (UX)**:
   - Debug agora é **reativo** (sem refresh): toggle dispara evento (`DEBUG_MODE_EVENT`) e `DebugFillButton` usa `useDebugMode`.
   - Fix: geração de telefone fake agora é determinística (sem `fromRegExp`, evitando `\\` no número).

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Key, Copy, ExternalLink, CheckCircle2, Plus, Trash2, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Key, Copy, ExternalLink, CheckCircle2, Plus, Trash2, ShieldCheck, RefreshCw, TerminalSquare, Play } from 'lucide-react';
 
 import { useOptionalToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase/client';
@@ -35,10 +35,16 @@ export const ApiKeysSection: React.FC = () => {
   const [boards, setBoards] = useState<Array<{ id: string; key: string | null; name: string }>>([]);
   const [boardsLoading, setBoardsLoading] = useState(false);
   const [selectedBoardKey, setSelectedBoardKey] = useState<string>('');
+  const [actionTestLoading, setActionTestLoading] = useState(false);
+  const [actionTestResult, setActionTestResult] = useState<{ ok: boolean; message: string; raw?: any } | null>(null);
 
   const openApiUrl = useMemo(() => '/api/public/v1/openapi.json', []);
+  const swaggerUrl = useMemo(() => '/api/public/v1/docs', []);
   const meUrl = useMemo(() => '/api/public/v1/me', []);
   const boardsUrl = useMemo(() => '/api/public/v1/boards?limit=250', []);
+  const contactsUrl = useMemo(() => '/api/public/v1/contacts', []);
+  const dealsUrl = useMemo(() => '/api/public/v1/deals', []);
+  const activitiesUrl = useMemo(() => '/api/public/v1/activities', []);
 
   const copy = async (label: string, value: string) => {
     try {
@@ -71,7 +77,6 @@ export const ApiKeysSection: React.FC = () => {
 
   useEffect(() => {
     void loadKeys();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const createKey = async () => {
@@ -168,8 +173,98 @@ export const ApiKeysSection: React.FC = () => {
 
   useEffect(() => {
     if (createdToken) void loadBoardsViaApi();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [createdToken]);
+
+  const curlExample = useMemo(() => {
+    const token = createdToken || 'SUA_API_KEY';
+    if (action === 'create_lead') {
+      return `curl -X POST '${contactsUrl}' \\\n+  -H 'Content-Type: application/json' \\\n+  -H 'X-Api-Key: ${token}' \\\n+  -d '{\n+    \"name\": \"Lead Teste\",\n+    \"email\": \"teste@exemplo.com\",\n+    \"phone\": \"+5511999999999\",\n+    \"source\": \"n8n\"\n+  }'`;
+    }
+    if (action === 'create_deal') {
+      const boardKey = selectedBoardKey || 'board-key';
+      return `curl -X POST '${dealsUrl}' \\\n+  -H 'Content-Type: application/json' \\\n+  -H 'X-Api-Key: ${token}' \\\n+  -d '{\n+    \"title\": \"Deal Teste\",\n+    \"value\": 0,\n+    \"board_key\": \"${boardKey}\",\n+    \"contact\": {\n+      \"name\": \"Lead Teste\",\n+      \"email\": \"teste@exemplo.com\",\n+      \"phone\": \"+5511999999999\"\n+    }\n+  }'`;
+    }
+    if (action === 'move_stage') {
+      return `curl -X POST '/api/public/v1/deals/DEAL_ID/move-stage' \\\n+  -H 'Content-Type: application/json' \\\n+  -H 'X-Api-Key: ${token}' \\\n+  -d '{ \"to_stage_id\": \"STAGE_UUID\" }'`;
+    }
+    return `curl -X POST '${activitiesUrl}' \\\n+  -H 'Content-Type: application/json' \\\n+  -H 'X-Api-Key: ${token}' \\\n+  -d '{\n+    \"type\": \"NOTE\",\n+    \"title\": \"Nota\",\n+    \"description\": \"Criada via integração\",\n+    \"date\": \"${new Date().toISOString()}\"\n+  }'`;
+  }, [action, activitiesUrl, contactsUrl, createdToken, dealsUrl, selectedBoardKey]);
+
+  const runActionTest = async () => {
+    if (!createdToken) {
+      addToast('Crie uma chave no Passo 2.', 'warning');
+      return;
+    }
+    setActionTestLoading(true);
+    setActionTestResult(null);
+    try {
+      if (action === 'create_lead') {
+        const res = await fetch(contactsUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Api-Key': createdToken },
+          body: JSON.stringify({
+            name: 'Lead Teste',
+            email: `teste+${Date.now()}@exemplo.com`,
+            phone: '+5511999999999',
+            source: 'ui-test',
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.error || 'Falha no teste');
+        setActionTestResult({ ok: true, message: `OK (${json?.action || 'ok'})`, raw: json });
+        return;
+      }
+
+      if (action === 'create_deal') {
+        if (!selectedBoardKey) {
+          addToast('Escolha um board no Passo 3.', 'warning');
+          setActionTestResult({ ok: false, message: 'Selecione um board_key primeiro.' });
+          return;
+        }
+        const res = await fetch(dealsUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Api-Key': createdToken },
+          body: JSON.stringify({
+            title: `Deal Teste ${new Date().toLocaleTimeString('pt-BR')}`,
+            value: 0,
+            board_key: selectedBoardKey,
+            contact: {
+              name: 'Lead Teste',
+              email: `teste+${Date.now()}@exemplo.com`,
+              phone: '+5511999999999',
+            },
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.error || 'Falha no teste');
+        setActionTestResult({ ok: true, message: 'OK (deal criado)', raw: json });
+        return;
+      }
+
+      if (action === 'create_activity') {
+        const res = await fetch(activitiesUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Api-Key': createdToken },
+          body: JSON.stringify({
+            type: 'NOTE',
+            title: 'Nota via integração',
+            description: 'Criada pelo teste da UI',
+            date: new Date().toISOString(),
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.error || 'Falha no teste');
+        setActionTestResult({ ok: true, message: 'OK (atividade criada)', raw: json });
+        return;
+      }
+
+      setActionTestResult({ ok: false, message: 'Teste automático para mover etapa entra no próximo passo (precisa DEAL_ID + STAGE_ID).' });
+    } catch (e: any) {
+      setActionTestResult({ ok: false, message: e?.message || 'Erro no teste' });
+    } finally {
+      setActionTestLoading(false);
+    }
+  };
 
   return (
     <SettingsSection title="API (Integrações)" icon={Key}>
@@ -344,6 +439,15 @@ export const ApiKeysSection: React.FC = () => {
               Copiar URL
             </button>
             <a
+              href={swaggerUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-white text-sm font-semibold inline-flex items-center gap-2"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Abrir Swagger
+            </a>
+            <a
               href={openApiUrl}
               target="_blank"
               rel="noreferrer"
@@ -361,6 +465,45 @@ export const ApiKeysSection: React.FC = () => {
 
       <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
         Passo 4 (em andamento): vamos adicionar “Copiar cURL” e “Prova de funcionamento” (logs) para {action.replaceAll('_', ' ')}.
+      </div>
+
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 p-4">
+        <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">
+          Passo 5 — Copiar e testar
+        </div>
+        <div className="text-xs text-slate-600 dark:text-slate-300 mb-3">
+          Este é o “copiar/colar” que seu usuário precisa. Se funcionar aqui, funciona no n8n.
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => copy('cURL', curlExample)}
+            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-white text-sm font-semibold inline-flex items-center gap-2"
+          >
+            <TerminalSquare className="h-4 w-4" />
+            Copiar cURL
+          </button>
+          <button
+            type="button"
+            onClick={runActionTest}
+            disabled={actionTestLoading}
+            className="px-3 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center gap-2"
+          >
+            <Play className="h-4 w-4" />
+            {actionTestLoading ? 'Testando…' : 'Testar agora'}
+          </button>
+        </div>
+
+        <pre className="text-xs font-mono whitespace-pre-wrap rounded-lg border border-slate-200 dark:border-white/10 bg-white/70 dark:bg-black/20 p-3 text-slate-800 dark:text-slate-100">
+          {curlExample}
+        </pre>
+
+        {actionTestResult && (
+          <div className={`mt-3 text-sm ${actionTestResult.ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
+            {actionTestResult.message}
+          </div>
+        )}
       </div>
 
       <div className="mt-6">
