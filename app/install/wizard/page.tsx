@@ -1,9 +1,19 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, CheckCircle2, Loader2, ExternalLink, Sparkles, Pause, Info } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, ExternalLink, Sparkles, Pause, Info, RefreshCw } from 'lucide-react';
 import { AnimatePresence, motion, useMotionValue, useSpring } from 'framer-motion';
+import {
+  loadInstallState,
+  saveInstallState,
+  clearInstallState,
+  createInstallState,
+  updateStepStatus,
+  canResumeInstallation,
+  getProgressSummary,
+  type InstallState,
+} from '@/lib/installer/installState';
 
 // Types
 type InstallerMeta = { enabled: boolean; requiresToken: boolean };
@@ -153,6 +163,10 @@ export default function InstallWizardPage() {
   const [cineSubtitle, setCineSubtitle] = useState('');
   const [cineProgress, setCineProgress] = useState(0);
   
+  // Estado persistente para instalação resumível
+  const [installState, setInstallState] = useState<InstallState | null>(null);
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  
   // Parallax
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
@@ -235,6 +249,14 @@ export default function InstallWizardPage() {
       // Se já tem token Supabase, preenche e auto-avança
       if (savedSupabaseToken) {
         setSupabaseAccessToken(savedSupabaseToken);
+      }
+      
+      // Verifica se há instalação em andamento que pode ser resumida
+      const savedInstallState = loadInstallState();
+      if (savedInstallState && canResumeInstallation(savedInstallState)) {
+        setInstallState(savedInstallState);
+        setShowResumeModal(true);
+        console.log('[wizard] Found resumable installation:', getProgressSummary(savedInstallState));
       }
       
       setIsHydrated(true);
@@ -549,80 +571,79 @@ export default function InstallWizardPage() {
     setCineSubtitle('Verificando estado do projeto...');
     setCineProgress(0);
     
-    // 🧠 Health Check Inteligente - detecta o que pode ser pulado
-    let healthCheck: { 
-      skipWaitProject?: boolean; 
-      skipWaitStorage?: boolean; 
-      skipMigrations?: boolean; 
-      skipBootstrap?: boolean;
-      estimatedSeconds?: number;
-    } | undefined;
-    
     try {
-      const healthRes = await fetch('/api/installer/health-check', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          supabase: {
-            url: supabaseUrl.trim(),
-            accessToken: supabaseAccessToken.trim(),
-            projectRef: supabaseProjectRef.trim() || undefined,
-            dbUrl: supabaseDbUrl.trim() || undefined,
-          },
-        }),
-      });
+      // 🧠 Health Check Inteligente - detecta o que pode ser pulado
+      let healthCheck: { 
+        skipWaitProject?: boolean; 
+        skipWaitStorage?: boolean; 
+        skipMigrations?: boolean; 
+        skipBootstrap?: boolean;
+        estimatedSeconds?: number;
+      } | undefined;
       
-      if (healthRes.ok) {
-        const healthData = await healthRes.json();
-        if (healthData.ok) {
-          healthCheck = {
-            skipWaitProject: healthData.skipWaitProject,
-            skipWaitStorage: healthData.skipWaitStorage,
-            skipMigrations: healthData.skipMigrations,
-            skipBootstrap: healthData.skipBootstrap,
-            estimatedSeconds: healthData.estimatedSeconds,
-          };
-          console.log('[wizard] 🏥 Health check result:', JSON.stringify(healthCheck, null, 2));
-          console.log('[wizard] ⏱️ Tempo estimado:', healthCheck.estimatedSeconds, 'segundos');
-          
-          // Mensagem personalizada baseada no que foi detectado
-          const skippedCount = [
-            healthCheck.skipWaitProject,
-            healthCheck.skipWaitStorage,
-            healthCheck.skipMigrations,
-            healthCheck.skipBootstrap,
-          ].filter(Boolean).length;
-          
-          if (skippedCount >= 3) {
-            setCineSubtitle('Projeto detectado! Instalação rápida...');
-          } else if (skippedCount >= 1) {
-            setCineSubtitle('Otimizando rota de instalação...');
+      try {
+        const healthRes = await fetch('/api/installer/health-check', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            supabase: {
+              url: supabaseUrl.trim(),
+              accessToken: supabaseAccessToken.trim(),
+              projectRef: supabaseProjectRef.trim() || undefined,
+              dbUrl: supabaseDbUrl.trim() || undefined,
+            },
+          }),
+        });
+        
+        if (healthRes.ok) {
+          const healthData = await healthRes.json();
+          if (healthData.ok) {
+            healthCheck = {
+              skipWaitProject: healthData.skipWaitProject,
+              skipWaitStorage: healthData.skipWaitStorage,
+              skipMigrations: healthData.skipMigrations,
+              skipBootstrap: healthData.skipBootstrap,
+              estimatedSeconds: healthData.estimatedSeconds,
+            };
+            console.log('[wizard] Health check result:', healthCheck);
+            
+            // Mensagem personalizada baseada no que foi detectado
+            const skippedCount = [
+              healthCheck.skipWaitProject,
+              healthCheck.skipWaitStorage,
+              healthCheck.skipMigrations,
+              healthCheck.skipBootstrap,
+            ].filter(Boolean).length;
+            
+            if (skippedCount >= 3) {
+              setCineSubtitle('Projeto detectado! Instalação rápida...');
+            } else if (skippedCount >= 1) {
+              setCineSubtitle('Otimizando rota de instalação...');
+            }
           }
         }
+      } catch (healthErr) {
+        console.warn('[wizard] Health check failed, proceeding with full install:', healthErr);
       }
-    } catch (healthErr) {
-      console.warn('[wizard] ⚠️ Health check falhou, instalação completa será executada:', healthErr);
-    }
-    
-    await new Promise((r) => setTimeout(r, 800));
-    
-    // Contagem regressiva épica
-    setCineMessage('3');
-    setCineSubtitle('Motores acionados');
-    await new Promise((r) => setTimeout(r, 1000));
-    setCineMessage('2');
-    setCineSubtitle('Sistemas online');
-    await new Promise((r) => setTimeout(r, 1000));
-    setCineMessage('1');
-    setCineSubtitle('Ignição');
-    await new Promise((r) => setTimeout(r, 800));
-    setCineMessage('Decolagem!');
-    setCineSubtitle('');
-    await new Promise((r) => setTimeout(r, 600));
-    
-    setCinePhase('running');
-    
-    try {
+      
+      await new Promise((r) => setTimeout(r, 800));
+      
+      // Contagem regressiva épica
+      setCineMessage('3');
+      setCineSubtitle('Motores acionados');
+      await new Promise((r) => setTimeout(r, 1000));
+      setCineMessage('2');
+      setCineSubtitle('Sistemas online');
+      await new Promise((r) => setTimeout(r, 1000));
+      setCineMessage('1');
+      setCineSubtitle('Ignição');
+      await new Promise((r) => setTimeout(r, 800));
+      setCineMessage('Decolagem!');
+      setCineSubtitle('');
+      await new Promise((r) => setTimeout(r, 600));
+      
+      setCinePhase('running');
+      
       const res = await fetch('/api/installer/run-stream', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -671,6 +692,14 @@ export default function InstallWizardPage() {
               setCineMessage(event.title || 'Processando...');
               setCineSubtitle(event.subtitle || '');
               setCineProgress(event.progress || 0);
+            } else if (event.type === 'retry') {
+              // Show retry feedback without interrupting flow
+              const retryMsg = `Tentativa ${event.retryCount}/${event.maxRetries}...`;
+              setCineSubtitle(retryMsg);
+              console.log(`[wizard] Retry: ${event.stepId} - ${retryMsg}`);
+            } else if (event.type === 'skip') {
+              // Log skipped steps
+              console.log('[wizard] Skipped steps:', event.skipped);
             } else if (event.type === 'complete' && event.ok) {
               setCineProgress(100);
               setCineMessage(event.title || `Missão cumprida, ${firstName}!`);
@@ -1080,6 +1109,8 @@ export default function InstallWizardPage() {
                       localStorage.removeItem('crm_install_supabase_token');
                       localStorage.removeItem('crm_install_session_locked');
                       sessionStorage.removeItem('crm_install_user_pass');
+                      // Limpa estado de instalação persistente
+                      clearInstallState();
                       // Redireciona pro login
                       window.location.href = '/login';
                     }} 
@@ -1091,17 +1122,107 @@ export default function InstallWizardPage() {
               )}
               
               {cinePhase === 'error' && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                  <p className="text-red-400/80 mb-6">{runError || 'Algo deu errado durante a instalação.'}</p>
-                  <button 
-                    onClick={() => setShowInstallOverlay(false)} 
-                    className="px-8 py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-all"
-                  >
-                    Voltar
-                  </button>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                  <p className="text-red-400/80">{runError || 'Algo deu errado durante a instalação.'}</p>
+                  <div className="flex gap-4 justify-center">
+                    <button 
+                      onClick={() => {
+                        setShowInstallOverlay(false);
+                        clearInstallState();
+                      }} 
+                      className="px-8 py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-all"
+                    >
+                      Voltar
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setShowInstallOverlay(false);
+                        setCinePhase('preparing');
+                        setCineProgress(0);
+                        setRunError(null);
+                        // Retry
+                        setTimeout(() => runInstaller(), 100);
+                      }} 
+                      className="px-8 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold transition-all flex items-center gap-2"
+                    >
+                      <RefreshCw className="w-5 h-5" />
+                      Tentar novamente
+                    </button>
+                  </div>
                 </motion.div>
               )}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Modal de Resumir Instalação */}
+      <AnimatePresence>
+        {showResumeModal && installState && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-slate-900/95 border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl"
+            >
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-4">
+                  <RefreshCw className="w-8 h-8 text-amber-400" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Instalação em andamento</h2>
+                <p className="text-slate-400">
+                  Encontramos uma instalação anterior que não foi concluída.
+                </p>
+              </div>
+              
+              <div className="bg-white/5 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-slate-400 text-sm">Progresso</span>
+                  <span className="text-cyan-400 font-medium">{getProgressSummary(installState).percentage}%</span>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-cyan-500 to-teal-500 rounded-full" 
+                    style={{ width: `${getProgressSummary(installState).percentage}%` }}
+                  />
+                </div>
+                {getProgressSummary(installState).currentStepName && (
+                  <p className="text-xs text-slate-500 mt-2">
+                    Último passo: {getProgressSummary(installState).currentStepName}
+                  </p>
+                )}
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    clearInstallState();
+                    setInstallState(null);
+                    setShowResumeModal(false);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium transition-all"
+                >
+                  Recomeçar
+                </button>
+                <button
+                  onClick={() => {
+                    setShowResumeModal(false);
+                    // Vai direto para a instalação
+                    setCurrentStep(2);
+                    setTimeout(() => runInstaller(), 100);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-medium transition-all"
+                >
+                  Continuar
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

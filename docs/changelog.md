@@ -2,6 +2,26 @@
 
 ## 28/12/2025
 
+- **Installer Wizard — Resiliência Total (Fase 2)**:
+  - **Instalação Resumível**: estado da instalação é salvo em `localStorage` a cada etapa
+    - Se o navegador fechar ou der erro, ao voltar aparece modal "Instalação em andamento"
+    - Opções: "Recomeçar" (limpa tudo) ou "Continuar" (retoma de onde parou)
+    - Estado expira após 1 hora para evitar dados obsoletos
+  - **Retry Inteligente**: cada etapa crítica tenta até 3x antes de falhar
+    - `resolve_keys`, `resolve_db`, `migrations`, `edge_secrets`, `edge_deploy`, `bootstrap`
+    - Delay progressivo entre tentativas (2s, 4s, 6s)
+    - Feedback visual: "Tentativa 1/3..." no subtitle cinematográfico
+    - Não faz retry em erros irrecuperáveis (ex: "already exists")
+  - **Endpoint de Rollback** (`/api/installer/rollback`):
+    - Permite desfazer parcialmente uma instalação que falhou
+    - Ações: `delete_admin`, `delete_organization`, `truncate_tables`
+    - Usado para limpar estado inconsistente antes de retry
+  - **Botão "Tentar novamente"**: na tela de erro, além de "Voltar", agora tem opção de retry
+  - **Novo módulo `lib/installer/installState.ts`**:
+    - `createInstallState()`, `loadInstallState()`, `saveInstallState()`, `clearInstallState()`
+    - `updateStepStatus()`, `canResumeInstallation()`, `getProgressSummary()`
+    - Tracking de cada etapa: `pending | running | completed | failed | skipped`
+
 - **Installer Wizard — Health Check Inteligente (Fase 1)**:
   - **Novo endpoint `/api/installer/health-check`**: analisa o estado do projeto Supabase antes de iniciar a instalação
     - Detecta se projeto está `ACTIVE_HEALTHY`, `COMING_UP` ou `PAUSED`
