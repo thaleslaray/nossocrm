@@ -7,6 +7,7 @@
   - Preferimos redeploy de **Production** (evita redeploy acidental de Preview)
   - Preferir deployment `id` (canônico) ao invés de `uid` quando ambos existirem (evita 404/NOT_FOUND em alguns projetos)
   - Redeploy passou a usar `POST /v13/deployments` com `deploymentId` (compatível com o fluxo do smartzap)
+  - A Vercel exige `name` nesse endpoint; usamos `deployment.name` com fallback para `project.name`
   - Mensagem de erro aponta o caminho de **Redeploy manual** na Vercel
 
 

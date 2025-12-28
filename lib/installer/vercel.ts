@@ -284,12 +284,28 @@ export async function triggerProjectRedeploy(
   }
 
   // Redeploy via criação de novo deployment (mais compatível do que "/redeploy" em alguns projetos)
+
+
+  // A Vercel exige `name` no POST /v13/deployments.
+  // Preferimos o nome do deployment listado; se não vier, caímos pro nome do projeto.
+  let deploymentName = (latest as any)?.name as string | undefined;
+  if (!deploymentName) {
+    try {
+      const proj = await vercelFetch<VercelProject>(`/v9/projects/${projectId}`, token, {}, teamId);
+      deploymentName = proj?.name;
+    } catch {
+      // ignore
+    }
+  }
+  if (!deploymentName) {
+    throw new Error('Falha ao preparar redeploy: nome do deployment/projeto ausente.');
+  }
   await vercelFetch(
     `/v13/deployments`,
     token,
     {
       method: 'POST',
-      body: JSON.stringify({ deploymentId, target: 'production' }),
+      body: JSON.stringify({ deploymentId, name: deploymentName, target: 'production' }),
     },
     teamId
   );
