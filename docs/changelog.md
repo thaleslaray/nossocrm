@@ -668,3 +668,9 @@
   - Mantém apenas a ação de **pausar** projetos ativos quando o plano Free estiver sem slots
 - **Técnico**: `createProjectInOrg` passou a fazer retry automático ao receber `PROJECT_EXISTS` (HTTP 409)
   - Evita travas e elimina os erros recorrentes do fluxo de deleção
+
+### 29/12/2025 — UX: Banner global durante pause (needspace)
+
+- **Bug Fix/UX**: Ao clicar em **Pausar** na tela "Precisamos de espaço", agora a UI troca imediatamente para um **banner global** de "pausando" e esconde a lista/ações
+  - Antes: só mostrava spinner no botão e podia parecer que nada aconteceu
+  - Agora: feedback claro e consistente durante todo o polling até liberar slot

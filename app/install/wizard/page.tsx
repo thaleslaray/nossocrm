@@ -680,6 +680,8 @@ export default function InstallWizardPage() {
   const pauseProject = async (projectRef: string) => {
     if (supabasePausingRef) return;
     setSupabasePausingRef(projectRef);
+    setPausePolling(true);
+    setSupabaseCreateError(null);
     
     try {
       const res = await fetch('/api/installer/supabase/pause-project', {
@@ -714,6 +716,7 @@ export default function InstallWizardPage() {
       setSupabaseCreateError(err instanceof Error ? err.message : 'Erro');
     } finally {
       setSupabasePausingRef(null);
+      setPausePolling(false);
     }
   };
   
@@ -1093,27 +1096,45 @@ export default function InstallWizardPage() {
                     <div className="text-center mb-6">
                       <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-6">
                         <Pause className="w-8 h-8 text-amber-400" />
-                        </div>
+                      </div>
                       <h1 className="text-2xl font-bold text-white mb-2">Precisamos de espaço</h1>
                       <p className="text-slate-400">Seu plano permite 2 projetos ativos.<br />Pause um para continuar:</p>
+                    </div>
+
+                    {pausePolling || Boolean(supabasePausingRef) ? (
+                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+                        <div className="flex items-center gap-3 text-amber-400">
+                          <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+                          <p className="text-sm">O projeto está sendo pausado. Aguarde alguns segundos…</p>
                         </div>
-                    <div className="space-y-3 mb-6">
-                      {allFreeActiveProjects.map((p) => (
-                        <div key={p.ref} className="flex items-center justify-between gap-4 bg-white/5 border border-white/10 rounded-xl p-4">
-                                    <div className="min-w-0">
-                            <div className="text-white font-medium truncate">{p.name}</div>
-                            <div className="text-slate-500 text-sm truncate">{p.orgName}</div>
-                                      </div>
-                          <button onClick={() => void pauseProject(p.ref)} disabled={supabasePausingRef === p.ref} className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-medium text-sm transition-all disabled:opacity-50 shrink-0">
-                            {supabasePausingRef === p.ref ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Pausar'}
-                                      </button>
-                                  </div>
-                                ))}
-                                </div>
-                    <div className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-slate-400">
-                      <Info className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
-                      <span>Você pode reativar a qualquer momento no painel do Supabase.</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="space-y-3 mb-6">
+                          {allFreeActiveProjects.map((p) => (
+                            <div key={p.ref} className="flex items-center justify-between gap-4 bg-white/5 border border-white/10 rounded-xl p-4">
+                              <div className="min-w-0">
+                                <div className="text-white font-medium truncate">{p.name}</div>
+                                <div className="text-slate-500 text-sm truncate">{p.orgName}</div>
                               </div>
+                              <button
+                                onClick={() => void pauseProject(p.ref)}
+                                disabled={supabasePausingRef === p.ref || pausePolling}
+                                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-medium text-sm transition-all disabled:opacity-50 shrink-0"
+                              >
+                                {supabasePausingRef === p.ref ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Pausar'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-slate-400">
+                          <Info className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+                          <span>Você pode reativar a qualquer momento no painel do Supabase.</span>
+                        </div>
+                      </>
+                    )}
+
                     {supabaseCreateError && <div className="mt-4 rounded-xl bg-red-500/10 border border-red-500/20 p-4 text-red-400 text-sm">{supabaseCreateError}</div>}
                   </motion.div>
                 )}
