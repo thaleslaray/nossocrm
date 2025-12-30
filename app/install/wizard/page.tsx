@@ -1202,6 +1202,100 @@ export default function InstallWizardPage() {
     }
   };
 
+  const clearInstallerLocalData = () => {
+    localStorage.removeItem('crm_install_token');
+    localStorage.removeItem('crm_install_project');
+    localStorage.removeItem('crm_install_installer_token');
+    localStorage.removeItem('crm_install_user_name');
+    localStorage.removeItem('crm_install_user_email');
+    localStorage.removeItem('crm_install_user_pass_hash');
+    localStorage.removeItem('crm_install_supabase_token');
+    localStorage.removeItem('crm_install_session_locked');
+    localStorage.removeItem(STORAGE_VERCEL_DEPLOYMENT_ID);
+    sessionStorage.removeItem('crm_install_user_pass');
+    clearInstallState();
+    commitInstallState(null);
+  };
+
+  const buildErrorHelp = (msg: string | null) => {
+    const text = String(msg || '').trim();
+    const lower = text.toLowerCase();
+
+    const help: {
+      title: string;
+      steps: string[];
+      primaryAction?: { label: string; run: () => void };
+      secondaryAction?: { label: string; run: () => void };
+    } = {
+      title: 'Como resolver',
+      steps: [],
+    };
+
+    // Same-origin / CSRF guard
+    if (lower === 'forbidden' || lower.includes('csrf') || lower.includes('same-origin')) {
+      help.steps.push('Use o domínio de Produção da Vercel (não Preview).');
+      help.steps.push('Vá em Vercel → Project → Domains e abra o domínio principal.');
+      help.steps.push('Recarregue e tente novamente.');
+      help.primaryAction = { label: 'Ir para o início do Wizard', run: () => router.push('/install/start') };
+      return help;
+    }
+
+    if (lower.includes('invalid installer token')) {
+      help.steps.push('O Installer Token informado está incorreto.');
+      help.steps.push('Volte ao início do wizard e cole o token correto (se sua instalação exigir token).');
+      help.primaryAction = { label: 'Voltar ao início do Wizard', run: () => router.push('/install/start') };
+      help.secondaryAction = { label: 'Limpar dados e recomeçar', run: clearInstallerLocalData };
+      return help;
+    }
+
+    if (lower.includes('installer disabled')) {
+      help.steps.push('O instalador foi desativado neste projeto.');
+      help.steps.push('Se já está instalado, entre pelo /login.');
+      help.primaryAction = { label: 'Ir para Login', run: () => (window.location.href = '/login') };
+      return help;
+    }
+
+    // Vercel token / permissão / escopo
+    if (
+      lower.includes('token da vercel') ||
+      lower.includes('invalid token') ||
+      lower.includes('sem permissao') ||
+      lower.includes('not authorized') ||
+      lower.includes('missing_scope') ||
+      lower.includes('insufficient_scope')
+    ) {
+      help.steps.push('Gere um novo token na Vercel com permissão “Full Account”.');
+      help.steps.push('Volte ao início do wizard e cole o token novo.');
+      help.steps.push('Faça a instalação no domínio de Produção.');
+      help.primaryAction = { label: 'Voltar ao início do Wizard', run: () => router.push('/install/start') };
+      help.secondaryAction = { label: 'Limpar dados e recomeçar', run: clearInstallerLocalData };
+      return help;
+    }
+
+    // Supabase token
+    if (lower.includes('supabase') && (lower.includes('unauthorized') || lower.includes('token'))) {
+      help.steps.push('Confirme que você colou o token do Supabase (começa com `sbp_`).');
+      help.steps.push('Se expirou, gere um novo em Supabase → Account → Access Tokens.');
+      help.primaryAction = { label: 'Voltar ao início do Wizard', run: () => router.push('/install/start') };
+      return help;
+    }
+
+    // SSE / rede instável
+    if (lower.includes('conexão instável') || lower.includes('network')) {
+      help.steps.push('Recarregue a página (o wizard tenta retomar do ponto salvo).');
+      help.steps.push('Se estiver em rede instável, tente outra conexão.');
+      help.primaryAction = { label: 'Recarregar', run: () => window.location.reload() };
+      return help;
+    }
+
+    // Fallback
+    help.steps.push('Clique em “Tentar novamente”.');
+    help.steps.push('Se persistir, volte ao início do wizard e confira tokens/credenciais.');
+    help.primaryAction = { label: 'Voltar ao início do Wizard', run: () => router.push('/install/start') };
+    help.secondaryAction = { label: 'Limpar dados e recomeçar', run: clearInstallerLocalData };
+    return help;
+  };
+
   const applyNewInstallerPassword = useCallback(async () => {
     const pass = newPassword;
     const confirm = newPasswordConfirm;
@@ -1793,19 +1887,7 @@ export default function InstallWizardPage() {
                   </p>
                   <button 
                     onClick={() => {
-                      // Limpa dados do instalador
-                      localStorage.removeItem('crm_install_token');
-                      localStorage.removeItem('crm_install_project');
-                      localStorage.removeItem('crm_install_installer_token');
-                      localStorage.removeItem('crm_install_user_name');
-                      localStorage.removeItem('crm_install_user_email');
-                      localStorage.removeItem('crm_install_user_pass_hash');
-                      localStorage.removeItem('crm_install_supabase_token');
-                      localStorage.removeItem('crm_install_session_locked');
-                      sessionStorage.removeItem('crm_install_user_pass');
-                      // Limpa estado de instalação persistente
-                      clearInstallState();
-                      // Redireciona pro login
+                      clearInstallerLocalData();
                       window.location.href = '/login';
                     }} 
                     className="px-10 py-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-bold text-xl shadow-2xl shadow-emerald-500/30 transition-all transform hover:scale-105"
@@ -1818,11 +1900,47 @@ export default function InstallWizardPage() {
               {cinePhase === 'error' && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                   <p className="text-red-400/80">{runError || 'Algo deu errado durante a instalação.'}</p>
+
+                  {(() => {
+                    const h = buildErrorHelp(runError);
+                    if (!h.steps.length) return null;
+                    return (
+                      <div className="rounded-2xl bg-white/5 border border-white/10 p-4 text-left">
+                        <div className="text-white font-semibold mb-2">{h.title}</div>
+                        <ol className="list-decimal list-inside space-y-1 text-sm text-slate-300">
+                          {h.steps.map((s, idx) => (
+                            <li key={idx}>{s}</li>
+                          ))}
+                        </ol>
+                        {(h.primaryAction || h.secondaryAction) && (
+                          <div className="mt-4 flex flex-wrap gap-3">
+                            {h.primaryAction && (
+                              <button
+                                onClick={h.primaryAction.run}
+                                className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white text-sm font-semibold"
+                              >
+                                {h.primaryAction.label}
+                              </button>
+                            )}
+                            {h.secondaryAction && (
+                              <button
+                                onClick={h.secondaryAction.run}
+                                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm"
+                              >
+                                {h.secondaryAction.label}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   <div className="flex gap-4 justify-center">
                     <button 
                       onClick={() => {
                         setShowInstallOverlay(false);
-                        clearInstallState();
+                        // Mantém o "save game" para retry/retomada; use o botão de limpar acima se necessário.
                       }} 
                       className="px-8 py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-all"
                     >

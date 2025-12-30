@@ -16,6 +16,11 @@
   - **Endpoint**: `/api/installer/finalize` (aguarda READY e então desabilita `INSTALLER_ENABLED`).
   - **Arquivos**: `app/api/installer/run-stream/route.ts`, `app/api/installer/finalize/route.ts`, `app/install/wizard/page.tsx`
 
+- **Installer Wizard — Erros prescritivos (não-técnicos) com CTAs**:
+  - **Mudança**: overlay de erro agora mostra “Como resolver” com passos curtos e botões (ex.: voltar ao início, limpar dados, recarregar).
+  - **Cobertura**: token Vercel inválido/sem escopo, installer token inválido, bloqueio same-origin/CSRF, token Supabase inválido e rede instável.
+  - **Arquivo**: `app/install/wizard/page.tsx`
+
 ## 29/12/2025
 
 - **Installer — Bloqueio de acesso após instalação completa**:
