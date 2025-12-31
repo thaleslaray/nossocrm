@@ -382,7 +382,6 @@ export const boardsService = {
   async create(board: Omit<Board, 'id' | 'createdAt'>, order?: number): Promise<{ data: Board | null; error: Error | null }> {
     try {
       if (!supabase) return { data: null, error: new Error('Supabase não configurado') };
-      const t0 = Date.now();
 
       // Ensure we always set organization_id for boards/stages (prevents downstream deal creation failures).
       const organizationId =
@@ -522,11 +521,6 @@ export const boardsService = {
         data: transformBoard(newBoard as DbBoard, insertedStages),
         error: null
       };
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-appear-lag',hypothesisId:'B4',location:'lib/supabase/boards.ts:boardsService.create',message:'Supabase create(board) finished',data:{ms:Date.now()-t0,ok:!!result.data?.id,stagesCount:insertedStages.length},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       return result;
     } catch (e) {
       return { data: null, error: e as Error };

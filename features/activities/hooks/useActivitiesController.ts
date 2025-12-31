@@ -170,12 +170,6 @@ export const useActivitiesController = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const t0 = Date.now();
-    // #region agent log
-    if (process.env.NODE_ENV !== 'production') {
-      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-activities-visibility-2',hypothesisId:'A5',location:'features/activities/hooks/useActivitiesController.ts:handleSubmit',message:'Activities handleSubmit called',data:{mode:editingActivity?'edit':'create',hasDealId:!!formData.dealId},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion
 
     const date = new Date(`${formData.date}T${formData.time}`);
     const selectedDeal = formData.dealId ? dealsById.get(formData.dealId) : undefined;
@@ -224,20 +218,10 @@ export const useActivitiesController = () => {
         },
         {
           onSuccess: () => {
-            // #region agent log
-            if (process.env.NODE_ENV !== 'production') {
-              fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-activities-visibility-2',hypothesisId:'A6',location:'features/activities/hooks/useActivitiesController.ts:handleSubmit:onSuccess',message:'Create activity success (controller)',data:{ms:Date.now()-t0},timestamp:Date.now()})}).catch(()=>{});
-            }
-            // #endregion
             showToast('Atividade criada com sucesso', 'success');
             setIsModalOpen(false);
           },
           onError: (error: Error) => {
-            // #region agent log
-            if (process.env.NODE_ENV !== 'production') {
-              fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-activities-visibility-2',hypothesisId:'A6',location:'features/activities/hooks/useActivitiesController.ts:handleSubmit:onError',message:'Create activity error (controller)',data:{ms:Date.now()-t0,error:String(error?.message||'').split('\n')[0].slice(0,120)},timestamp:Date.now()})}).catch(()=>{});
-            }
-            // #endregion
             showToast(`Erro ao criar atividade: ${error.message}`, 'error');
           },
         }

@@ -299,7 +299,6 @@ export const dealsService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
-      const t0 = Date.now();
       // stageId pode vir separado ou ser o mesmo que status
       const stageId = deal.stageId || deal.status || null;
 
@@ -395,12 +394,6 @@ export const dealsService = {
         }
         return { data: null, error };
       }
-
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ux-lag-board-deal',hypothesisId:'D7',location:'lib/supabase/deals.ts:dealsService.create',message:'Supabase insert(deal) finished',data:{ms:Date.now()-t0,boardId8:boardId.slice(0,8),ok:true,hadItems:!!deal.items?.length},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
 
       // Create items if any
       if (deal.items && deal.items.length > 0) {

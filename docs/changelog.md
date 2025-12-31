@@ -6,6 +6,8 @@
 - **Telemetria/Debug logs — não rodam em produção**: `fetch(.../ingest/...)` agora é guardado por `NODE_ENV !== 'production'` e mensagens de erro foram truncadas/sanitizadas quando logadas.
 - **Acessibilidade (Wizard)**: overlay de instalação agora anuncia estado de carregamento (`role="status"`, `aria-live`, `aria-busy`).
 - **Temp IDs + fallback por título**: `tempId` agora reduz risco de colisão e o drop mostra toast quando o fallback por título não resolve unicamente.
+- **Proxy/auth — evita "travadas" de 40s+ no carregamento**: exclusão de arquivos de service worker (`sw.js`, `service-worker.js`) do matcher do proxy para evitar chamadas desnecessárias de auth/RPC. Problema de carregamento intermitente resolvido.
+- **Cleanup**: removida toda a instrumentação temporária de debug (`#region agent log`/`/ingest/...`) após confirmação de que o problema foi resolvido. Lint e typecheck passando sem erros.
 
 ## 30/12/2025
 

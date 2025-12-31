@@ -116,11 +116,6 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
   const headingId = useId();
 
   React.useEffect(() => {
-    // #region agent log
-    if (process.env.NODE_ENV !== 'production') {
-      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ux-lag-board-modal',hypothesisId:'B9',location:'features/boards/components/Modals/CreateBoardModal.tsx:useEffect',message:'CreateBoardModal isOpen changed',data:{isOpen},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion
   }, [isOpen]);
 
   const { lifecycleStages, products } = useCRM();
@@ -274,12 +269,6 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
   };
 
   const handleSave = () => {
-    const t0 = Date.now();
-    // #region agent log
-    if (process.env.NODE_ENV !== 'production') {
-      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-appear-lag',hypothesisId:'B0',location:'features/boards/components/Modals/CreateBoardModal.tsx:handleSave',message:'CreateBoardModal save clicked',data:{mode:editingBoard?'edit':'create',stagesCount:stages.length,hasName:!!name.trim()},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion
     if (!name.trim()) return;
 
     const normalizedKey = boardKey.trim() ? slugify(boardKey) : '';
@@ -303,12 +292,6 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
       stages,
       isDefault: false
     };
-
-    // #region agent log
-    if (process.env.NODE_ENV !== 'production') {
-      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-appear-lag',hypothesisId:'B0',location:'features/boards/components/Modals/CreateBoardModal.tsx:handleSave',message:'CreateBoardModal calling onClose',data:{msSinceClick:Date.now()-t0},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion
     // Persist draft before closing (so we can restore on error)
     try {
       sessionStorage.setItem(

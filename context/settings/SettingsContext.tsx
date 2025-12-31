@@ -201,13 +201,9 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
       // Config org-wide (fonte de verdade): provider/model/keys em organization_settings
       // Keep this eager: other parts of the UI need to know if AI is enabled / key configured.
       if (aiConfigLoadedForUserRef.current !== profile.id) {
-        const t0 = Date.now();
         // Mark as "in-flight" immediately to avoid duplicate requests in dev StrictMode
         // where effects can run twice before the first request completes.
         aiConfigLoadedForUserRef.current = profile.id;
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settings-ai-load',hypothesisId:'AISET1',location:'context/settings/SettingsContext.tsx:fetchSettings',message:'Fetching /api/settings/ai (eager)',data:{path:(pathname||'').slice(0,40)||'/',userId8:profile.id.slice(0,8)},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         try {
           const aiRes = await fetch('/api/settings/ai', {
             method: 'GET',
@@ -249,17 +245,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
           aiConfigLoadedForUserRef.current = null;
           throw e;
         }
-        // #region agent log
-        if (process.env.NODE_ENV !== 'production') {
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settings-ai-load',hypothesisId:'AISET1',location:'context/settings/SettingsContext.tsx:fetchSettings',message:'Finished /api/settings/ai (eager)',data:{ms:Date.now()-t0},timestamp:Date.now()})}).catch(()=>{});
-        }
-        // #endregion
       } else {
-        // #region agent log
-        if (process.env.NODE_ENV !== 'production') {
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settings-ai-load',hypothesisId:'AISET1',location:'context/settings/SettingsContext.tsx:fetchSettings',message:'Skipped /api/settings/ai (already loaded for user)',data:{userId8:profile.id.slice(0,8)},timestamp:Date.now()})}).catch(()=>{});
-        }
-        // #endregion
       }
 
       // Fetch lifecycle stages
@@ -288,13 +274,6 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (!shouldLoadAiFeatures) return;
     if (aiFeaturesLoadedForUserRef.current === profile.id) return;
 
-    const t0 = Date.now();
-    // #region agent log
-    if (process.env.NODE_ENV !== 'production') {
-      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settings-ai-load',hypothesisId:'AISET2',location:'context/settings/SettingsContext.tsx:useEffect(ai-features)',message:'Fetching /api/settings/ai-features (lazy)',data:{path:(pathname||'').slice(0,40)||'/',isGlobalAIOpen,userId8:profile.id.slice(0,8)},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion
-
     // Mark as in-flight immediately to prevent duplicate requests in dev StrictMode.
     aiFeaturesLoadedForUserRef.current = profile.id;
 
@@ -317,11 +296,6 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
         // Allow retry on transient errors
         aiFeaturesLoadedForUserRef.current = null;
       } finally {
-        // #region agent log
-        if (process.env.NODE_ENV !== 'production') {
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settings-ai-load',hypothesisId:'AISET2',location:'context/settings/SettingsContext.tsx:useEffect(ai-features)',message:'Finished /api/settings/ai-features (lazy)',data:{ms:Date.now()-t0},timestamp:Date.now()})}).catch(()=>{});
-        }
-        // #endregion
       }
     })();
   }, [profile, pathname, isGlobalAIOpen, shouldLoadAiFeatures]);

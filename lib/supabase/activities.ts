@@ -148,7 +148,6 @@ export const activitiesService = {
     try {
       const sb = supabase;
       if (!sb) return { data: null, error: new Error('Supabase não configurado') };
-      const t0 = Date.now();
 
       const insertData: any = {
         title: activity.title,
@@ -182,12 +181,6 @@ export const activitiesService = {
         }
         return { data: null, error };
       }
-
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-activities-visibility-3',hypothesisId:'A12',location:'lib/supabase/activities.ts:activitiesService.create',message:'Supabase insert(activity) finished',data:{ms:Date.now()-t0,ok:true},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       return { data: transformActivity(data as DbActivity), error: null };
     } catch (e) {
       return { data: null, error: e as Error };

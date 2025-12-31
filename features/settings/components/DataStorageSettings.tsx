@@ -54,11 +54,6 @@ export const DataStorageSettings: React.FC = () => {
         setIsDeleting(true);
 
         try {
-            // #region agent log
-            if (process.env.NODE_ENV !== 'production') {
-              fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settings-nuke',hypothesisId:'NUKE1',location:'features/settings/components/DataStorageSettings.tsx:handleNukeDatabase',message:'Nuke started',data:{stats,totalRecords,hasSb:!!sb},timestamp:Date.now()})}).catch(()=>{});
-            }
-            // #endregion
             // Ordem importa por causa das FKs!
             // 0. Limpar referências de stages/boards dentro de `boards` (FK boards.won_stage_id/lost_stage_id -> board_stages)
             // Se não zerarmos isso antes, o delete de `board_stages` falha com:
@@ -132,11 +127,6 @@ export const DataStorageSettings: React.FC = () => {
             // 5. Boards
             const { error: boardsError } = await sb.from('boards').delete().neq('id', '00000000-0000-0000-0000-000000000000');
             if (boardsError) throw boardsError;
-            // #region agent log
-            if (process.env.NODE_ENV !== 'production') {
-              fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settings-nuke',hypothesisId:'NUKE2',location:'features/settings/components/DataStorageSettings.tsx:handleNukeDatabase',message:'Boards table deleted',data:{ok:true},timestamp:Date.now()})}).catch(()=>{});
-            }
-            // #endregion
 
             // 6. Contacts
             const { error: contactsError } = await sb.from('contacts').delete().neq('id', '00000000-0000-0000-0000-000000000000');
@@ -156,37 +146,17 @@ export const DataStorageSettings: React.FC = () => {
 
             // Invalida todo o cache do React Query
             await queryClient.invalidateQueries();
-            // #region agent log
-            if (process.env.NODE_ENV !== 'production') {
-              fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settings-nuke',hypothesisId:'NUKE3',location:'features/settings/components/DataStorageSettings.tsx:handleNukeDatabase',message:'invalidateQueries() awaited',data:{boardsListCachedCount:(queryClient.getQueryData<any[]>(queryKeys.boards.lists())||[]).length},timestamp:Date.now()})}).catch(()=>{});
-            }
-            // #endregion
 
             // IMPORTANT: invalidate does not clear cached data; if user navigates back to /boards,
             // stale cached boards can still render until a refetch happens (which we intentionally reduced).
             // For the nuke flow, we want the UI to reflect "zero boards" immediately.
-            // #region agent log
-            if (process.env.NODE_ENV !== 'production') {
-              fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settings-nuke',hypothesisId:'NUKE5',location:'features/settings/components/DataStorageSettings.tsx:handleNukeDatabase',message:'Removing boards queries from TanStack cache (force fresh fetch on /boards)',data:{beforeCount:(queryClient.getQueryData<any[]>(queryKeys.boards.lists())||[]).length},timestamp:Date.now()})}).catch(()=>{});
-            }
-            // #endregion
             queryClient.removeQueries({ queryKey: queryKeys.boards.all });
             queryClient.removeQueries({ queryKey: [...queryKeys.boards.all, 'default'] as const });
             // Also clear deals cache because /boards renders deals for active board.
             queryClient.removeQueries({ queryKey: queryKeys.deals.all });
-            // #region agent log
-            if (process.env.NODE_ENV !== 'production') {
-              fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settings-nuke',hypothesisId:'NUKE5',location:'features/settings/components/DataStorageSettings.tsx:handleNukeDatabase',message:'Removed boards/deals queries from cache',data:{afterCount:(queryClient.getQueryData<any[]>(queryKeys.boards.lists())||[]).length},timestamp:Date.now()})}).catch(()=>{});
-            }
-            // #endregion
 
             // Força refresh de todos os contexts (Activities, Deals, etc.)
             await refresh();
-            // #region agent log
-            if (process.env.NODE_ENV !== 'production') {
-              fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settings-nuke',hypothesisId:'NUKE4',location:'features/settings/components/DataStorageSettings.tsx:handleNukeDatabase',message:'CRM refresh() awaited',data:{boardsCtxCount:boards.length,dealsCtxCount:deals.length},timestamp:Date.now()})}).catch(()=>{});
-            }
-            // #endregion
 
             addToast('🔥 Database zerado com sucesso!', 'success');
             setConfirmText('');

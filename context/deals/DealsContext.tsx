@@ -70,13 +70,6 @@ export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         console.error('Usuário não autenticado');
         return null;
       }
-
-      const t0 = Date.now();
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ux-lag-board-deal',hypothesisId:'D5',location:'context/deals/DealsContext.tsx:addDeal',message:'DealsContext.addDeal called',data:{boardId8:(deal.boardId||'').slice(0,8)||null},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       const { data, error: addError } = await dealsService.create(deal);
 
       if (addError) {
@@ -85,11 +78,6 @@ export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
 
       // Invalida cache para TanStack Query atualizar
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ux-lag-board-deal',hypothesisId:'D6',location:'context/deals/DealsContext.tsx:addDeal',message:'DealsContext.addDeal created; invalidating deals.all',data:{ms:Date.now()-t0},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       // Important: don't await invalidations. Awaiting can block UI flows until heavy refetches finish.
       queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats });

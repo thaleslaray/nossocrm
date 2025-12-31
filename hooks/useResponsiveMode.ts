@@ -9,9 +9,15 @@ export interface ResponsiveInfo {
 }
 
 export function useResponsiveMode(): ResponsiveInfo {
-  const [width, setWidth] = useState<number>(() => (typeof window === 'undefined' ? 1024 : window.innerWidth));
+  // Hydration safety: start with desktop (1024) on both server and client to avoid mismatch
+  // Then update on mount to actual width
+  const [width, setWidth] = useState<number>(1024);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
+    // Set actual width after mount to avoid hydration mismatch
+    setIsHydrated(true);
+    setWidth(window.innerWidth);
     const onResize = () => setWidth(window.innerWidth);
     window.addEventListener('resize', onResize, { passive: true });
     return () => window.removeEventListener('resize', onResize);

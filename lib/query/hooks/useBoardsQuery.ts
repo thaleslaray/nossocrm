@@ -24,19 +24,8 @@ export const useBoards = () => {
   return useQuery<Board[]>({
     queryKey: queryKeys.boards.lists(),
     queryFn: async () => {
-      const t0 = Date.now();
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-appear-lag',hypothesisId:'B1',location:'lib/query/hooks/useBoardsQuery.ts:useBoards:queryFn',message:'Fetching boards (useBoards)',data:{authReady:!authLoading&&!!user},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       const { data, error } = await boardsService.getAll();
       if (error) throw error;
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-appear-lag',hypothesisId:'B1',location:'lib/query/hooks/useBoardsQuery.ts:useBoards:queryFn',message:'Fetched boards (useBoards)',data:{count:(data||[]).length,ms:Date.now()-t0},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       return data || [];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - boards don't change often
@@ -77,20 +66,9 @@ export const useDefaultBoard = () => {
   return useQuery<Board | null>({
     queryKey: [...queryKeys.boards.all, 'default'] as const,
     queryFn: async () => {
-      const t0 = Date.now();
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-default',hypothesisId:'BDEF1',location:'lib/query/hooks/useBoardsQuery.ts:useDefaultBoard:queryFn',message:'Fetching default board (useDefaultBoard)',data:{authReady:!authLoading&&!!user},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       const { data, error } = await boardsService.getAll();
       if (error) throw error;
       const chosen = (data || []).find(b => b.isDefault) || (data || [])[0] || null;
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-default',hypothesisId:'BDEF1',location:'lib/query/hooks/useBoardsQuery.ts:useDefaultBoard:queryFn',message:'Fetched default board (useDefaultBoard)',data:{count:(data||[]).length,chosenId8:(chosen?.id||'').slice(0,8)||null,ms:Date.now()-t0},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       return chosen;
     },
     // Keep it fresh-ish, but allow invalidation to force a refetch when coming back from other pages.
@@ -120,27 +98,11 @@ export const useCreateBoard = () => {
       /** Optional client-provided temp id used for optimistic insert + immediate selection */
       clientTempId?: string;
     }) => {
-      const t0 = Date.now();
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-appear-lag',hypothesisId:'B2',location:'lib/query/hooks/useBoardsQuery.ts:useCreateBoard:mutationFn',message:'useCreateBoard mutationFn start',data:{hasOrder:order!==undefined,hasName:!!(board as any)?.name},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       const { data, error } = await boardsService.create(board, order);
       if (error) throw error;
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-appear-lag',hypothesisId:'B2',location:'lib/query/hooks/useBoardsQuery.ts:useCreateBoard:mutationFn',message:'boardsService.create finished',data:{ms:Date.now()-t0},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       return data!;
     },
     onMutate: async ({ board, clientTempId }) => {
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-appear-lag',hypothesisId:'B5',location:'lib/query/hooks/useBoardsQuery.ts:useCreateBoard:onMutate',message:'useCreateBoard onMutate start',data:{hasName:!!(board as any)?.name},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       await queryClient.cancelQueries({ queryKey: queryKeys.boards.all });
 
       const previousBoards = queryClient.getQueryData<Board[]>(queryKeys.boards.lists());
@@ -155,12 +117,6 @@ export const useCreateBoard = () => {
       } as Board;
 
       queryClient.setQueryData<Board[]>(queryKeys.boards.lists(), (old = []) => [tempBoard, ...old]);
-
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-appear-lag',hypothesisId:'B5',location:'lib/query/hooks/useBoardsQuery.ts:useCreateBoard:onMutate',message:'Optimistic insert board into boards.lists()',data:{hadPrevCache:!!previousBoards,tempId},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
 
       return { previousBoards, tempId };
     },
@@ -178,19 +134,8 @@ export const useCreateBoard = () => {
         const already = withoutTemp.some((b) => b.id === data.id);
         return already ? withoutTemp : [data, ...withoutTemp];
       });
-
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-appear-lag',hypothesisId:'B6',location:'lib/query/hooks/useBoardsQuery.ts:useCreateBoard:onSuccess',message:'Replaced temp board with server board',data:{hadTempId:true},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
     },
     onSettled: () => {
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-appear-lag',hypothesisId:'B3',location:'lib/query/hooks/useBoardsQuery.ts:useCreateBoard:onSettled',message:'Invalidating boards.all after create',data:{queryKey:'boards.all'},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       queryClient.invalidateQueries({ queryKey: queryKeys.boards.all });
     },
   });

@@ -249,15 +249,9 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
 
   const handleTemplateSelect = (templateType: BoardTemplateType) => {
     const template = BOARD_TEMPLATES[templateType];
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'wizard-individual-template',hypothesisId:'T2',location:'features/boards/components/BoardCreationWizard.tsx:handleTemplateSelect',message:'handleTemplateSelect called',data:{templateType,stagesCount:Array.isArray((template as any)?.stages)?(template as any).stages.length:null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     // Safety: never create an "empty template" board from this flow.
     // Use "Começar do zero" for custom boards.
     if (!Array.isArray((template as any)?.stages) || (template as any).stages.length === 0) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'wizard-individual-template',hypothesisId:'T3',location:'features/boards/components/BoardCreationWizard.tsx:handleTemplateSelect',message:'Blocked empty template (redirecting to start from zero)',data:{templateType},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       onClose();
       onOpenCustomModal();
       handleReset();
@@ -268,9 +262,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     if (onCreateBoardAsync) {
       setIsInstalling(true);
       setInstallProgress({ total: 1, current: 1, currentBoardName: template.name });
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-single-install',hypothesisId:'S2',location:'features/boards/components/BoardCreationWizard.tsx:handleTemplateSelect',message:'Installing single template (show overlay)',data:{templateType,templateName:template.name},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
     }
 
     const boardStages: BoardStage[] = template.stages.map((s, idx) => ({
@@ -348,15 +339,9 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
       const createdBoards: Board[] = [];
       const totalBoards = journey.boards.length;
       setInstallProgress({ total: totalBoards, current: 0 });
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-funnel-install',hypothesisId:'W1',location:'features/boards/components/BoardCreationWizard.tsx:handleInstallJourney',message:'Wizard install journey started',data:{totalBoards},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       for (let i = 0; i < journey.boards.length; i++) {
         const boardDef = journey.boards[i];
         setInstallProgress({ total: totalBoards, current: i + 1, currentBoardName: boardDef.name });
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-funnel-install',hypothesisId:'W2',location:'features/boards/components/BoardCreationWizard.tsx:handleInstallJourney',message:'Wizard creating board (community journey)',data:{i,totalBoards,boardName:boardDef.name},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         const boardStages: BoardStage[] = boardDef.columns.map(c => ({
           id: crypto.randomUUID(),
           label: c.name,
@@ -406,9 +391,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     } finally {
       setIsInstalling(false);
       setInstallProgress(null);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-funnel-install',hypothesisId:'W3',location:'features/boards/components/BoardCreationWizard.tsx:handleInstallJourney',message:'Wizard install journey finished',data:{ok:!error},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
     }
   };
 
@@ -418,9 +400,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     if (!journey) return;
     setIsInstalling(true);
     setInstallProgress({ total: journey.boards.length, current: 0 });
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-funnel-install',hypothesisId:'W1',location:'features/boards/components/BoardCreationWizard.tsx:handleInstallOfficialJourney',message:'Wizard install official journey started',data:{journeyId,totalBoards:journey.boards.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     const wonLostByJourneyAndSlug: Record<string, Record<string, { wonLabel?: string; lostLabel?: string; wonArchive?: boolean }>> = {
       INFOPRODUCER: {
@@ -458,9 +437,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     for (let i = 0; i < journey.boards.length; i++) {
       const boardDef = journey.boards[i];
       setInstallProgress({ total: journey.boards.length, current: i + 1, currentBoardName: boardDef.name });
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-funnel-install',hypothesisId:'W2',location:'features/boards/components/BoardCreationWizard.tsx:handleInstallOfficialJourney',message:'Wizard creating board (official journey)',data:{journeyId,i,totalBoards:journey.boards.length,boardName:boardDef.name},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       const boardStages: BoardStage[] = boardDef.columns.map(c => ({
         id: crypto.randomUUID(),
         label: c.name,
@@ -537,9 +513,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     handleReset();
     setIsInstalling(false);
     setInstallProgress(null);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'board-funnel-install',hypothesisId:'W3',location:'features/boards/components/BoardCreationWizard.tsx:handleInstallOfficialJourney',message:'Wizard install official journey finished',data:{ok:true,journeyId},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   };
 
   const handleAIGenerate = async () => {
@@ -1087,9 +1060,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
 
                       <button
                         onClick={() => {
-                          // #region agent log
-                          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'start-from-zero',hypothesisId:'Z1',location:'features/boards/components/BoardCreationWizard.tsx:home:startZero',message:'Clicked start-from-zero',data:{step,selectMode,selectBrowseFocus,activeTab},timestamp:Date.now()})}).catch(()=>{});
-                          // #endregion
                           // UX: open editor immediately (same "one click" feeling as picking a template).
                           onClose();
                           onOpenCustomModal();
@@ -1231,9 +1201,6 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                               <button
                                 key={key}
                                 onClick={() => {
-                                  // #region agent log
-                                  fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'wizard-individual-template',hypothesisId:'T1',location:'features/boards/components/BoardCreationWizard.tsx:templates:onClick',message:'Clicked individual board template',data:{templateKey:key,stagesCount:Array.isArray((template as any)?.stages)?(template as any).stages.length:null,templateName:(template as any)?.name||null},timestamp:Date.now()})}).catch(()=>{});
-                                  // #endregion
                                   handleTemplateSelect(key);
                                 }}
                                 className="p-4 bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-xl hover:border-primary-500/50 dark:hover:border-primary-500/50 hover:shadow-md transition-all text-left group flex flex-col h-full min-h-[140px]"

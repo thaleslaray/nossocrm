@@ -35,11 +35,6 @@ export const useActivities = (filters?: ActivitiesFilters) => {
       ? queryKeys.activities.list(filters as Record<string, unknown>)
       : queryKeys.activities.lists(),
     queryFn: async () => {
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-activities-visibility-2',hypothesisId:'A1',location:'lib/query/hooks/useActivitiesQuery.ts:useActivities:queryFn',message:'Fetching activities (useActivities)',data:{authReady:!authLoading&&!!user,hasFilters:!!filters,filtersKeys:filters?Object.keys(filters):[]},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       const { data, error } = await activitiesService.getAll();
       if (error) throw error;
 
@@ -67,11 +62,6 @@ export const useActivities = (filters?: ActivitiesFilters) => {
       }
 
       // Apply smart sorting (already sorted by service, but re-sort after filtering)
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-activities-visibility-2',hypothesisId:'A1',location:'lib/query/hooks/useActivitiesQuery.ts:useActivities:queryFn',message:'Fetched activities (useActivities)',data:{rawCount:(data||[]).length,afterFilterCount:activities.length},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       return sortActivitiesSmart(activities);
     },
     enabled: !authLoading && !!user, // Only fetch when auth is ready
@@ -148,14 +138,8 @@ export const useCreateActivity = () => {
 
   return useMutation({
     mutationFn: async ({ activity }: CreateActivityParams) => {
-      const t0 = Date.now();
       const { data, error } = await activitiesService.create(activity);
       if (error) throw error;
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-activities-visibility-2',hypothesisId:'A2',location:'lib/query/hooks/useActivitiesQuery.ts:useCreateActivity:mutationFn',message:'activitiesService.create finished',data:{ms:Date.now()-t0,type:(activity as any)?.type??null,completed:(activity as any)?.completed??null},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       return data!;
     },
     onMutate: async ({ activity: newActivity }) => {
@@ -172,11 +156,6 @@ export const useCreateActivity = () => {
         const withNew = [...old, tempActivity];
         return sortActivitiesSmart(withNew);
       });
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-activities-visibility-2',hypothesisId:'A3',location:'lib/query/hooks/useActivitiesQuery.ts:useCreateActivity:onMutate',message:'Optimistic insert activity into activities.lists()',data:{previousCount:previousActivities?.length??null,tempId:tempActivity.id},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       return { previousActivities, tempId: tempActivity.id };
     },
     onSuccess: (data, _variables, context) => {
@@ -206,11 +185,6 @@ export const useCreateActivity = () => {
       // Invalidate to ensure Realtime updates are picked up
       // This is a no-op if data is already fresh, but ensures consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-activities-visibility-2',hypothesisId:'A3',location:'lib/query/hooks/useActivitiesQuery.ts:useCreateActivity:onSuccess',message:'Create activity success; invalidated activities.all',data:{hasTempId:!!context?.tempId},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
     },
     onError: (_error, _params, context) => {
       if (context?.previousActivities) {
@@ -220,11 +194,6 @@ export const useCreateActivity = () => {
     onSettled: () => {
       // Final invalidation to ensure Realtime updates are picked up
       queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-activities-visibility-2',hypothesisId:'A4',location:'lib/query/hooks/useActivitiesQuery.ts:useCreateActivity:onSettled',message:'Create activity settled; invalidated activities.all',data:{},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
     },
   });
 };

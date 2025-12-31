@@ -90,11 +90,6 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
 
     const handleCreateDeal = (e: React.FormEvent) => {
         e.preventDefault();
-        // #region agent log
-        if (process.env.NODE_ENV !== 'production') {
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ux-lag-board-deal',hypothesisId:'D0',location:'features/boards/components/Modals/CreateDealModal.tsx:handleCreateDeal',message:'CreateDealModal submit',data:{hasActiveBoard:!!activeBoard,hasActiveBoardId:!!activeBoardId},timestamp:Date.now()})}).catch(()=>{});
-        }
-        // #endregion
 
         // Usa o primeiro estágio do board ativo
         const firstStage = activeBoard.stages[0];

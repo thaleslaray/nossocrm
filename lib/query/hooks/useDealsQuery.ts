@@ -159,21 +159,10 @@ export const useDealsByBoard = (boardId: string) => {
   return useQuery<DealView[]>({
     queryKey: queryKeys.deals.list({ boardId }),
     queryFn: async () => {
-      const t0 = Date.now();
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ux-lag-board-deal',hypothesisId:'D8',location:'lib/query/hooks/useDealsQuery.ts:useDealsByBoard:queryFn',message:'Fetching dealsByBoard',data:{boardId8:(boardId||'').slice(0,8)||null,authReady:!authLoading&&!!user},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       // Guard: should never happen due to 'enabled', but safety first
       if (!boardId) return [];
       // If we're on an optimistic temp board, don't hit the backend.
       if (boardId.startsWith('temp-')) {
-        // #region agent log
-        if (process.env.NODE_ENV !== 'production') {
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ux-lag-board-deal',hypothesisId:'D9',location:'lib/query/hooks/useDealsQuery.ts:useDealsByBoard:queryFn',message:'Skipping dealsByBoard fetch for temp board id',data:{boardId8:(boardId||'').slice(0,8)||null},timestamp:Date.now()})}).catch(()=>{});
-        }
-        // #endregion
         return [];
       }
       // Fetch all data in parallel (including stages for stageLabel)
@@ -208,12 +197,6 @@ export const useDealsByBoard = (boardId: string) => {
           stageLabel: stageMap.get(deal.status) || 'Estágio não identificado',
         };
       });
-
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ux-lag-board-deal',hypothesisId:'D8',location:'lib/query/hooks/useDealsQuery.ts:useDealsByBoard:queryFn',message:'Fetched dealsByBoard',data:{boardId8:(boardId||'').slice(0,8)||null,count:enrichedDeals.length,ms:Date.now()-t0},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       return enrichedDeals;
     },
     staleTime: 1 * 60 * 1000, // 1 minute for kanban (more interactive)
@@ -246,10 +229,27 @@ export const useCreateDeal = () => {
         updatedAt: new Date().toISOString(),
       };
 
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        const logData = { title: deal.title, status: deal.status?.slice(0, 8) || 'null' };
+        console.log(`[useCreateDeal] 📤 Sending create to server`, logData);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:230',message:'Sending create to server',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD1'})}).catch(()=>{});
+      }
+      // #endregion
+
       // Passa null ao invés de '' - o trigger vai preencher automaticamente
       const { data, error } = await dealsService.create(fullDeal);
 
       if (error) throw error;
+      
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        const logData = { dealId: data?.id?.slice(0, 8) || 'null', title: data?.title };
+        console.log(`[useCreateDeal] ✅ Server confirmed creation`, logData);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:240',message:'Server confirmed creation',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD2'})}).catch(()=>{});
+      }
+      // #endregion
+      
       return data!;
     },
     onMutate: async newDeal => {
@@ -258,18 +258,72 @@ export const useCreateDeal = () => {
       const previousDeals = queryClient.getQueryData<Deal[]>(queryKeys.deals.lists());
 
       // Optimistic update with temp ID
+      const tempId = `temp-${Date.now()}`;
       const tempDeal: Deal = {
         ...newDeal,
-        id: `temp-${Date.now()}`,
+        id: tempId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         isWon: newDeal.isWon ?? false,
         isLost: newDeal.isLost ?? false,
       } as Deal;
 
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        const logData = { tempId: tempId.slice(0, 15), title: newDeal.title, status: newDeal.status?.slice(0, 8) || 'null' };
+        console.log(`[useCreateDeal] 🔄 Optimistic insert with temp ID`, logData);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:260',message:'Optimistic insert with temp ID',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD3'})}).catch(()=>{});
+      }
+      // #endregion
+
       queryClient.setQueryData<Deal[]>(queryKeys.deals.lists(), (old = []) => [tempDeal, ...old]);
 
-      return { previousDeals };
+      return { previousDeals, tempId };
+    },
+    onSuccess: (data, _variables, context) => {
+      // Replace temp deal with real one from server
+      // This ensures immediate UI update while Realtime syncs in background
+      const tempId = context?.tempId;
+      
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        const logData = { tempId: tempId?.slice(0, 15) || 'null', realId: data.id?.slice(0, 8) || 'null', title: data.title };
+        console.log(`[useCreateDeal] 🔄 Replacing temp deal with real one`, logData);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:280',message:'Replacing temp deal with real one',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD4'})}).catch(()=>{});
+      }
+      // #endregion
+      
+      queryClient.setQueryData<Deal[]>(queryKeys.deals.lists(), (old = []) => {
+        if (!old) return [data];
+        
+        // Check if deal already exists (race condition: Realtime may have already added it)
+        const existingIndex = old.findIndex(d => d.id === data.id);
+        if (existingIndex !== -1) {
+          // Deal already exists (Realtime beat us), just update it
+          // #region agent log
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[useCreateDeal] ⚠️ Deal already exists in cache (Realtime beat us)`, { dealId: data.id?.slice(0, 8) });
+            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:290',message:'Deal already exists in cache',data:{dealId:data.id?.slice(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD5'})}).catch(()=>{});
+          }
+          // #endregion
+          return old.map(d => d.id === data.id ? data : d);
+        }
+        
+        if (tempId) {
+          // Remove temp deal, add real one
+          const withoutTemp = old.filter(d => d.id !== tempId);
+          // #region agent log
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[useCreateDeal] ✅ Swapped temp for real deal`, { tempId: tempId.slice(0, 15), realId: data.id?.slice(0, 8), cacheSize: withoutTemp.length + 1 });
+            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:300',message:'Swapped temp for real deal',data:{tempId:tempId.slice(0,15),realId:data.id?.slice(0,8),cacheSize:withoutTemp.length+1},timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD6'})}).catch(()=>{});
+          }
+          // #endregion
+          return [data, ...withoutTemp];
+        }
+        
+        // If temp not found, just add the new one
+        return [data, ...old];
+      });
     },
     onError: (_error, _newDeal, context) => {
       if (context?.previousDeals) {
@@ -277,6 +331,12 @@ export const useCreateDeal = () => {
       }
     },
     onSettled: () => {
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[useCreateDeal] 📥 onSettled - invalidating queries`);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:320',message:'onSettled - invalidating queries',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD7'})}).catch(()=>{});
+      }
+      // #endregion
       queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats });
     },
