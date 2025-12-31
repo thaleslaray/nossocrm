@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
-import { getModel, type AIProvider } from '@/services/ai/config';
+import { getModel, type AIProvider } from '@/lib/ai/config';
 
 export type AITaskContext = {
   supabase: Awaited<ReturnType<typeof createClient>>;

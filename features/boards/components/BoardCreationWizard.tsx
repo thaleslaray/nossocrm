@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Sparkles, Loader2, Send, MessageSquare, LayoutTemplate, AlertCircle, Settings, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { BOARD_TEMPLATES, BoardTemplateType } from '@/board-templates';
+import { BOARD_TEMPLATES, BoardTemplateType } from '@/lib/templates/board-templates';
 import {
   generateBoardStructure,
   generateBoardStrategy,
@@ -10,9 +10,9 @@ import {
 } from '@/lib/ai/tasksClient';
 import { Board, BoardStage } from '@/types';
 import { AIProcessingModal, ProcessingStep, SimulatorPhase } from './Modals/AIProcessingModal';
-import { fetchRegistry, fetchTemplateJourney } from '@/services/registryService';
+import { fetchRegistry, fetchTemplateJourney } from '@/lib/templates/registryService';
 import { RegistryIndex, RegistryTemplate, JourneyDefinition } from '@/types';
-import { OFFICIAL_JOURNEYS } from '@/journey-templates';
+import { OFFICIAL_JOURNEYS } from '@/lib/templates/journey-templates';
 import { MODAL_OVERLAY_CLASS } from '@/components/ui/modalStyles';
 
 interface BoardCreationWizardProps {
@@ -155,6 +155,11 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
   const [registryIndex, setRegistryIndex] = useState<RegistryIndex | null>(null);
   const [isLoadingRegistry, setIsLoadingRegistry] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
+  const [installProgress, setInstallProgress] = useState<{
+    total: number;
+    current: number;
+    currentBoardName?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (activeTab === 'community' && !registryIndex) {
@@ -244,6 +249,20 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
 
   const handleTemplateSelect = (templateType: BoardTemplateType) => {
     const template = BOARD_TEMPLATES[templateType];
+    // Safety: never create an "empty template" board from this flow.
+    // Use "Começar do zero" for custom boards.
+    if (!Array.isArray((template as any)?.stages) || (template as any).stages.length === 0) {
+      onClose();
+      onOpenCustomModal();
+      handleReset();
+      return;
+    }
+
+    // Prefer async creation when available so we can show an "installing" overlay and close after completion.
+    if (onCreateBoardAsync) {
+      setIsInstalling(true);
+      setInstallProgress({ total: 1, current: 1, currentBoardName: template.name });
+    }
 
     const boardStages: BoardStage[] = template.stages.map((s, idx) => ({
       id: crypto.randomUUID(),
@@ -270,7 +289,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     ];
     const randomName = agentNames[Math.floor(Math.random() * agentNames.length)];
 
-    onCreate({
+    const payload: Omit<Board, 'id' | 'createdAt'> = {
       name: template.name,
       description: template.description,
       linkedLifecycleStage: template.linkedLifecycleStage,
@@ -286,21 +305,43 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
       },
       goal: template.goal,
       entryTrigger: template.entryTrigger,
-    });
+    };
 
-    onClose();
-    handleReset();
+    if (onCreateBoardAsync) {
+      onCreateBoardAsync(payload)
+        .then(() => {
+          onClose();
+          handleReset();
+        })
+        .catch((err) => {
+          console.error('[BoardCreationWizard] Failed to create template board:', err);
+          setError('Erro ao criar board do template.');
+        })
+        .finally(() => {
+          setIsInstalling(false);
+          setInstallProgress(null);
+        });
+    } else {
+      // Fallback: fire-and-forget (no progress overlay available)
+      onCreate(payload);
+      onClose();
+      handleReset();
+    }
   };
 
   const handleInstallJourney = async (templatePath: string) => {
     setIsInstalling(true);
+    setInstallProgress(null);
     try {
       const journey = await fetchTemplateJourney(templatePath);
 
       // Install all boards in the journey with sequential order
       const createdBoards: Board[] = [];
+      const totalBoards = journey.boards.length;
+      setInstallProgress({ total: totalBoards, current: 0 });
       for (let i = 0; i < journey.boards.length; i++) {
         const boardDef = journey.boards[i];
+        setInstallProgress({ total: totalBoards, current: i + 1, currentBoardName: boardDef.name });
         const boardStages: BoardStage[] = boardDef.columns.map(c => ({
           id: crypto.randomUUID(),
           label: c.name,
@@ -349,6 +390,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
       setError('Erro ao instalar template da comunidade.');
     } finally {
       setIsInstalling(false);
+      setInstallProgress(null);
     }
   };
 
@@ -356,6 +398,8 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     if (!OFFICIAL_JOURNEYS) return;
     const journey = getJourneyForInstall(journeyId);
     if (!journey) return;
+    setIsInstalling(true);
+    setInstallProgress({ total: journey.boards.length, current: 0 });
 
     const wonLostByJourneyAndSlug: Record<string, Record<string, { wonLabel?: string; lostLabel?: string; wonArchive?: boolean }>> = {
       INFOPRODUCER: {
@@ -392,6 +436,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
     const createdBoards: Board[] = [];
     for (let i = 0; i < journey.boards.length; i++) {
       const boardDef = journey.boards[i];
+      setInstallProgress({ total: journey.boards.length, current: i + 1, currentBoardName: boardDef.name });
       const boardStages: BoardStage[] = boardDef.columns.map(c => ({
         id: crypto.randomUUID(),
         label: c.name,
@@ -466,6 +511,8 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
 
     onClose();
     handleReset();
+    setIsInstalling(false);
+    setInstallProgress(null);
   };
 
   const handleAIGenerate = async () => {
@@ -757,13 +804,61 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
 
   return (
     <div className={MODAL_OVERLAY_CLASS}>
+      {isInstalling && (
+        <div
+          className="absolute inset-0 z-30 flex items-center justify-center"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          // Block all pointer events to the wizard while installing
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+        >
+          {/* Darken + blur the background to keep progress modal in focus */}
+          <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" />
+          <div
+            className="relative z-10 w-[min(520px,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur p-5 shadow-2xl"
+            aria-label={installProgress && installProgress.total === 1 ? 'Criando board' : 'Instalando funil'}
+          >
+            <div className="flex items-start gap-3">
+              <Loader2 className="mt-0.5 animate-spin text-primary-500" size={22} />
+              <div className="min-w-0 flex-1">
+                <div className="text-base font-semibold text-slate-900 dark:text-white">
+                  {installProgress && installProgress.total === 1 ? 'Criando board…' : 'Instalando funil…'}
+                </div>
+                <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  {installProgress
+                    ? `Criando board ${installProgress.current}/${installProgress.total}${installProgress.currentBoardName ? ` — ${installProgress.currentBoardName}` : ''}`
+                    : 'Preparando…'}
+                </div>
+              </div>
+            </div>
+            {installProgress && installProgress.total > 0 && (
+              <div className="mt-4">
+                <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full bg-primary-500 transition-all"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, (installProgress.current / installProgress.total) * 100)
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <AIProcessingModal
         isOpen={isProcessingModalOpen}
         currentStep={processingStep}
         phase={processingPhase}
       />
       {/* Click-outside closes */}
-      <div className="absolute inset-0" onClick={onClose} />
+      <div className="absolute inset-0" onClick={isInstalling ? undefined : onClose} />
 
       <div
         // NOTE: we hard-cap width/height by viewport to avoid overflow on small screens.
@@ -965,6 +1060,7 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
 
                       <button
                         onClick={() => {
+                          // UX: open editor immediately (same "one click" feeling as picking a template).
                           onClose();
                           onOpenCustomModal();
                           handleReset();
@@ -1095,12 +1191,18 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
                           Boards Individuais
                         </h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          {(Object.keys(BOARD_TEMPLATES) as BoardTemplateType[]).map(key => {
+                          {(Object.keys(BOARD_TEMPLATES) as BoardTemplateType[])
+                            // UX: "Personalizado" (CUSTOM) has zero stages and duplicates "Começar do zero".
+                            // Keeping it here causes creation of an empty board that looks like a bug.
+                            .filter((key) => key !== 'CUSTOM')
+                            .map(key => {
                             const template = BOARD_TEMPLATES[key];
                             return (
                               <button
                                 key={key}
-                                onClick={() => handleTemplateSelect(key)}
+                                onClick={() => {
+                                  handleTemplateSelect(key);
+                                }}
                                 className="p-4 bg-white dark:bg-dark-card border border-slate-200 dark:border-white/10 rounded-xl hover:border-primary-500/50 dark:hover:border-primary-500/50 hover:shadow-md transition-all text-left group flex flex-col h-full min-h-[140px]"
                               >
                                 <div className="flex items-center gap-3 mb-3 shrink-0">

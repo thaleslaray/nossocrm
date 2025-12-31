@@ -9,6 +9,11 @@ export const dynamic = 'force-dynamic'
  * @returns {Promise<void>} Retorna uma Promise resolvida sem valor.
  */
 export default async function Home() {
+    // Bypass em desenvolvimento local: sempre vai para o dashboard
+    if (process.env.NODE_ENV === 'development') {
+        redirect('/dashboard')
+    }
+
     const installerEnabled = process.env.INSTALLER_ENABLED !== 'false'
 
     // Detecta se a instância já foi inicializada.

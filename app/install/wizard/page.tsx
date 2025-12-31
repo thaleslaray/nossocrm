@@ -50,6 +50,20 @@ const STORAGE_USER_NAME = 'crm_install_user_name';
 const STORAGE_USER_EMAIL = 'crm_install_user_email';
 const STORAGE_USER_PASS_HASH = 'crm_install_user_pass_hash';
 const STORAGE_SUPABASE_TOKEN = 'crm_install_supabase_token';
+const STORAGE_VERCEL_DEPLOYMENT_ID = 'crm_install_vercel_deployment_id';
+
+const STEP_LABELS: Record<string, string> = {
+  resolve_keys: 'Conectando ao Supabase',
+  setup_envs: 'Configurando variáveis na Vercel',
+  wait_project: 'Aguardando Supabase ficar ativo',
+  wait_storage: 'Aguardando Storage do Supabase',
+  migrations: 'Aplicando estrutura do banco (migrations)',
+  edge_secrets: 'Configurando funções (segredos)',
+  edge_deploy: 'Publicando funções (edge)',
+  bootstrap: 'Criando usuário administrador',
+  redeploy: 'Iniciando redeploy na Vercel',
+  wait_vercel_deploy: 'Aguardando redeploy na Vercel (etapa final)',
+};
 
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -83,6 +97,15 @@ function humanizeError(message: string) {
     return 'Limite do plano Free atingido. Pause um projeto existente para continuar.';
   }
   return message;
+}
+
+function isSupabaseFreeGlobalLimitError(message: string) {
+  const lower = String(message || '').toLowerCase();
+  return (
+    lower.includes('2 project limit') ||
+    lower.includes('maximum limits') ||
+    lower.includes('limit of 2 active projects')
+  );
 }
 
 function buildDbUrl(projectRef: string, dbPassword: string, region?: string) {
@@ -148,9 +171,14 @@ export default function InstallWizardPage() {
   const [supabaseProvisioningStatus, setSupabaseProvisioningStatus] = useState<string | null>(null);
   const [supabaseResolving, setSupabaseResolving] = useState(false);
   const [pausePolling, setPausePolling] = useState(false);
+  const [pauseStartedAt, setPauseStartedAt] = useState<number | null>(null);
+  const [pauseAttempts, setPauseAttempts] = useState(0);
+  const [pauseLastStatus, setPauseLastStatus] = useState('');
   const [supabaseResolveError, setSupabaseResolveError] = useState<string | null>(null);
   const [supabaseResolvedOk, setSupabaseResolvedOk] = useState(false);
   const [supabasePausingRef, setSupabasePausingRef] = useState<string | null>(null);
+  const [needSpaceReason, setNeedSpaceReason] = useState<'global_limit' | 'no_slot' | null>(null);
+  const orgProjectNamesCacheRef = useRef<Record<string, string[]>>({});
   
   // Preflight
   const [supabasePreflight, setSupabasePreflight] = useState<{
@@ -243,6 +271,9 @@ export default function InstallWizardPage() {
   const [cineMessage, setCineMessage] = useState('Preparando a decolagem…');
   const [cineSubtitle, setCineSubtitle] = useState('');
   const [cineProgress, setCineProgress] = useState(0);
+  const [cineStepLabel, setCineStepLabel] = useState<string>('');
+  const [vercelDeploymentId, setVercelDeploymentId] = useState<string | null>(null);
+  const [finalizing, setFinalizing] = useState(false);
   
   // Estado persistente para instalação resumível
   const [installState, setInstallState] = useState<InstallState | null>(null);
@@ -509,7 +540,17 @@ export default function InstallWizardPage() {
     const paidOrg = preflight.organizations.find((o) => (o.plan || '').toLowerCase() !== 'free');
     if (paidOrg) {
       console.log('💰 [SUPABASE] Usando org PAGA:', paidOrg.slug);
+      setNeedSpaceReason(null);
       await createProjectInOrg(paidOrg.slug, paidOrg.activeProjects.map((p) => p.name));
+      return;
+    }
+
+    // Em contas FREE, o limite pode ser GLOBAL por usuário (não por organização).
+    // Se o preflight indicar que o usuário já atingiu o limite global, não tente criar projeto.
+    if (preflight.freeGlobalLimitHit) {
+      console.log('🚫 [SUPABASE] Limite global FREE atingido (usuário). Indo para needspace.');
+      setNeedSpaceReason('global_limit');
+      setSupabaseUiStep('needspace');
       return;
     }
     
@@ -518,11 +559,13 @@ export default function InstallWizardPage() {
     );
     if (freeOrgWithSlot) {
       console.log('🆓 [SUPABASE] Usando org FREE com slot:', freeOrgWithSlot.slug, '- Projetos ativos:', freeOrgWithSlot.activeCount);
+      setNeedSpaceReason(null);
       await createProjectInOrg(freeOrgWithSlot.slug, freeOrgWithSlot.activeProjects.map((p) => p.name));
       return;
     }
     
     console.log('🚫 [SUPABASE] Sem slots disponíveis');
+    setNeedSpaceReason('no_slot');
     setSupabaseUiStep('needspace');
   };
   
@@ -530,6 +573,7 @@ export default function InstallWizardPage() {
     if (supabaseCreating) return;
     setSupabaseCreateError(null);
     setSupabaseCreating(true);
+    setNeedSpaceReason(null);
     // Pula direto para 'done' (tela de provisioning cinematográfica) - não mostra 'creating'
     setSupabaseUiStep('done');
     setSupabaseProvisioning(true);
@@ -539,6 +583,39 @@ export default function InstallWizardPage() {
 
     try {
       const names = new Set(existingNames);
+
+      // Pré-carrega nomes já existentes (inclui INACTIVE) para evitar cascata de 409.
+      if (!orgProjectNamesCacheRef.current[orgSlug]) {
+        try {
+          const orgProjectsRes = await fetch('/api/installer/supabase/organization-projects', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              installerToken: installerToken.trim() || undefined,
+              accessToken: supabaseAccessToken.trim(),
+              organizationSlug: orgSlug,
+            }),
+          });
+          const orgProjectsData = await orgProjectsRes.json().catch(() => null);
+          if (orgProjectsRes.ok) {
+            const allNames = Array.isArray(orgProjectsData?.projects)
+              ? (orgProjectsData.projects as any[])
+                  .map((p) => (typeof p?.name === 'string' ? p.name.trim() : ''))
+                  .filter(Boolean)
+              : [];
+            orgProjectNamesCacheRef.current[orgSlug] = allNames;
+          } else {
+            orgProjectNamesCacheRef.current[orgSlug] = [];
+            console.warn('[SUPABASE] Failed to list org projects for name seeding:', orgProjectsData?.error);
+          }
+        } catch {
+          orgProjectNamesCacheRef.current[orgSlug] = [];
+        }
+      }
+
+      for (const n of orgProjectNamesCacheRef.current[orgSlug] || []) {
+        names.add(n);
+      }
       let ref = '';
       let url = '';
       let lastErr = '';
@@ -642,7 +719,11 @@ export default function InstallWizardPage() {
       }, 210_000);
     } catch (err) {
       console.error('❌ [SUPABASE] Erro:', err);
-      setSupabaseCreateError(humanizeError(err instanceof Error ? err.message : 'Erro'));
+      const rawMsg = err instanceof Error ? err.message : 'Erro';
+      if (isSupabaseFreeGlobalLimitError(rawMsg)) {
+        setNeedSpaceReason('global_limit');
+      }
+      setSupabaseCreateError(humanizeError(rawMsg));
       setSupabaseUiStep('needspace');
     } finally {
       setSupabaseCreating(false);
@@ -689,6 +770,8 @@ export default function InstallWizardPage() {
       try {
         const { rawStatus, normalized } = await fetchProjectStatus(projectRef);
         console.log(`[pollProjectStatus:${mode}] Attempt ${attempts + 1}: status = ${rawStatus || '(null)'}`);
+        setPauseAttempts(attempts + 1);
+        setPauseLastStatus(rawStatus || '');
 
         const paused = isPausedProjectStatus(normalized);
         if (paused) return { finalStatus: 'INACTIVE', paused: true };
@@ -713,6 +796,9 @@ export default function InstallWizardPage() {
     if (supabasePausingRef) return;
     setSupabasePausingRef(projectRef);
     setPausePolling(true);
+    setPauseStartedAt(Date.now());
+    setPauseAttempts(0);
+    setPauseLastStatus('');
     setSupabaseCreateError(null);
     
     try {
@@ -749,6 +835,7 @@ export default function InstallWizardPage() {
     } finally {
       setSupabasePausingRef(null);
       setPausePolling(false);
+      setPauseStartedAt(null);
     }
   };
   
@@ -987,9 +1074,22 @@ export default function InstallWizardPage() {
                 const updated = updateStepStatus(current, stepId, 'running');
                 commitInstallState(updated);
               }
+              // UI: mostra etapa (mais prescritivo que só %)
+              const explicitStepId = typeof event.stepId === 'string' ? event.stepId : null;
+              if (explicitStepId) {
+                setCineStepLabel(STEP_LABELS[explicitStepId] || explicitStepId);
+              } else {
+                setCineStepLabel('');
+              }
               setCineMessage(event.title || 'Processando...');
               setCineSubtitle(event.subtitle || '');
               setCineProgress(event.progress || 0);
+            } else if (event.type === 'vercel_deploy') {
+              const id = typeof event.deploymentId === 'string' ? event.deploymentId : null;
+              if (id) {
+                setVercelDeploymentId(id);
+                localStorage.setItem(STORAGE_VERCEL_DEPLOYMENT_ID, id);
+              }
             } else if (event.type === 'step_complete') {
               const stepId = String(event.stepId || '');
               const current = installStateRef.current;
@@ -1016,6 +1116,7 @@ export default function InstallWizardPage() {
               // 🎮 Limpa o save game - instalação completa!
               clearInstallState();
               commitInstallState(null);
+              localStorage.removeItem(STORAGE_VERCEL_DEPLOYMENT_ID);
             } else if (event.type === 'error') {
               throw new Error(event.error || 'Erro durante a instalação');
             }
@@ -1039,6 +1140,160 @@ export default function InstallWizardPage() {
     } finally {
       setInstalling(false);
     }
+  };
+
+  const isRedeployStillRunningError = (msg: string) => {
+    const m = String(msg || '').toLowerCase();
+    return m.includes('redeploy disparado') && m.includes('ainda não finalizou');
+  };
+
+  const finalizeRedeploy = async () => {
+    if (!project) return;
+    const deploymentId =
+      vercelDeploymentId ||
+      (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_VERCEL_DEPLOYMENT_ID) : null);
+    if (!deploymentId) return;
+
+    setFinalizing(true);
+    setRunError(null);
+    setCinePhase('running');
+    setCineMessage('Etapa final');
+    setCineStepLabel('Aguardando redeploy na Vercel (etapa final)');
+    setCineSubtitle('Verificando status do deploy…');
+    setCineProgress(Math.max(0, Math.min(99, cineProgress || 0)));
+
+    try {
+      const res = await fetch('/api/installer/finalize', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          installerToken: installerToken.trim() || undefined,
+          vercel: {
+            token: vercelToken.trim(),
+            projectId: project.id,
+            teamId: project.teamId,
+            targets: ['production', 'preview'],
+            deploymentId,
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'O redeploy ainda está finalizando. Aguarde e tente novamente.');
+      }
+
+      setCineProgress(100);
+      setCineMessage(`Missão cumprida, ${firstName}!`);
+      setCineSubtitle('Aterrissagem confirmada');
+      await new Promise((r) => setTimeout(r, 600));
+      setCinePhase('success');
+      setCineSubtitle('Bem-vindo ao novo mundo.');
+      clearInstallState();
+      commitInstallState(null);
+      localStorage.removeItem(STORAGE_VERCEL_DEPLOYMENT_ID);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erro';
+      setRunError(msg);
+      setCinePhase('error');
+      setCineMessage('Quase lá…');
+      setCineSubtitle(msg);
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  const clearInstallerLocalData = () => {
+    localStorage.removeItem('crm_install_token');
+    localStorage.removeItem('crm_install_project');
+    localStorage.removeItem('crm_install_installer_token');
+    localStorage.removeItem('crm_install_user_name');
+    localStorage.removeItem('crm_install_user_email');
+    localStorage.removeItem('crm_install_user_pass_hash');
+    localStorage.removeItem('crm_install_supabase_token');
+    localStorage.removeItem('crm_install_session_locked');
+    localStorage.removeItem(STORAGE_VERCEL_DEPLOYMENT_ID);
+    sessionStorage.removeItem('crm_install_user_pass');
+    clearInstallState();
+    commitInstallState(null);
+  };
+
+  const buildErrorHelp = (msg: string | null) => {
+    const text = String(msg || '').trim();
+    const lower = text.toLowerCase();
+
+    const help: {
+      title: string;
+      steps: string[];
+      primaryAction?: { label: string; run: () => void };
+      secondaryAction?: { label: string; run: () => void };
+    } = {
+      title: 'Como resolver',
+      steps: [],
+    };
+
+    // Same-origin / CSRF guard
+    if (lower === 'forbidden' || lower.includes('csrf') || lower.includes('same-origin')) {
+      help.steps.push('Use o domínio de Produção da Vercel (não Preview).');
+      help.steps.push('Vá em Vercel → Project → Domains e abra o domínio principal.');
+      help.steps.push('Recarregue e tente novamente.');
+      help.primaryAction = { label: 'Ir para o início do Wizard', run: () => router.push('/install/start') };
+      return help;
+    }
+
+    if (lower.includes('invalid installer token')) {
+      help.steps.push('O Installer Token informado está incorreto.');
+      help.steps.push('Volte ao início do wizard e cole o token correto (se sua instalação exigir token).');
+      help.primaryAction = { label: 'Voltar ao início do Wizard', run: () => router.push('/install/start') };
+      help.secondaryAction = { label: 'Limpar dados e recomeçar', run: clearInstallerLocalData };
+      return help;
+    }
+
+    if (lower.includes('installer disabled')) {
+      help.steps.push('O instalador foi desativado neste projeto.');
+      help.steps.push('Se já está instalado, entre pelo /login.');
+      help.primaryAction = { label: 'Ir para Login', run: () => (window.location.href = '/login') };
+      return help;
+    }
+
+    // Vercel token / permissão / escopo
+    if (
+      lower.includes('token da vercel') ||
+      lower.includes('invalid token') ||
+      lower.includes('sem permissao') ||
+      lower.includes('not authorized') ||
+      lower.includes('missing_scope') ||
+      lower.includes('insufficient_scope')
+    ) {
+      help.steps.push('Gere um novo token na Vercel com permissão “Full Account”.');
+      help.steps.push('Volte ao início do wizard e cole o token novo.');
+      help.steps.push('Faça a instalação no domínio de Produção.');
+      help.primaryAction = { label: 'Voltar ao início do Wizard', run: () => router.push('/install/start') };
+      help.secondaryAction = { label: 'Limpar dados e recomeçar', run: clearInstallerLocalData };
+      return help;
+    }
+
+    // Supabase token
+    if (lower.includes('supabase') && (lower.includes('unauthorized') || lower.includes('token'))) {
+      help.steps.push('Confirme que você colou o token do Supabase (começa com `sbp_`).');
+      help.steps.push('Se expirou, gere um novo em Supabase → Account → Access Tokens.');
+      help.primaryAction = { label: 'Voltar ao início do Wizard', run: () => router.push('/install/start') };
+      return help;
+    }
+
+    // SSE / rede instável
+    if (lower.includes('conexão instável') || lower.includes('network')) {
+      help.steps.push('Recarregue a página (o wizard tenta retomar do ponto salvo).');
+      help.steps.push('Se estiver em rede instável, tente outra conexão.');
+      help.primaryAction = { label: 'Recarregar', run: () => window.location.reload() };
+      return help;
+    }
+
+    // Fallback
+    help.steps.push('Clique em “Tentar novamente”.');
+    help.steps.push('Se persistir, volte ao início do wizard e confira tokens/credenciais.');
+    help.primaryAction = { label: 'Voltar ao início do Wizard', run: () => router.push('/install/start') };
+    help.secondaryAction = { label: 'Limpar dados e recomeçar', run: clearInstallerLocalData };
+    return help;
   };
 
   const applyNewInstallerPassword = useCallback(async () => {
@@ -1144,14 +1399,35 @@ export default function InstallWizardPage() {
                         <Pause className="w-8 h-8 text-amber-400" />
                       </div>
                       <h1 className="text-2xl font-bold text-white mb-2">Precisamos de espaço</h1>
-                      <p className="text-slate-400">Seu plano permite 2 projetos ativos.<br />Pause um para continuar:</p>
+                      <p className="text-slate-400">
+                        {needSpaceReason === 'global_limit' || supabasePreflight?.freeGlobalLimitHit
+                          ? (
+                            <>
+                              Você atingiu o limite do plano Free no Supabase (máximo de 2 projetos ativos por usuário).<br />
+                              Pause 1 projeto para continuar:
+                            </>
+                          )
+                          : (
+                            <>
+                              Seu plano permite 2 projetos ativos.<br />
+                              Pause 1 projeto para continuar:
+                            </>
+                          )}
+                      </p>
                     </div>
 
                     {pausePolling || Boolean(supabasePausingRef) ? (
                       <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
                         <div className="flex items-center gap-3 text-amber-400">
                           <Loader2 className="w-5 h-5 animate-spin shrink-0" />
-                          <p className="text-sm">O projeto está sendo pausado. Aguarde alguns segundos…</p>
+                          <div className="text-sm">
+                            <div>O projeto está sendo pausado. Isso pode levar até ~3 minutos.</div>
+                            <div className="text-amber-200/80 mt-1">
+                              {pauseStartedAt ? `Tempo: ${Math.max(0, Math.round((Date.now() - pauseStartedAt) / 1000))}s` : null}
+                              {pauseAttempts ? ` • Tentativas: ${pauseAttempts}` : null}
+                              {pauseLastStatus ? ` • Status: ${pauseLastStatus}` : null}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -1591,7 +1867,9 @@ export default function InstallWizardPage() {
                       transition={{ duration: 0.5, ease: 'easeOut' }}
                     />
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">{cineProgress}%</p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    {cineProgress}%{cineStepLabel ? ` • ${cineStepLabel}` : ''}
+                  </p>
                 </div>
               )}
               
@@ -1609,19 +1887,7 @@ export default function InstallWizardPage() {
                   </p>
                   <button 
                     onClick={() => {
-                      // Limpa dados do instalador
-                      localStorage.removeItem('crm_install_token');
-                      localStorage.removeItem('crm_install_project');
-                      localStorage.removeItem('crm_install_installer_token');
-                      localStorage.removeItem('crm_install_user_name');
-                      localStorage.removeItem('crm_install_user_email');
-                      localStorage.removeItem('crm_install_user_pass_hash');
-                      localStorage.removeItem('crm_install_supabase_token');
-                      localStorage.removeItem('crm_install_session_locked');
-                      sessionStorage.removeItem('crm_install_user_pass');
-                      // Limpa estado de instalação persistente
-                      clearInstallState();
-                      // Redireciona pro login
+                      clearInstallerLocalData();
                       window.location.href = '/login';
                     }} 
                     className="px-10 py-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-bold text-xl shadow-2xl shadow-emerald-500/30 transition-all transform hover:scale-105"
@@ -1634,16 +1900,62 @@ export default function InstallWizardPage() {
               {cinePhase === 'error' && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                   <p className="text-red-400/80">{runError || 'Algo deu errado durante a instalação.'}</p>
+
+                  {(() => {
+                    const h = buildErrorHelp(runError);
+                    if (!h.steps.length) return null;
+                    return (
+                      <div className="rounded-2xl bg-white/5 border border-white/10 p-4 text-left">
+                        <div className="text-white font-semibold mb-2">{h.title}</div>
+                        <ol className="list-decimal list-inside space-y-1 text-sm text-slate-300">
+                          {h.steps.map((s, idx) => (
+                            <li key={idx}>{s}</li>
+                          ))}
+                        </ol>
+                        {(h.primaryAction || h.secondaryAction) && (
+                          <div className="mt-4 flex flex-wrap gap-3">
+                            {h.primaryAction && (
+                              <button
+                                onClick={h.primaryAction.run}
+                                className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white text-sm font-semibold"
+                              >
+                                {h.primaryAction.label}
+                              </button>
+                            )}
+                            {h.secondaryAction && (
+                              <button
+                                onClick={h.secondaryAction.run}
+                                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm"
+                              >
+                                {h.secondaryAction.label}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   <div className="flex gap-4 justify-center">
                     <button 
                       onClick={() => {
                         setShowInstallOverlay(false);
-                        clearInstallState();
+                        // Mantém o "save game" para retry/retomada; use o botão de limpar acima se necessário.
                       }} 
                       className="px-8 py-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-all"
                     >
                       Voltar
                     </button>
+                    {isRedeployStillRunningError(runError || '') && (vercelDeploymentId || (typeof window !== 'undefined' && localStorage.getItem(STORAGE_VERCEL_DEPLOYMENT_ID))) ? (
+                      <button
+                        onClick={() => void finalizeRedeploy()}
+                        disabled={finalizing}
+                        className="px-8 py-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white font-semibold transition-all flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {finalizing ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                        Verificar de novo (Vercel)
+                      </button>
+                    ) : (
                     <button 
                       onClick={() => {
                         setShowInstallOverlay(false);
@@ -1658,6 +1970,7 @@ export default function InstallWizardPage() {
                       <RefreshCw className="w-5 h-5" />
                       Tentar novamente
                     </button>
+                    )}
                   </div>
                 </motion.div>
               )}

@@ -52,7 +52,7 @@ interface KanbanBoardProps {
   stages: BoardStage[];
   filteredDeals: DealView[];
   draggingId: string | null;
-  handleDragStart: (e: React.DragEvent, id: string) => void;
+  handleDragStart: (e: React.DragEvent, id: string, title: string) => void;
   handleDragOver: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent, stageId: string) => void;
   setSelectedDealId: (id: string | null) => void;

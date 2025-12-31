@@ -35,8 +35,12 @@ yarn-error.log*
 # local dev logs
 dev_server.log
 
-# Cursor IDE (plans are local/personal)
-.cursor/plans/
+# Cursor IDE (local/personal configs)
+.cursor/
+
+# Other AI/dev tools (local configs)
+.jules/
+.specify/
 
 # testsprite generated artifacts (may contain PII)
 testsprite_tests/tmp/
@@ -56,3 +60,25 @@ supabase/.temp/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ============================================
+# INTERNAL DOCS & DEV TOOLS (keep local only)
+# ============================================
+
+# Internal documentation (keep public: README.md, AGENTS.md, public-api.md, webhooks.md, mcp.md)
+docs/changelog.md
+docs/CODEBASE_ANALYSIS.md
+docs/cache-architecture.md
+docs/migrations-baseline.md
+docs/realtime-analysis.md
+docs/copilot-code-review-setup.md
+docs/prd-*.md
+docs/specs/
+docs/stories/
+docs/security/
+
+# Dev/debug scripts (not needed for app to run)
+scripts/
+
+# Test documentation (test code stays, docs are local)
+test/*.md

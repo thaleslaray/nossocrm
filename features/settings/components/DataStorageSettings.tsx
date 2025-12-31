@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query';
 
 /**
  * Componente React `DataStorageSettings`.
@@ -145,6 +146,14 @@ export const DataStorageSettings: React.FC = () => {
 
             // Invalida todo o cache do React Query
             await queryClient.invalidateQueries();
+
+            // IMPORTANT: invalidate does not clear cached data; if user navigates back to /boards,
+            // stale cached boards can still render until a refetch happens (which we intentionally reduced).
+            // For the nuke flow, we want the UI to reflect "zero boards" immediately.
+            queryClient.removeQueries({ queryKey: queryKeys.boards.all });
+            queryClient.removeQueries({ queryKey: [...queryKeys.boards.all, 'default'] as const });
+            // Also clear deals cache because /boards renders deals for active board.
+            queryClient.removeQueries({ queryKey: queryKeys.deals.all });
 
             // Força refresh de todos os contexts (Activities, Deals, etc.)
             await refresh();

@@ -19,6 +19,12 @@ function json<T>(body: T, status = 200): Response {
  * @returns {Promise<Response>} Retorna { initialized: boolean }
  */
 export async function GET() {
+  // Bypass em desenvolvimento local: sempre permite acesso ao wizard
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[check-initialized] Development mode: bypassing initialization check');
+    return json({ initialized: false });
+  }
+
   try {
     const supabase = await createClient();
     

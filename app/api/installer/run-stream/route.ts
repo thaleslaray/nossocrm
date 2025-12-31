@@ -125,7 +125,7 @@ function createCinemaPhases(firstName: string) {
 type PhaseId = 'coordinates' | 'signal' | 'station' | 'comms' | 'contact' | 'landing' | 'complete';
 
 interface StreamEvent {
-  type: 'phase' | 'progress' | 'error' | 'complete' | 'skip' | 'retry' | 'step_complete';
+  type: 'phase' | 'progress' | 'error' | 'complete' | 'skip' | 'retry' | 'step_complete' | 'vercel_deploy';
   phase?: PhaseId;
   title?: string;
   subtitle?: string;
@@ -136,6 +136,7 @@ interface StreamEvent {
   stepId?: string;
   retryCount?: number;
   maxRetries?: number;
+  deploymentId?: string;
 }
 
 const MAX_RETRIES = 3;
@@ -300,7 +301,7 @@ export async function POST(req: Request) {
     const prog = partialFraction !== undefined 
       ? progress.partialProgress(stepId, partialFraction)
       : progress.completeStep(stepId);
-    await sendEvent({ type: 'phase', phase, title: p.title, subtitle: p.subtitle, progress: prog });
+    await sendEvent({ type: 'phase', stepId, phase, title: p.title, subtitle: p.subtitle, progress: prog });
   };
 
   // Run installation in background
@@ -567,6 +568,7 @@ export async function POST(req: Request) {
           vercel.teamId || undefined
         );
         vercelDeploymentId = redeploy.deploymentId;
+        await sendEvent({ type: 'vercel_deploy', deploymentId: vercelDeploymentId });
       } catch (err) {
         // Redeploy é obrigatório para aplicar NEXT_PUBLIC_* no build do Next.js.
         const msg = err instanceof Error ? err.message : String(err);

@@ -221,6 +221,9 @@ export const useActivitiesController = () => {
             showToast('Atividade criada com sucesso', 'success');
             setIsModalOpen(false);
           },
+          onError: (error: Error) => {
+            showToast(`Erro ao criar atividade: ${error.message}`, 'error');
+          },
         }
       );
     }

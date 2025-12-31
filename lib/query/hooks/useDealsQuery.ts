@@ -8,7 +8,7 @@
  * - Ready for Realtime integration
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '../index';
+import { queryKeys, DEALS_VIEW_KEY } from '../index';
 import { dealsService, contactsService, companiesService, boardStagesService } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { Deal, DealView, DealItem } from '@/types';
@@ -138,6 +138,7 @@ export const useDealsView = (filters?: DealsFilters) => {
  * Hook to fetch a single deal by ID
  */
 export const useDeal = (id: string | undefined) => {
+  const { user, loading: authLoading } = useAuth();
   return useQuery({
     queryKey: queryKeys.deals.detail(id || ''),
     queryFn: async () => {
@@ -146,30 +147,34 @@ export const useDeal = (id: string | undefined) => {
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !authLoading && !!user && !!id,
   });
 };
 
 /**
  * Hook to fetch deals by board (for Kanban view) - Returns DealView[]
+ * 
+ * IMPORTANTE: Este hook usa a MESMA query key que useDealsView para garantir
+ * que todos os componentes compartilhem o mesmo cache (Single Source of Truth).
+ * A filtragem por boardId é feita via `select` no cliente.
  */
 export const useDealsByBoard = (boardId: string) => {
-  return useQuery<DealView[]>({
-    queryKey: queryKeys.deals.list({ boardId }),
+  const { user, loading: authLoading } = useAuth();
+  return useQuery<DealView[], Error, DealView[]>({
+    // CRÍTICO: Usar a mesma query key que useDealsView para compartilhar cache
+    queryKey: [...queryKeys.deals.lists(), 'view'],
     queryFn: async () => {
-      // Guard: should never happen due to 'enabled', but safety first
-      if (!boardId) return [];
-      // Fetch all data in parallel (including stages for stageLabel)
+      // Fetch all data in parallel (including all stages)
       const [dealsResult, contactsResult, companiesResult, stagesResult] = await Promise.all([
         dealsService.getAll(),
         contactsService.getAll(),
         companiesService.getAll(),
-        boardStagesService.getByBoardId(boardId),
+        boardStagesService.getAll(),
       ]);
 
       if (dealsResult.error) throw dealsResult.error;
 
-      const deals = (dealsResult.data || []).filter(d => d.boardId === boardId);
+      const deals = dealsResult.data || [];
       const contacts = contactsResult.data || [];
       const companies = companiesResult.data || [];
       const stages = stagesResult.data || [];
@@ -179,7 +184,7 @@ export const useDealsByBoard = (boardId: string) => {
       const companyMap = new Map(companies.map(c => [c.id, c]));
       const stageMap = new Map(stages.map(s => [s.id, s.label || s.name]));
 
-      // Enrich deals with company/contact names and stageLabel
+      // Enrich ALL deals (filtering happens in select)
       const enrichedDeals: DealView[] = deals.map(deal => {
         const contact = contactMap.get(deal.contactId);
         const company = deal.clientCompanyId ? companyMap.get(deal.clientCompanyId) : undefined;
@@ -191,11 +196,15 @@ export const useDealsByBoard = (boardId: string) => {
           stageLabel: stageMap.get(deal.status) || 'Estágio não identificado',
         };
       });
-
       return enrichedDeals;
     },
-    staleTime: 1 * 60 * 1000, // 1 minute for kanban (more interactive)
-    enabled: !!boardId, // Only fetch when boardId is valid
+    // Filtrar por boardId no cliente (compartilha cache mas retorna só os deals do board)
+    select: (data) => {
+      if (!boardId || boardId.startsWith('temp-')) return [];
+      return data.filter(d => d.boardId === boardId);
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes (same as useDealsView)
+    enabled: !authLoading && !!user && !!boardId && !boardId.startsWith('temp-'),
   });
 };
 
@@ -224,38 +233,130 @@ export const useCreateDeal = () => {
         updatedAt: new Date().toISOString(),
       };
 
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        const logData = { title: deal.title, status: deal.status?.slice(0, 8) || 'null' };
+        console.log(`[useCreateDeal] 📤 Sending create to server`, logData);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:230',message:'Sending create to server',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD1'})}).catch(()=>{});
+      }
+      // #endregion
+
       // Passa null ao invés de '' - o trigger vai preencher automaticamente
       const { data, error } = await dealsService.create(fullDeal);
 
       if (error) throw error;
+      
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        const logData = { dealId: data?.id?.slice(0, 8) || 'null', title: data?.title };
+        console.log(`[useCreateDeal] ✅ Server confirmed creation`, logData);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:240',message:'Server confirmed creation',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD2'})}).catch(()=>{});
+      }
+      // #endregion
+      
       return data!;
     },
     onMutate: async newDeal => {
       await queryClient.cancelQueries({ queryKey: queryKeys.deals.all });
 
-      const previousDeals = queryClient.getQueryData<Deal[]>(queryKeys.deals.lists());
+      // Usa DEALS_VIEW_KEY - a única fonte de verdade
+      const previousDeals = queryClient.getQueryData<DealView[]>(DEALS_VIEW_KEY);
 
-      // Optimistic update with temp ID
-      const tempDeal: Deal = {
+      // Optimistic update with temp ID - cria DealView parcial
+      const tempId = `temp-${Date.now()}`;
+      const tempDealView: DealView = {
         ...newDeal,
-        id: `temp-${Date.now()}`,
+        id: tempId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         isWon: newDeal.isWon ?? false,
         isLost: newDeal.isLost ?? false,
-      } as Deal;
+        // Campos enriquecidos ficam vazios até Realtime atualizar
+        companyName: '',
+        contactName: '',
+        contactEmail: '',
+        contactPhone: '',
+        stageLabel: '',
+      } as DealView;
 
-      queryClient.setQueryData<Deal[]>(queryKeys.deals.lists(), (old = []) => [tempDeal, ...old]);
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        const logData = { tempId: tempId.slice(0, 15), title: newDeal.title, status: newDeal.status?.slice(0, 8) || 'null' };
+        console.log(`[useCreateDeal] 🔄 Optimistic insert with temp ID`, logData);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:260',message:'Optimistic insert with temp ID',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD3'})}).catch(()=>{});
+      }
+      // #endregion
 
-      return { previousDeals };
+      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) => [tempDealView, ...old]);
+
+      return { previousDeals, tempId };
+    },
+    onSuccess: (data, _variables, context) => {
+      // Replace temp deal with real one from server
+      // This ensures immediate UI update while Realtime syncs in background
+      const tempId = context?.tempId;
+      
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        const logData = { tempId: tempId?.slice(0, 15) || 'null', realId: data.id?.slice(0, 8) || 'null', title: data.title };
+        console.log(`[useCreateDeal] 🔄 Replacing temp deal with real one`, logData);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:280',message:'Replacing temp deal with real one',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD4'})}).catch(()=>{});
+      }
+      // #endregion
+      
+      // Usa DEALS_VIEW_KEY - a única fonte de verdade
+      // Converte Deal para DealView parcial (Realtime vai enriquecer depois)
+      const dealAsView: DealView = {
+        ...data,
+        companyName: '',
+        contactName: '',
+        contactEmail: '',
+        contactPhone: '',
+        stageLabel: '',
+      } as DealView;
+      
+      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) => {
+        if (!old) return [dealAsView];
+        
+        // Check if deal already exists (race condition: Realtime may have already added it)
+        const existingIndex = old.findIndex(d => d.id === data.id);
+        if (existingIndex !== -1) {
+          // Deal already exists (Realtime beat us), keep the existing one (it has enriched data)
+          // #region agent log
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[useCreateDeal] ⚠️ Deal already exists in cache (Realtime beat us)`, { dealId: data.id?.slice(0, 8) });
+            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:290',message:'Deal already exists in cache',data:{dealId:data.id?.slice(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD5'})}).catch(()=>{});
+          }
+          // #endregion
+          return old; // Não sobrescreve - Realtime já tem dados enriquecidos
+        }
+        
+        if (tempId) {
+          // Remove temp deal, add real one
+          const withoutTemp = old.filter(d => d.id !== tempId);
+          // #region agent log
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[useCreateDeal] ✅ Swapped temp for real deal`, { tempId: tempId.slice(0, 15), realId: data.id?.slice(0, 8), cacheSize: withoutTemp.length + 1 });
+            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:300',message:'Swapped temp for real deal',data:{tempId:tempId.slice(0,15),realId:data.id?.slice(0,8),cacheSize:withoutTemp.length+1},timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD6'})}).catch(()=>{});
+          }
+          // #endregion
+          return [dealAsView, ...withoutTemp];
+        }
+        
+        // If temp not found, just add the new one
+        return [dealAsView, ...old];
+      });
     },
     onError: (_error, _newDeal, context) => {
       if (context?.previousDeals) {
-        queryClient.setQueryData(queryKeys.deals.lists(), context.previousDeals);
+        // Restaura o estado anterior usando DEALS_VIEW_KEY
+        queryClient.setQueryData(DEALS_VIEW_KEY, context.previousDeals);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
+      // NÃO fazer invalidateQueries para deals - Realtime gerencia a sincronização
+      // Isso evita race conditions onde o refetch sobrescreve o cache otimista
+      // Apenas atualiza stats do dashboard
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats });
     },
   });
@@ -263,6 +364,7 @@ export const useCreateDeal = () => {
 
 /**
  * Hook to update a deal
+ * Usa DEALS_VIEW_KEY como única fonte de verdade
  */
 export const useUpdateDeal = () => {
   const queryClient = useQueryClient();
@@ -276,9 +378,10 @@ export const useUpdateDeal = () => {
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.deals.all });
 
-      const previousDeals = queryClient.getQueryData<Deal[]>(queryKeys.deals.lists());
+      // Usa DEALS_VIEW_KEY - a única fonte de verdade
+      const previousDeals = queryClient.getQueryData<DealView[]>(DEALS_VIEW_KEY);
 
-      queryClient.setQueryData<Deal[]>(queryKeys.deals.lists(), (old = []) =>
+      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) =>
         old.map(deal =>
           deal.id === id ? { ...deal, ...updates, updatedAt: new Date().toISOString() } : deal
         )
@@ -293,11 +396,12 @@ export const useUpdateDeal = () => {
     },
     onError: (_error, _variables, context) => {
       if (context?.previousDeals) {
-        queryClient.setQueryData(queryKeys.deals.lists(), context.previousDeals);
+        queryClient.setQueryData(DEALS_VIEW_KEY, context.previousDeals);
       }
     },
     onSettled: (_data, _error, { id }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
+      // NÃO fazer invalidateQueries para deals - Realtime gerencia a sincronização
+      // Apenas invalidar o detalhe específico se necessário
       queryClient.invalidateQueries({ queryKey: queryKeys.deals.detail(id) });
     },
   });
@@ -305,12 +409,8 @@ export const useUpdateDeal = () => {
 
 /**
  * Hook to update deal status (for drag & drop in Kanban)
- * Optimized for instant UI feedback
- * 
- * When moving a deal:
- * - If dropping into CUSTOMER stage: marks as won
- * - If dropping into OTHER stage: marks as lost
- * - If dropping into regular stage: reopens the deal if it was won/lost
+ * @deprecated Use useMoveDeal instead - this hook is not used anywhere
+ * Usa DEALS_VIEW_KEY como única fonte de verdade
  */
 export const useUpdateDealStatus = () => {
   const queryClient = useQueryClient();
@@ -335,7 +435,6 @@ export const useUpdateDealStatus = () => {
         ...(lossReason && { lossReason }),
       };
 
-      // Update won/lost status if provided
       if (isWon !== undefined) {
         updates.isWon = isWon;
         if (isWon) updates.closedAt = new Date().toISOString();
@@ -344,7 +443,6 @@ export const useUpdateDealStatus = () => {
         updates.isLost = isLost;
         if (isLost) updates.closedAt = new Date().toISOString();
       }
-      // Clear closedAt if reopening
       if (isWon === false && isLost === false) {
         updates.closedAt = null as unknown as string;
       }
@@ -354,44 +452,35 @@ export const useUpdateDealStatus = () => {
       return { id, status, lossReason, isWon, isLost };
     },
     onMutate: async ({ id, status, lossReason, isWon, isLost }) => {
-      // Cancel all deals queries to prevent race conditions
       await queryClient.cancelQueries({ queryKey: queryKeys.deals.all });
 
-      // Store previous state for ALL deal queries (including by-board queries)
-      const previousState = queryClient.getQueriesData<Deal[] | DealView[]>({
-        queryKey: queryKeys.deals.lists()
-      });
+      // Usa DEALS_VIEW_KEY - única fonte de verdade
+      const previousDeals = queryClient.getQueryData<DealView[]>(DEALS_VIEW_KEY);
 
-      // Optimistic update for ALL deal list queries (including Kanban's useDealsByBoard)
-      queryClient.setQueriesData<Deal[] | DealView[]>(
-        { queryKey: queryKeys.deals.lists() },
-        (old = []) =>
-          old.map(deal =>
-            deal.id === id
-              ? {
-                ...deal,
-                status,
-                lastStageChangeDate: new Date().toISOString(),
-                ...(lossReason && { lossReason }),
-                ...(isWon !== undefined && { isWon }),
-                ...(isLost !== undefined && { isLost }),
-              }
-              : deal
-          )
+      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) =>
+        old.map(deal =>
+          deal.id === id
+            ? {
+              ...deal,
+              status,
+              lastStageChangeDate: new Date().toISOString(),
+              ...(lossReason && { lossReason }),
+              ...(isWon !== undefined && { isWon }),
+              ...(isLost !== undefined && { isLost }),
+            }
+            : deal
+        )
       );
 
-      return { previousState };
+      return { previousDeals };
     },
     onError: (_error, _variables, context) => {
-      // Restore ALL previous states on error
-      if (context?.previousState) {
-        context.previousState.forEach(([queryKey, data]) => {
-          queryClient.setQueryData(queryKey, data);
-        });
+      if (context?.previousDeals) {
+        queryClient.setQueryData(DEALS_VIEW_KEY, context.previousDeals);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
+      // NÃO fazer invalidateQueries - Realtime gerencia a sincronização
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats });
     },
   });
@@ -399,6 +488,7 @@ export const useUpdateDealStatus = () => {
 
 /**
  * Hook to delete a deal
+ * Usa DEALS_VIEW_KEY como única fonte de verdade
  */
 export const useDeleteDeal = () => {
   const queryClient = useQueryClient();
@@ -412,9 +502,10 @@ export const useDeleteDeal = () => {
     onMutate: async id => {
       await queryClient.cancelQueries({ queryKey: queryKeys.deals.all });
 
-      const previousDeals = queryClient.getQueryData<Deal[]>(queryKeys.deals.lists());
+      // Usa DEALS_VIEW_KEY - a única fonte de verdade
+      const previousDeals = queryClient.getQueryData<DealView[]>(DEALS_VIEW_KEY);
 
-      queryClient.setQueryData<Deal[]>(queryKeys.deals.lists(), (old = []) =>
+      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) =>
         old.filter(deal => deal.id !== id)
       );
 
@@ -422,11 +513,12 @@ export const useDeleteDeal = () => {
     },
     onError: (_error, _id, context) => {
       if (context?.previousDeals) {
-        queryClient.setQueryData(queryKeys.deals.lists(), context.previousDeals);
+        queryClient.setQueryData(DEALS_VIEW_KEY, context.previousDeals);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
+      // NÃO fazer invalidateQueries para deals - Realtime gerencia a sincronização
+      // Apenas atualiza stats do dashboard
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats });
     },
   });

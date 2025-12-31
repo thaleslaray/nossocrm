@@ -48,3 +48,28 @@
 - Ao mexer na IA:
   - mantenha o fluxo principal em `/api/ai/chat` + `lib/ai/*`.
   - se tocar em queries com service role, garanta filtro por `organization_id` (exemplos em `lib/ai/tools.ts`).
+
+## Code Review - Diretrizes para GitHub Copilot
+
+Ao realizar revisão de código neste repositório:
+
+- **Responda em português** quando revisar código.
+- **Verifique padrões de código**:
+  - TypeScript strict mode deve ser respeitado
+  - Zero warnings no ESLint (configurado em `eslint.config.mjs`)
+  - Componentes devem seguir padrão: `components/` para compartilhados, `features/` para módulos específicos
+  - Imports devem usar alias `@/` (ex: `@/lib/utils`, `@/components/ui`)
+- **Verifique segurança multi-tenant**:
+  - Todas as queries devem filtrar por `organization_id`
+  - Service role queries devem sempre incluir filtro de tenant
+  - RLS policies devem estar configuradas corretamente
+- **Verifique performance**:
+  - Queries devem usar TanStack Query com `staleTime` apropriado
+  - Realtime deve usar debounce para UPDATE/DELETE (mas não para INSERT)
+  - Optimistic updates devem ser usados quando apropriado
+- **Verifique testes**:
+  - Novas features devem ter testes em `*.test.ts(x)` ao lado do código
+  - Testes devem usar Vitest + React Testing Library
+- **Verifique acessibilidade**:
+  - Componentes devem ter `aria-label` quando necessário
+  - Formulários devem ter tratamento de erros acessível

@@ -18,7 +18,7 @@ import {
 } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ZodSchema } from 'zod';
-import { useFormStore } from '@/stores';
+import { useFormStore } from '@/lib/stores';
 
 // ============ TYPES ============
 

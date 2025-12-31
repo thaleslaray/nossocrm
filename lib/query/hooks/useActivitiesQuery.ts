@@ -9,6 +9,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../index';
 import { activitiesService } from '@/lib/supabase';
+import { sortActivitiesSmart } from '@/lib/utils/activitySort';
 import { useAuth } from '@/context/AuthContext';
 import type { Activity } from '@/types';
 
@@ -60,10 +61,11 @@ export const useActivities = (filters?: ActivitiesFilters) => {
         });
       }
 
-      return activities;
+      // Apply smart sorting (already sorted by service, but re-sort after filtering)
+      return sortActivitiesSmart(activities);
     },
     enabled: !authLoading && !!user, // Only fetch when auth is ready
-    staleTime: 1 * 60 * 1000, // 1 minute - activities change frequently
+    staleTime: 30 * 1000, // 30 seconds - short staleTime for Realtime updates
   });
 };
 
@@ -71,14 +73,16 @@ export const useActivities = (filters?: ActivitiesFilters) => {
  * Hook to fetch activities for a specific deal
  */
 export const useActivitiesByDeal = (dealId: string | undefined) => {
+  const { user, loading: authLoading } = useAuth();
   return useQuery({
     queryKey: queryKeys.activities.byDeal(dealId || ''),
     queryFn: async () => {
       const { data, error } = await activitiesService.getAll();
       if (error) throw error;
-      return (data || []).filter(a => a.dealId === dealId);
+      const filtered = (data || []).filter(a => a.dealId === dealId);
+      return sortActivitiesSmart(filtered);
     },
-    enabled: !!dealId,
+    enabled: !authLoading && !!user && !!dealId,
   });
 };
 
@@ -86,13 +90,16 @@ export const useActivitiesByDeal = (dealId: string | undefined) => {
  * Hook to fetch pending activities (not completed)
  */
 export const usePendingActivities = () => {
+  const { user, loading: authLoading } = useAuth();
   return useQuery({
     queryKey: queryKeys.activities.list({ completed: false }),
     queryFn: async () => {
       const { data, error } = await activitiesService.getAll();
       if (error) throw error;
-      return (data || []).filter(a => !a.completed);
+      const filtered = (data || []).filter(a => !a.completed);
+      return sortActivitiesSmart(filtered);
     },
+    enabled: !authLoading && !!user,
   });
 };
 
@@ -100,6 +107,7 @@ export const usePendingActivities = () => {
  * Hook to fetch today's activities
  */
 export const useTodayActivities = () => {
+  const { user, loading: authLoading } = useAuth();
   const today = new Date().toISOString().split('T')[0];
 
   return useQuery({
@@ -107,9 +115,11 @@ export const useTodayActivities = () => {
     queryFn: async () => {
       const { data, error } = await activitiesService.getAll();
       if (error) throw error;
-      return (data || []).filter(a => a.date.startsWith(today));
+      const filtered = (data || []).filter(a => a.date.startsWith(today));
+      return sortActivitiesSmart(filtered);
     },
     staleTime: 30 * 1000, // 30 seconds - very fresh for today's view
+    enabled: !authLoading && !!user,
   });
 };
 
@@ -141,11 +151,40 @@ export const useCreateActivity = () => {
         id: `temp-${Date.now()}`,
       } as Activity;
 
-      queryClient.setQueryData<Activity[]>(queryKeys.activities.lists(), (old = []) => [
-        tempActivity,
-        ...old,
-      ]);
-      return { previousActivities };
+      // Insert temp activity and re-sort intelligently
+      queryClient.setQueryData<Activity[]>(queryKeys.activities.lists(), (old = []) => {
+        const withNew = [...old, tempActivity];
+        return sortActivitiesSmart(withNew);
+      });
+      return { previousActivities, tempId: tempActivity.id };
+    },
+    onSuccess: (data, _variables, context) => {
+      // Replace temp activity with real one from server and re-sort
+      // This ensures immediate UI update while Realtime syncs in background
+      queryClient.setQueryData<Activity[]>(queryKeys.activities.lists(), (old = []) => {
+        if (!old) return [data];
+        const tempId = context?.tempId;
+        
+        // Check if activity already exists (race condition: Realtime may have already refetched)
+        const existingIndex = old.findIndex(a => a.id === data.id);
+        if (existingIndex !== -1) {
+          // Activity already exists, just re-sort (Realtime already added it)
+          return sortActivitiesSmart(old);
+        }
+        
+        if (tempId) {
+          // Remove temp activity, add real one, and re-sort
+          const withoutTemp = old.filter(a => a.id !== tempId);
+          const withReal = [...withoutTemp, data];
+          return sortActivitiesSmart(withReal);
+        }
+        // If temp not found, just add the new one and re-sort
+        return sortActivitiesSmart([...old, data]);
+      });
+      
+      // Invalidate to ensure Realtime updates are picked up
+      // This is a no-op if data is already fresh, but ensures consistency
+      queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });
     },
     onError: (_error, _params, context) => {
       if (context?.previousActivities) {
@@ -153,6 +192,7 @@ export const useCreateActivity = () => {
       }
     },
     onSettled: () => {
+      // Final invalidation to ensure Realtime updates are picked up
       queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });
     },
   });
@@ -173,9 +213,11 @@ export const useUpdateActivity = () => {
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.activities.all });
       const previousActivities = queryClient.getQueryData<Activity[]>(queryKeys.activities.lists());
-      queryClient.setQueryData<Activity[]>(queryKeys.activities.lists(), (old = []) =>
-        old.map(activity => (activity.id === id ? { ...activity, ...updates } : activity))
-      );
+      queryClient.setQueryData<Activity[]>(queryKeys.activities.lists(), (old = []) => {
+        const updated = old.map(activity => (activity.id === id ? { ...activity, ...updates } : activity));
+        // Re-sort after update (especially important if date changed)
+        return sortActivitiesSmart(updated);
+      });
       return { previousActivities };
     },
     onError: (_error, _variables, context) => {

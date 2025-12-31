@@ -16,7 +16,7 @@
 import { supabase } from './client';
 import { Board, BoardStage, BoardGoal, AgentPersona, OrganizationId } from '@/types';
 import { sanitizeUUID, requireUUID } from './utils';
-import { slugify } from '@/utils/slugify';
+import { slugify } from '@/lib/utils/slugify';
 
 function isMissingColumnInSchemaCache(error: unknown, table: string, column: string): boolean {
   const message = String((error as any)?.message ?? '');
@@ -517,10 +517,11 @@ export const boardsService = {
 
       // 4. Return complete board
       // Use the inserted stages directly
-      return {
+      const result = {
         data: transformBoard(newBoard as DbBoard, insertedStages),
         error: null
       };
+      return result;
     } catch (e) {
       return { data: null, error: e as Error };
     }
@@ -718,6 +719,24 @@ export const boardsService = {
         };
       }
 
+      // IMPORTANT: boards can reference each other via boards.next_board_id (handoff chain).
+      // If any board points to this board, deletion fails with FK boards_next_board_id_fkey.
+      // Clear those references before deleting.
+      const { error: clearNextError } = await supabase
+        .from('boards')
+        .update({ next_board_id: null })
+        .eq('next_board_id', id);
+      if (clearNextError) return { error: clearNextError };
+
+      // Also clear user_settings.active_board_id if it points to the board being deleted.
+      const { error: clearActiveBoardError } = await supabase
+        .from('user_settings')
+        .update({ active_board_id: null })
+        .eq('active_board_id', id);
+      // user_settings might not exist or might not be writable for this user; treat errors as non-fatal.
+      // best-effort: ignore errors
+      void clearActiveBoardError;
+
       // Stages are deleted automatically via CASCADE
       const { error } = await supabase
         .from('boards')
@@ -737,6 +756,21 @@ export const boardsService = {
       // 1. Move os deals primeiro
       const { error: moveError } = await this.moveDealsToBoard(boardId, targetBoardId);
       if (moveError) return { error: moveError };
+
+      // Clear handoff references pointing to this board (boards.next_board_id) before deleting.
+      const { error: clearNextError } = await supabase
+        .from('boards')
+        .update({ next_board_id: null })
+        .eq('next_board_id', boardId);
+      if (clearNextError) return { error: clearNextError };
+
+      // Clear user_settings.active_board_id if it points to the board being deleted (best-effort).
+      const { error: clearActiveBoardError } = await supabase
+        .from('user_settings')
+        .update({ active_board_id: null })
+        .eq('active_board_id', boardId);
+      // best-effort: ignore errors
+      void clearActiveBoardError;
 
       // 2. Agora pode deletar
       const { error } = await supabase

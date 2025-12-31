@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import reactHooks from "eslint-plugin-react-hooks";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -17,10 +18,24 @@ const eslintConfig = defineConfig([
     "testsprite_tests/**",
     "tmp/**",
     "**/*.bak",
+
+    // Build/runtime artifacts
+    "public/sw.js",
   ]),
+
+  // Scripts are CommonJS by design; allow require() there.
+  {
+    files: ["scripts/**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
 
   // Project-level rule tuning: keep lint useful, but avoid blocking on high-noise rules.
   {
+    plugins: {
+      "react-hooks": reactHooks,
+    },
     rules: {
       // Too noisy for this codebase right now; we enforce type safety via TS + runtime validation.
       // Keeping it enabled currently creates hundreds of warnings and blocks "zero-warning" workflows.
@@ -35,6 +50,9 @@ const eslintConfig = defineConfig([
       'prefer-const': 'warn',
       // Too pedantic for the current codebase (large JSX content with quotes).
       'react/no-unescaped-entities': 'off',
+
+      // Prevent hook-order bugs (e.g. hook called after an early return).
+      'react-hooks/rules-of-hooks': 'error',
 
       // React Compiler-specific rules (currently too disruptive for the project).
       'react-hooks/preserve-manual-memoization': 'off',

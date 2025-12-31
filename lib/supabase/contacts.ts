@@ -386,6 +386,7 @@ export const contactsService = {
         .single();
 
       if (error) return { data: null, error };
+
       return { data: transformContact(data as DbContact), error: null };
     } catch (e) {
       return { data: null, error: e as Error };

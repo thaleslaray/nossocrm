@@ -39,7 +39,7 @@ import {
   ConsentRecord, 
   REQUIRED_CONSENTS,
   OPTIONAL_CONSENTS 
-} from '@/services/consentService';
+} from '@/lib/consent/consentService';
 
 /**
  * Retorno do hook useConsent

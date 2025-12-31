@@ -21,7 +21,7 @@ import type { Board, BoardStage } from '@/types';
 export const useBoards = () => {
   const { user, loading: authLoading } = useAuth();
 
-  return useQuery({
+  return useQuery<Board[]>({
     queryKey: queryKeys.boards.lists(),
     queryFn: async () => {
       const { data, error } = await boardsService.getAll();
@@ -29,6 +29,13 @@ export const useBoards = () => {
       return data || [];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - boards don't change often
+    // Avoid "refetch storms" during UI focus/mount churn (especially in dev/StrictMode).
+    // Updates happen via mutations + optimistic cache updates + explicit invalidations.
+    refetchOnWindowFocus: false,
+    // Refetch only when (a) never fetched or (b) explicitly invalidated.
+    // This avoids refetch storms while still preventing "stale forever" on navigation.
+    refetchOnMount: (query) => query.state.dataUpdatedAt === 0 || query.state.isInvalidated,
+    refetchOnReconnect: false,
     enabled: !authLoading && !!user, // Only fetch when auth is ready
   });
 };
@@ -37,14 +44,15 @@ export const useBoards = () => {
  * Hook to fetch a single board by ID
  */
 export const useBoard = (id: string | undefined) => {
-  return useQuery({
+  const { user, loading: authLoading } = useAuth();
+  return useQuery<Board | null>({
     queryKey: queryKeys.boards.detail(id || ''),
     queryFn: async () => {
       const { data, error } = await boardsService.getAll();
       if (error) throw error;
       return (data || []).find(b => b.id === id) || null;
     },
-    enabled: !!id,
+    enabled: !authLoading && !!user && !!id,
   });
 };
 
@@ -55,13 +63,22 @@ export const useBoard = (id: string | undefined) => {
 export const useDefaultBoard = () => {
   const { user, loading: authLoading } = useAuth();
 
-  return useQuery({
+  return useQuery<Board | null>({
     queryKey: [...queryKeys.boards.all, 'default'] as const,
     queryFn: async () => {
       const { data, error } = await boardsService.getAll();
       if (error) throw error;
-      return (data || []).find(b => b.isDefault) || (data || [])[0] || null;
+      const chosen = (data || []).find(b => b.isDefault) || (data || [])[0] || null;
+      return chosen;
     },
+    // Keep it fresh-ish, but allow invalidation to force a refetch when coming back from other pages.
+    staleTime: 5 * 60 * 1000,
+    // Same reasoning as `useBoards`: prevent redundant refetches caused by focus/mount churn.
+    refetchOnWindowFocus: false,
+    // Critical: when user deleted boards elsewhere (settings), this query might be stale when the boards page mounts.
+    // We want a stale query to refetch on mount so we don't show a deleted board until F5.
+    refetchOnMount: (query) => query.state.dataUpdatedAt === 0 || query.state.isInvalidated,
+    refetchOnReconnect: false,
     enabled: !authLoading && !!user, // Only fetch when auth is ready
   });
 };
@@ -78,10 +95,45 @@ export const useCreateBoard = () => {
     mutationFn: async ({ board, order }: {
       board: Omit<Board, 'id' | 'createdAt'>;
       order?: number;
+      /** Optional client-provided temp id used for optimistic insert + immediate selection */
+      clientTempId?: string;
     }) => {
       const { data, error } = await boardsService.create(board, order);
       if (error) throw error;
       return data!;
+    },
+    onMutate: async ({ board, clientTempId }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.boards.all });
+
+      const previousBoards = queryClient.getQueryData<Board[]>(queryKeys.boards.lists());
+
+      const tempId = clientTempId || `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const tempBoard: Board = {
+        ...(board as any),
+        stages: (board as any)?.stages ?? [],
+        isDefault: (board as any)?.isDefault ?? false,
+        id: tempId,
+        createdAt: new Date().toISOString(),
+      } as Board;
+
+      queryClient.setQueryData<Board[]>(queryKeys.boards.lists(), (old = []) => [tempBoard, ...old]);
+
+      return { previousBoards, tempId };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previousBoards) {
+        queryClient.setQueryData(queryKeys.boards.lists(), context.previousBoards);
+      }
+    },
+    onSuccess: (data, _vars, context) => {
+      const tempId = (context as any)?.tempId as string | undefined;
+      if (!tempId) return;
+
+      queryClient.setQueryData<Board[]>(queryKeys.boards.lists(), (old = []) => {
+        const withoutTemp = old.filter((b) => b.id !== tempId);
+        const already = withoutTemp.some((b) => b.id === data.id);
+        return already ? withoutTemp : [data, ...withoutTemp];
+      });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.boards.all });
@@ -182,13 +234,14 @@ export const useDeleteBoardWithMove = () => {
  * Hook to check if a board can be deleted
  */
 export const useCanDeleteBoard = (boardId: string | undefined) => {
+  const { user, loading: authLoading } = useAuth();
   return useQuery({
     queryKey: [...queryKeys.boards.detail(boardId || ''), 'canDelete'] as const,
     queryFn: async () => {
       if (!boardId) return { canDelete: true, dealCount: 0 };
       return await boardsService.canDelete(boardId);
     },
-    enabled: !!boardId,
+    enabled: !authLoading && !!user && !!boardId,
   });
 };
 

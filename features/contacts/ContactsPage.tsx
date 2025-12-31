@@ -142,6 +142,7 @@ export const ContactsPage: React.FC = () => {
                 setFormData={controller.setFormData}
                 editingContact={controller.editingContact}
                 createFakeContactsBatch={controller.createFakeContactsBatch}
+                isSubmitting={controller.isSubmittingContact}
             />
 
             <CompanyFormModal

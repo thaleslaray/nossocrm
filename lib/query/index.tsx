@@ -39,7 +39,7 @@ import {
   MutationCache,
 } from '@tanstack/react-query';
 import React from 'react';
-import { useNotificationStore } from '@/stores';
+import { useNotificationStore } from '@/lib/stores';
 import { ERROR_CODES, getErrorMessage } from '@/lib/validations/errorCodes';
 
 // ============ TRATAMENTO DE ERROS ============

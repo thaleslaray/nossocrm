@@ -10,6 +10,8 @@ import {
   useCreateContact,
   useUpdateContact,
   useDeleteContact,
+  useBulkDeleteContacts,
+  useBulkDeleteCompanies,
   useCreateCompany,
   useUpdateCompany,
   useDeleteCompany,
@@ -38,10 +40,12 @@ export const useContactsController = () => {
   const createContactMutation = useCreateContact();
   const updateContactMutation = useUpdateContact();
   const deleteContactMutation = useDeleteContact();
+  const bulkDeleteContactsMutation = useBulkDeleteContacts();
   const checkHasDealsMutation = useContactHasDeals();
   const createCompanyMutation = useCreateCompany();
   const updateCompanyMutation = useUpdateCompany();
   const deleteCompanyMutation = useDeleteCompany();
+  const bulkDeleteCompaniesMutation = useBulkDeleteCompanies();
   const createDealMutation = useCreateDeal();
 
   // Enable realtime sync
@@ -158,6 +162,7 @@ export const useContactsController = () => {
     role: '',
     companyName: '',
   });
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
 
   // Create Deal State
   const [createDealContactId, setCreateDealContactId] = useState<string | null>(null);
@@ -210,15 +215,20 @@ export const useContactsController = () => {
         }
       );
     } else {
+      // Close immediately for better UX (same pattern as contact creation)
+      setIsCompanyModalOpen(false);
+      (addToast || showToast)('Criando empresa...', 'info');
+
       createCompanyMutation.mutate(
         { name: data.name, industry: data.industry || '', website: data.website || '' } as any,
         {
           onSuccess: () => {
             (addToast || showToast)('Empresa criada!', 'success');
-            setIsCompanyModalOpen(false);
           },
           onError: (error: Error) => {
             (addToast || showToast)(`Erro ao criar empresa: ${error.message}`, 'error');
+            // Re-open modal so user can retry
+            setIsCompanyModalOpen(true);
           },
         }
       );
@@ -227,10 +237,12 @@ export const useContactsController = () => {
 
   const confirmDeleteCompany = async () => {
     if (!deleteCompanyId) return;
+    // Close confirm modal immediately to avoid "stuck" feeling
+    setDeleteCompanyId(null);
+    (addToast || showToast)('Excluindo empresa...', 'info');
     try {
       await deleteCompanyMutation.mutateAsync(deleteCompanyId);
       (addToast || showToast)('Empresa excluída com sucesso', 'success');
-      setDeleteCompanyId(null);
     } catch (e) {
       (addToast || showToast)(`Erro ao excluir empresa: ${(e as Error).message}`, 'error');
     }
@@ -317,17 +329,26 @@ export const useContactsController = () => {
     let successCount = 0;
     let errorCount = 0;
 
-    for (const id of ids) {
       try {
         if (viewMode === 'companies') {
-          await deleteCompanyMutation.mutateAsync(id);
+        const result = await bulkDeleteCompaniesMutation.mutateAsync({
+          ids,
+          concurrency: 2,
+        });
+        successCount = result.successCount;
+        errorCount = result.errorCount;
         } else {
-          await deleteContactMutation.mutateAsync({ id, forceDeleteDeals: true });
-        }
-        successCount++;
-      } catch {
-        errorCount++;
+        const result = await bulkDeleteContactsMutation.mutateAsync({
+          ids,
+          forceDeleteDeals: true,
+          concurrency: 3,
+        });
+        successCount = result.successCount;
+        errorCount = result.errorCount;
       }
+    } catch {
+      // If bulk fails unexpectedly, count everything as error (keeps UX predictable)
+      errorCount = ids.length;
     }
 
     if (successCount > 0) {
@@ -350,7 +371,16 @@ export const useContactsController = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const t0 = Date.now();
+    setIsSubmittingContact(true);
     const normalizedPhone = normalizePhoneE164(formData.phone);
+
+    // Close immediately to avoid "modal close lag" while we wait for Supabase.
+    // (TanStack Query does not support onMutate in mutate() call options.)
+    if (!editingContact) {
+      setIsModalOpen(false);
+      (addToast || showToast)('Criando contato...', 'info');
+    }
 
     // Find or create company
     let companyId: string | undefined;
@@ -364,6 +394,7 @@ export const useContactsController = () => {
         companyId = existingCompany.id;
       } else {
         // Create new company and wait for result
+        const tCompany0 = Date.now();
         const newCompany = await new Promise<{ id: string } | null>(resolve => {
           createCompanyMutation.mutate(
             { name: companyName },
@@ -396,6 +427,7 @@ export const useContactsController = () => {
             (addToast || showToast)('Contato atualizado!', 'success');
             setIsModalOpen(false);
           },
+          onSettled: () => setIsSubmittingContact(false),
         }
       );
     } else {
@@ -413,8 +445,13 @@ export const useContactsController = () => {
         {
           onSuccess: () => {
             (addToast || showToast)('Contato criado!', 'success');
-            setIsModalOpen(false);
           },
+          onError: (error: Error) => {
+            (addToast || showToast)(`Erro ao criar contato: ${error.message}`, 'error');
+            // Re-open modal so user can adjust and retry
+            setIsModalOpen(true);
+          },
+          onSettled: () => setIsSubmittingContact(false),
         }
       );
     }
@@ -634,6 +671,7 @@ export const useContactsController = () => {
     setBulkDeleteConfirm,
     formData,
     setFormData,
+    isSubmittingContact,
     isLoading,
 
     // T017-T020: Pagination state and handlers

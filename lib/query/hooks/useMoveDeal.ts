@@ -12,7 +12,7 @@
  * - Optimistic updates for instant UI feedback
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '../queryKeys';
+import { queryKeys, DEALS_VIEW_KEY } from '../queryKeys';
 import { dealsService } from '@/lib/supabase';
 import { boardsService } from '@/lib/supabase/boards'; // Added
 import { activitiesService } from '@/lib/supabase/activities';
@@ -40,7 +40,7 @@ interface MoveDealResult {
 
 // Context type for optimistic updates
 interface MoveDealContext {
-  previousState: [readonly unknown[], Deal[] | DealView[] | undefined][];
+  previousDeals: DealView[] | undefined;
 }
 
 /**
@@ -105,8 +105,37 @@ export const useMoveDeal = () => {
       };
 
       // 1. Update the deal
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        const logData = {
+          dealId: dealId.slice(0, 8),
+          targetStageId: targetStageId.slice(0, 8),
+          updates: { status: targetStageId.slice(0, 8), isWon, isLost },
+        };
+        console.log(`[useMoveDeal] 📤 Sending update to server`, logData);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:108',message:'Sending update to server',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'H'})}).catch(()=>{});
+      }
+      // #endregion
+      
       const { error: dealError } = await dealsService.update(dealId, updates);
-      if (dealError) throw dealError;
+      if (dealError) {
+        // #region agent log
+        if (process.env.NODE_ENV !== 'production') {
+          const logData = { dealId: dealId.slice(0, 8), error: String(dealError) };
+          console.log(`[useMoveDeal] ❌ Server update failed`, logData);
+          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:110',message:'Server update failed',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'I'})}).catch(()=>{});
+        }
+        // #endregion
+        throw dealError;
+      }
+      
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        const logData = { dealId: dealId.slice(0, 8), targetStageId: targetStageId.slice(0, 8) };
+        console.log(`[useMoveDeal] ✅ Server update confirmed`, logData);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:112',message:'Server update confirmed',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'J'})}).catch(()=>{});
+      }
+      // #endregion
 
       // 2. Create activity "Moveu para X" (fire and forget - don't block UI)
       const stageLabel = targetStage?.label || targetStageId;
@@ -206,15 +235,23 @@ export const useMoveDeal = () => {
 
     // Optimistic update: update UI instantly before server responds
     onMutate: async ({ dealId, targetStageId, deal, explicitWin, explicitLost, board }) => {
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        const logData = {
+          dealId: dealId.slice(0, 8),
+          targetStageId: targetStageId.slice(0, 8),
+          currentStatus: deal.status?.slice(0, 8) || 'null',
+        };
+        console.log(`[useMoveDeal] 🚀 Starting optimistic update`, logData);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:210',message:'Starting optimistic update',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'F'})}).catch(()=>{});
+      }
+      // #endregion
+      
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.deals.all });
 
-      // Snapshot previous state
-      const previousState: MoveDealContext['previousState'] = [];
-      const queriesData = queryClient.getQueriesData<Deal[] | DealView[]>({ queryKey: queryKeys.deals.all });
-      queriesData.forEach(([key, data]) => {
-        previousState.push([key, data]);
-      });
+      // Snapshot previous state - usa DEALS_VIEW_KEY (única fonte de verdade)
+      const previousDeals = queryClient.getQueryData<DealView[]>(DEALS_VIEW_KEY);
 
       // Determine new status
       const targetStage = board.stages.find(s => s.id === targetStageId);
@@ -229,42 +266,91 @@ export const useMoveDeal = () => {
         explicitLost
         || (board.lostStageId ? targetStageId === board.lostStageId : targetStage?.linkedLifecycleStage === 'OTHER');
 
-      // Optimistically update the cache
-      queryClient.setQueriesData<Deal[] | DealView[]>(
-        { queryKey: queryKeys.deals.all },
-        (old) => {
-          if (!old) return old;
-          return old.map(d => {
-            if (d.id === dealId) {
-              return {
-                ...d,
-                status: targetStageId,
-                lastStageChangeDate: new Date().toISOString(),
-                isWon: isWon ?? d.isWon,
-                isLost: isLost ?? d.isLost,
-              };
-            }
-            return d;
-          });
+      // Optimistically update APENAS DEALS_VIEW_KEY (única fonte de verdade)
+      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old) => {
+        if (!old) return old;
+        
+        const dealInCache = old.find(d => d.id === dealId);
+        // #region agent log
+        if (process.env.NODE_ENV !== 'production') {
+          const logData = {
+            cacheSize: old.length,
+            dealFound: !!dealInCache,
+            currentStatus: dealInCache?.status?.slice(0, 8) || 'null',
+          };
+          console.log(`[useMoveDeal] 📊 Processing DEALS_VIEW_KEY cache`, logData);
+          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:280',message:'Processing cache for optimistic update',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'OPT'})}).catch(()=>{});
         }
-      );
+        // #endregion
+        
+        return old.map(d => {
+          if (d.id === dealId) {
+            const newDeal = {
+              ...d,
+              status: targetStageId,
+              lastStageChangeDate: new Date().toISOString(),
+              isWon: isWon ?? d.isWon,
+              isLost: isLost ?? d.isLost,
+              updatedAt: new Date().toISOString(),
+            };
+            // #region agent log
+            if (process.env.NODE_ENV !== 'production') {
+              const logData = {
+                dealId: dealId.slice(0, 8),
+                oldStatus: d.status?.slice(0, 8) || 'null',
+                newStatus: targetStageId.slice(0, 8),
+                updatedAt: newDeal.updatedAt,
+              };
+              console.log(`[useMoveDeal] ✅ Optimistic update applied`, logData);
+              fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:235',message:'Optimistic update applied',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'G'})}).catch(()=>{});
+            }
+            // #endregion
+            return newDeal;
+          }
+          return d;
+        });
+      });
 
-      return { previousState };
+      // Também atualizar o detail cache se existir
+      queryClient.setQueryData<Deal>(queryKeys.deals.detail(dealId), (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          status: targetStageId,
+          lastStageChangeDate: new Date().toISOString(),
+          isWon: isWon ?? old.isWon,
+          isLost: isLost ?? old.isLost,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+
+      return { previousDeals };
     },
 
     // Rollback on error
     onError: (_err, _variables, context) => {
-      if (context?.previousState) {
-        context.previousState.forEach(([key, data]) => {
-          queryClient.setQueryData(key, data);
-        });
+      if (context?.previousDeals) {
+        queryClient.setQueryData(DEALS_VIEW_KEY, context.previousDeals);
       }
     },
 
     // Only refetch deals on success (not contacts, not activities)
+    // NOTE: We DON'T invalidate here to avoid race condition with Realtime.
+    // The Realtime UPDATE event will handle synchronization.
+    // Invalidating here causes the deal to "jump back" because:
+    // 1. Optimistic update moves deal visually
+    // 2. Server confirms update
+    // 3. onSettled invalidates → refetch (may get stale data if timing is off)
+    // 4. Realtime UPDATE arrives → invalidates again → refetch (may overwrite with old data)
+    // By skipping invalidation here, we let Realtime handle sync naturally.
     onSettled: () => {
-      // Single refetch to sync with server - Realtime will handle the rest
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[useMoveDeal] ⏸️ onSettled called (skipping invalidation, waiting for Realtime)`);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:276',message:'onSettled called',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'K'})}).catch(()=>{});
+      }
+      // #endregion
+      // Let Realtime handle synchronization - it will invalidate when the UPDATE event arrives
     },
   });
 };

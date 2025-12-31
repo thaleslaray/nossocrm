@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getErrorMessage } from '@/utils/errorUtils'
+import { getErrorMessage } from '@/lib/utils/errorUtils'
 import { Loader2, Mail, Lock, User, ArrowRight, AlertCircle } from 'lucide-react'
 
 /**

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from './AuthContext';
 import { CallOptions } from '@/types/ai';
@@ -23,6 +23,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user, profile } = useAuth();
     const [activeContext, setActiveContextState] = useState<CallOptions | null>(null);
     const pathname = usePathname();
+    const lastSignatureRef = useRef<string | null>(null);
 
     // Helper to merge generic user context with specific passed context
     const setContext = useCallback((context: CallOptions) => {
@@ -35,7 +36,32 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
                 role: profile?.role || 'user',
             }
         };
-        console.log('[AIContext] 🔄 Setting context:', enhancedContext.activeObject?.id, enhancedContext.activeObject?.name);
+        // Guard against infinite loops: many callers rebuild objects every render.
+        // We only set state if the "meaningful" context signature actually changed.
+        const sig = [
+            // Include identity so login/logout/profile changes refresh the context.
+            enhancedContext.user?.id || 'anon',
+            enhancedContext.view?.type || 'none',
+            enhancedContext.view?.url || '',
+            enhancedContext.activeObject?.type || 'none',
+            enhancedContext.activeObject?.id || '',
+            // Filters (keep primitives only)
+            (enhancedContext as any)?.filters?.status || '',
+            (enhancedContext as any)?.filters?.owner || '',
+            (enhancedContext as any)?.filters?.search || '',
+            (enhancedContext as any)?.filters?.dateRange?.start || '',
+            (enhancedContext as any)?.filters?.dateRange?.end || '',
+            // A few board metrics (avoid logging names / PII)
+            String((enhancedContext.activeObject as any)?.metadata?.dealCount ?? ''),
+            String((enhancedContext.activeObject as any)?.metadata?.pipelineValue ?? ''),
+            String((enhancedContext.activeObject as any)?.metadata?.stagnantDeals ?? ''),
+            String((enhancedContext.activeObject as any)?.metadata?.overdueDeals ?? ''),
+        ].join('|');
+
+        if (lastSignatureRef.current === sig) return;
+
+        lastSignatureRef.current = sig;
+
         setActiveContextState(enhancedContext);
     }, [user, profile]);
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { ActionSheet } from '@/components/ui/ActionSheet';
-import { cn } from '@/utils/cn';
+import { cn } from '@/lib/utils/cn';
 import { SECONDARY_NAV } from './navConfig';
 
 export interface MoreMenuSheetProps {

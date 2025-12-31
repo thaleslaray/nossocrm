@@ -9,7 +9,7 @@ import {
   REQUIRED_CONSENTS, 
   OPTIONAL_CONSENTS,
   CONSENT_VERSIONS 
-} from '@/services/consentService';
+} from '@/lib/consent/consentService';
 
 interface ConsentModalProps {
   isOpen: boolean;

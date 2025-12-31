@@ -152,6 +152,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
         ? filteredContacts.map(c => c.id)
         : filteredCompanies.map(c => c.id);
     const allSelected = activeListIds.length > 0 && selectedIds.size === activeListIds.length;
+
     const someSelected = selectedIds.size > 0 && selectedIds.size < activeListIds.length;
 
     // Performance: compute "contacts by company" once (avoids N filters per company row).

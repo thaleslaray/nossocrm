@@ -61,7 +61,6 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
         console.error('Usuário não autenticado');
         return null;
       }
-
       const { data, error: addError } = await activitiesService.create(activity);
 
       if (addError) {
@@ -70,7 +69,8 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       }
 
       // Invalida cache para TanStack Query atualizar
-      await queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });
+      // Don't await invalidations — awaiting can block UI flows until heavy refetches finish.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });
 
       return data;
     },

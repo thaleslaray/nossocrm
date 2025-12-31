@@ -1,13 +1,13 @@
 import React, { useMemo, useState, useId } from 'react';
 import { Plus, GripVertical, Trash2, ChevronDown, Settings, Copy } from 'lucide-react';
 import { Board, BoardStage, ContactStage } from '@/types';
-import { BOARD_TEMPLATES, BoardTemplateType } from '@/board-templates';
+import { BOARD_TEMPLATES, BoardTemplateType } from '@/lib/templates/board-templates';
 import { LifecycleSettingsModal } from '@/features/settings/components/LifecycleSettingsModal';
 import { useCRM } from '@/context/CRMContext';
 import { useToast } from '@/context/ToastContext';
 import { Modal } from '@/components/ui/Modal';
 import { MODAL_FOOTER_CLASS } from '@/components/ui/modalStyles';
-import { slugify } from '@/utils/slugify';
+import { slugify } from '@/lib/utils/slugify';
 
 interface CreateBoardModalProps {
   isOpen: boolean;
@@ -33,6 +33,8 @@ const STAGE_COLORS = [
   'bg-indigo-500',
   'bg-teal-500',
 ];
+
+const CREATE_BOARD_DRAFT_KEY = 'createBoardDraft.v1';
 
 function normalizeStageLabel(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -113,6 +115,9 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
 }) => {
   const headingId = useId();
 
+  React.useEffect(() => {
+  }, [isOpen]);
+
   const { lifecycleStages, products } = useCRM();
   const { addToast } = useToast();
   const [name, setName] = useState('');
@@ -149,6 +154,31 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
         setSelectedTemplate(editingBoard.template || '');
         setStages(editingBoard.stages);
       } else {
+        // Restore draft (so we can close modal immediately on save and re-open on error without losing inputs)
+        try {
+          const raw = sessionStorage.getItem(CREATE_BOARD_DRAFT_KEY);
+          if (raw) {
+            const draft = JSON.parse(raw) as any;
+            if (draft && typeof draft === 'object') {
+              setName(String(draft.name ?? ''));
+              setBoardKey(String(draft.boardKey ?? ''));
+              setKeyTouched(Boolean(draft.keyTouched));
+              setDescription(String(draft.description ?? ''));
+              setNextBoardId(String(draft.nextBoardId ?? ''));
+              setLinkedLifecycleStage(String(draft.linkedLifecycleStage ?? ''));
+              setWonStageId(String(draft.wonStageId ?? ''));
+              setLostStageId(String(draft.lostStageId ?? ''));
+              setWonStayInStage(Boolean(draft.wonStayInStage));
+              setLostStayInStage(Boolean(draft.lostStayInStage));
+              setDefaultProductId(String(draft.defaultProductId ?? ''));
+              setSelectedTemplate((draft.selectedTemplate as BoardTemplateType) ?? '');
+              setStages(Array.isArray(draft.stages) ? draft.stages : []);
+              return;
+            }
+          }
+        } catch {
+          // ignore
+        }
         // Reset for new board
         setName('');
         setBoardKey('');
@@ -247,7 +277,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
       return;
     }
 
-    onSave({
+    const payload = {
       name: name.trim(),
       key: normalizedKey || undefined,
       description: description.trim() || undefined,
@@ -261,9 +291,40 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
       template: selectedTemplate || 'CUSTOM',
       stages,
       isDefault: false
-    });
+    };
+    // Persist draft before closing (so we can restore on error)
+    try {
+      sessionStorage.setItem(
+        CREATE_BOARD_DRAFT_KEY,
+        JSON.stringify({
+          name,
+          boardKey,
+          keyTouched,
+          description,
+          nextBoardId,
+          linkedLifecycleStage,
+          wonStageId,
+          lostStageId,
+          wonStayInStage,
+          lostStayInStage,
+          defaultProductId,
+          selectedTemplate,
+          stages,
+        })
+      );
+    } catch {
+      // ignore
+    }
 
-    onClose();
+    addToast('Criando board...', 'info');
+    onClose(); // close immediately for UX
+
+    try {
+      onSave(payload);
+    } catch (e) {
+      addToast((e as Error).message || 'Erro ao criar board', 'error');
+      onClose(); // ensure closed state is consistent
+    }
   };
 
   const handleCopyKey = async () => {

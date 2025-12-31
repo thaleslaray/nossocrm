@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 import { StageProgressBar } from '../StageProgressBar';
 import { ActivityRow } from '@/features/activities/components/ActivityRow';
-import { formatPriorityPtBr } from '@/utils/priority';
+import { formatPriorityPtBr } from '@/lib/utils/priority';
 
 interface DealDetailModalProps {
   dealId: string | null;
@@ -60,6 +60,9 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
 
   // Accessibility: Return focus to trigger element when modal closes
   useFocusReturn({ enabled: isOpen });
+
+  const { mode } = useResponsiveMode();
+  const isMobile = mode === 'mobile';
 
   const {
     deals,
@@ -374,9 +377,6 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
       onClose();
     }
   };
-
-  const { mode } = useResponsiveMode();
-  const isMobile = mode === 'mobile';
 
   const inner = (
     <>

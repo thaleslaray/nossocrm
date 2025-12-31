@@ -28,7 +28,9 @@
  */
 
 import React, { createContext, useContext, useMemo, useEffect, ReactNode, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
+import { queryKeys } from '@/lib/query';
 import {
   Deal,
   Activity,
@@ -108,7 +110,7 @@ interface CRMContextType {
   deleteBoard: (id: string) => Promise<void>;
 
   // Deals
-  addDeal: (deal: Omit<Deal, 'id' | 'createdAt'>, relatedData?: { contact?: Partial<Contact>; companyName?: string }) => Promise<void>;
+  addDeal: (deal: Omit<Deal, 'id' | 'createdAt'>, relatedData?: { contact?: Partial<Contact>; companyName?: string }) => Promise<Deal | null>;
   updateDeal: (id: string, updates: Partial<Deal>) => Promise<void>;
   // moveDeal removido - use useMoveDeal de @/lib/query/hooks
   deleteDeal: (id: string) => Promise<void>;
@@ -194,6 +196,7 @@ const CRMContext = createContext<CRMContextType | undefined>(undefined);
 // ============================================
 
 const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const queryClient = useQueryClient();
   // Use individual contexts
   const {
     rawDeals,
@@ -359,6 +362,56 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     deal: Omit<Deal, 'id' | 'createdAt'>,
     relatedData?: { contact?: Partial<Contact>; companyName?: string }
   ) => {
+    // Optimistic insert into the Kanban deals query so the deal appears immediately (no 2-3s "waiting for refetch").
+    const optimisticTempId = `temp-${Date.now()}`;
+    const optimisticBoardId = deal.boardId || '';
+    const optimisticStageId = deal.status || '';
+    const optimisticStageLabel =
+      activeBoard?.stages?.find((s) => s.id === optimisticStageId)?.label || 'Estágio não identificado';
+    const optimisticContactName = (relatedData?.contact?.name || 'Sem contato').trim() || 'Sem contato';
+    const optimisticContactEmail = (relatedData?.contact?.email || '').trim();
+    const optimisticCompanyName = (relatedData?.companyName || 'Sem empresa').trim() || 'Sem empresa';
+
+    // #region agent log
+    if (process.env.NODE_ENV !== 'production') {
+      const logData = { tempId: optimisticTempId.slice(0, 15), title: deal.title, boardId: optimisticBoardId.slice(0, 8), stageId: optimisticStageId.slice(0, 8) };
+      console.log(`[CRMContext.addDeal] 🔄 Starting optimistic insert`, logData);
+      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:365',message:'Starting optimistic insert',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'CRM1'})}).catch(()=>{});
+    }
+    // #endregion
+
+    if (optimisticBoardId) {
+      try {
+        const optimisticDealView: DealView = {
+          ...(deal as any),
+          id: optimisticTempId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          contactId: deal.contactId || '',
+          contactName: optimisticContactName,
+          contactEmail: optimisticContactEmail,
+          stageLabel: optimisticStageLabel,
+          clientCompanyName: optimisticCompanyName,
+          // @deprecated
+          companyName: optimisticCompanyName,
+        };
+
+        queryClient.setQueryData<DealView[]>(
+          [...queryKeys.deals.lists(), 'view'],
+          (old = []) => [optimisticDealView, ...old]
+        );
+        
+        // #region agent log
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[CRMContext.addDeal] ✅ Temp deal inserted into cache`, { tempId: optimisticTempId.slice(0, 15) });
+          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:390',message:'Temp deal inserted into cache',data:{tempId:optimisticTempId.slice(0,15)},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'CRM2'})}).catch(()=>{});
+        }
+        // #endregion
+      } catch (e) {
+        // Never let optimistic cache update break deal creation.
+      }
+    }
+
     let finalCompanyId = deal.companyId;
     let finalContactId = deal.contactId;
 
@@ -420,11 +473,93 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       }
     }
 
+    // #region agent log
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[CRMContext.addDeal] 📤 Calling addDealState (server)`, { title: deal.title });
+      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:475',message:'Calling addDealState',data:{title:deal.title},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'CRM3'})}).catch(()=>{});
+    }
+    // #endregion
+    
     const createdDeal = await addDealState({
       ...deal,
       companyId: finalCompanyId,
       contactId: finalContactId,
     });
+
+    // #region agent log
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[CRMContext.addDeal] ✅ Server returned`, { dealId: createdDeal?.id?.slice(0, 8) || 'null', title: createdDeal?.title });
+      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:485',message:'Server returned',data:{dealId:createdDeal?.id?.slice(0,8)||'null',title:createdDeal?.title},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'CRM4'})}).catch(()=>{});
+    }
+    // #endregion
+
+    // Replace/remove the optimistic deal with the real one (avoids duplicates when refetch completes).
+    // #region agent log
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[CRMContext.addDeal] 🔍 H5 Check: optimisticBoardId`, { optimisticBoardId, hasValue: !!optimisticBoardId });
+      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:497',message:'H5 Check optimisticBoardId',data:{optimisticBoardId,hasValue:!!optimisticBoardId},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'H5'})}).catch(()=>{});
+    }
+    // #endregion
+    if (optimisticBoardId) {
+      try {
+        if (createdDeal) {
+          const createdDealView: DealView = {
+            ...(createdDeal as any),
+            contactName: optimisticContactName,
+            contactEmail: optimisticContactEmail,
+            stageLabel: optimisticStageLabel,
+            clientCompanyName: optimisticCompanyName,
+            companyName: optimisticCompanyName,
+          };
+          
+          // #region agent log
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[CRMContext.addDeal] 🔄 Replacing temp with real deal`, { tempId: optimisticTempId.slice(0, 15), realId: createdDeal.id.slice(0, 8) });
+            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:505',message:'Replacing temp with real',data:{tempId:optimisticTempId.slice(0,15),realId:createdDeal.id.slice(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'CRM5'})}).catch(()=>{});
+          }
+          // #endregion
+          
+          queryClient.setQueryData<DealView[]>(
+            [...queryKeys.deals.lists(), 'view'],
+            (old = []) => {
+              const withoutTemp = old.filter((d) => d.id !== optimisticTempId);
+              const already = withoutTemp.some((d) => d.id === createdDeal.id);
+              
+              // #region agent log
+              if (process.env.NODE_ENV !== 'production') {
+                console.log(`[CRMContext.addDeal] 📊 Cache state before swap`, { cacheSize: old.length, tempFound: old.some(d => d.id === optimisticTempId), realExists: already });
+                fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:515',message:'Cache state before swap',data:{cacheSize:old.length,tempFound:old.some(d=>d.id===optimisticTempId),realExists:already},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'CRM6'})}).catch(()=>{});
+              }
+              // #endregion
+              
+              return already ? withoutTemp : [createdDealView, ...withoutTemp];
+            }
+          );
+        } else {
+          // Failed to create: remove optimistic item
+          queryClient.setQueryData<DealView[]>(
+            [...queryKeys.deals.lists(), 'view'],
+            (old = []) => old.filter((d) => d.id !== optimisticTempId)
+          );
+        }
+      } catch (e) {
+        // #region agent log
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[CRMContext.addDeal] ❌ H3 Error in setQueryData`, { error: String(e) });
+          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:548',message:'H3 Error in setQueryData',data:{error:String(e)},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'H3'})}).catch(()=>{});
+        }
+        // #endregion
+      }
+    }
+
+    // #region agent log
+    if (process.env.NODE_ENV !== 'production') {
+      const finalCache = queryClient.getQueryData<DealView[]>([...queryKeys.deals.lists(), 'view']) || [];
+      const dealInCache = finalCache.some(d => d.id === createdDeal?.id);
+      console.log(`[CRMContext.addDeal] 📊 H2 Final cache state`, { cacheSize: finalCache.length, dealInCache, createdDealId: createdDeal?.id?.slice(0,8) });
+      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:555',message:'H2 Final cache state',data:{cacheSize:finalCache.length,dealInCache,createdDealId:createdDeal?.id?.slice(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'H2'})}).catch(()=>{});
+    }
+    // #endregion
 
     if (createdDeal) {
       await addActivity({
@@ -437,7 +572,18 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         completed: true,
       });
     }
-  }, [companies, contacts, activeBoard, addCompany, addContact, addDealState, addActivity]);
+
+    // #region agent log
+    if (process.env.NODE_ENV !== 'production') {
+      const postActivityCache = queryClient.getQueryData<DealView[]>([...queryKeys.deals.lists(), 'view']) || [];
+      const stillInCache = postActivityCache.some(d => d.id === createdDeal?.id);
+      console.log(`[CRMContext.addDeal] 🏁 H4 Post-activity cache`, { cacheSize: postActivityCache.length, stillInCache, returning: !!createdDeal });
+      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CRMContext.tsx:580',message:'H4 Post-activity cache',data:{cacheSize:postActivityCache.length,stillInCache,returning:!!createdDeal},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal',hypothesisId:'H4'})}).catch(()=>{});
+    }
+    // #endregion
+
+    return createdDeal;
+  }, [companies, contacts, activeBoard, addCompany, addContact, addDealState, addActivity, queryClient]);
 
   // moveDeal foi removido - use useMoveDeal de @/lib/query/hooks
   // O hook unificado trata: detecção won/lost, atividades, LinkedStage, etc.

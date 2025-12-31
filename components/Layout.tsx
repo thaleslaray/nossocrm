@@ -27,7 +27,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   KanbanSquare,
@@ -135,7 +135,8 @@ const NavItem = ({
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { darkMode, toggleDarkMode } = useTheme();
   const { isGlobalAIOpen, setIsGlobalAIOpen, sidebarCollapsed, setSidebarCollapsed } = useCRM();
-  const { profile, signOut } = useAuth();
+  const { user, loading, profile, signOut } = useAuth();
+  const router = useRouter();
   const pathname = usePathname();
   const { mode } = useResponsiveMode();
   const isMobile = mode === 'mobile';
@@ -150,6 +151,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   useEffect(() => {
     setDebugEnabled(isDebugMode());
   }, []);
+
+  // If the user signed out (or session expired), leave protected shell ASAP.
+  // This prevents rendering fallbacks like "Usuário" while unauthenticated.
+  useEffect(() => {
+    if (loading) return;
+    if (!user) router.replace('/login');
+  }, [loading, user, router]);
 
   // Expose sidebar width as a global CSS var so modals/overlays can "shrink" on desktop
   // instead of covering the navigation sidebar (works even for portals).
@@ -211,6 +219,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Gera iniciais do email
   const userInitials = profile?.email?.substring(0, 2).toUpperCase() || 'U';
+
+  if (!loading && !user) return null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface-bg bg-dots">

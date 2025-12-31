@@ -176,14 +176,6 @@ export const ProductsCatalogManager: React.FC = () => {
               Catálogo base da empresa. No deal você ainda pode adicionar itens personalizados quando precisar adaptar ao cliente.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={load}
-            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-white/10"
-            disabled={loading}
-          >
-            Recarregar
-          </button>
         </div>
 
         {error && (

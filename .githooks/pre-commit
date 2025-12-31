@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# NossoCRM pre-commit precheck:
+# - lint (zero warnings)
+# - typecheck
+# - tests (single run)
+# - build (compile check)
+#
+# Tip: if you need a faster inner loop, run:
+#   npm run precheck:fast
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+echo "[pre-commit] Running precheck (lint + typecheck + tests + build)..."
+npm run -s precheck
+
+

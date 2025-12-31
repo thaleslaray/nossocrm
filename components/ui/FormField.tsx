@@ -9,7 +9,7 @@
  */
 import React, { useId } from 'react';
 import { UseFormRegisterReturn, FieldError } from 'react-hook-form';
-import { cn } from '@/utils/cn';
+import { cn } from '@/lib/utils/cn';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 // ============ BASE STYLES ============

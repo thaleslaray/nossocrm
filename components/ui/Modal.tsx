@@ -10,7 +10,7 @@
  */
 import React, { useId, useCallback, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { cn } from '@/utils/cn';
+import { cn } from '@/lib/utils/cn';
 import { FocusTrap, useFocusReturn } from '@/lib/a11y';
 import {
   MODAL_BODY_CLASS,

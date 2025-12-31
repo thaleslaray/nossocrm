@@ -21,6 +21,7 @@ interface ContactFormModalProps {
   setFormData: (data: ContactFormData) => void;
   editingContact: Contact | null;
   createFakeContactsBatch?: (count: number) => Promise<void>;
+  isSubmitting?: boolean;
 }
 
 /**
@@ -51,6 +52,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
   setFormData,
   editingContact,
   createFakeContactsBatch,
+  isSubmitting = false,
 }) => {
   const headingId = useId();
   useFocusReturn({ enabled: isOpen });
@@ -181,11 +183,12 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
             </p>
           </div>
 
-          <button
+            <button
             type="submit"
+              disabled={isSubmitting}
             className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-2.5 rounded-lg mt-2 shadow-lg shadow-primary-600/20 transition-all"
           >
-            {editingContact ? 'Salvar Alterações' : 'Criar Contato'}
+            {isSubmitting ? 'Criando...' : (editingContact ? 'Salvar Alterações' : 'Criar Contato')}
           </button>
         </form>
         </div>

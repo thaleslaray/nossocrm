@@ -4,7 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { CRMCallOptionsSchema, type CRMCallOptions } from '@/types/ai';
 import { createCRMTools } from './tools';
-import { formatPriorityPtBr } from '@/utils/priority';
+import { formatPriorityPtBr } from '@/lib/utils/priority';
 
 type AIProvider = 'google' | 'openai' | 'anthropic';
 

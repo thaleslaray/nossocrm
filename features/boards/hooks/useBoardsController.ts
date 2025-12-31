@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { DealView, Board, CustomFieldDefinition } from '@/types';
 import {
@@ -55,6 +55,19 @@ export const getActivityStatus = (deal: DealView) => {
  * @returns {{ boards: Board[]; boardsLoading: boolean; boardsFetched: boolean; activeBoard: Board | null; activeBoardId: string | null; handleSelectBoard: (boardId: string) => void; ... 45 more ...; handleLossReasonClose: () => void; }} Retorna um valor do tipo `{ boards: Board[]; boardsLoading: boolean; boardsFetched: boolean; activeBoard: Board | null; activeBoardId: string | null; handleSelectBoard: (boardId: string) => void; ... 45 more ...; handleLossReasonClose: () => void; }`.
  */
 export const useBoardsController = () => {
+  // #region agent log
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+      const isCursorBrowser = navigator.userAgent.includes('Cursor') || window.location.hostname === 'localhost';
+      const logData = {sessionId:'debug-session',runId:'boards-controller-init',hypothesisId:'BC1',location:'features/boards/hooks/useBoardsController.ts:useBoardsController',message:'useBoardsController initialized',data:{isCursorBrowser,userAgent:navigator.userAgent.slice(0,50),hostname:window.location.hostname},timestamp:Date.now()};
+      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{
+        // Fallback: log to console if fetch fails (CORS, server down, etc.)
+        console.log('[DEBUG]', logData);
+      });
+    }
+  }, []);
+  // #endregion
+
   // Toast for feedback
   const { addToast } = useToast();
   const { profile, organizationId } = useAuth();
@@ -65,7 +78,13 @@ export const useBoardsController = () => {
   const { setContext, clearContext } = useAI();
 
   // TanStack Query hooks
-  const { data: boards = [], isLoading: boardsLoading, isFetched: boardsFetched } = useBoards();
+  const {
+    data: boards = [],
+    isLoading: boardsLoading,
+    isFetched: boardsFetched,
+    isFetching: boardsFetching,
+    dataUpdatedAt: boardsUpdatedAt,
+  } = useBoards();
   const { data: defaultBoard } = useDefaultBoard();
   const createBoardMutation = useCreateBoard();
   const updateBoardMutation = useUpdateBoard();
@@ -106,8 +125,13 @@ export const useBoardsController = () => {
   // ID efetivo - garante que é sempre do board que está sendo exibido
   const effectiveActiveBoardId = activeBoard?.id || null;
 
-  // Deals for active board - usa o ID efetivo
-  const { data: deals = [], isLoading: dealsLoading } = useDealsByBoard(effectiveActiveBoardId || '');
+  // Deals for active board
+  // Perf-first: use the persisted activeBoardId to start fetching deals immediately on hard refresh,
+  // without waiting for boards list to resolve `activeBoard`.
+  // Safety: if the ID is stale (board deleted), the boards effect below will correct activeBoardId
+  // and we'll naturally refetch deals for the corrected board.
+  const dealsBoardId = activeBoardId || '';
+  const { data: deals = [], isLoading: dealsLoading } = useDealsByBoard(dealsBoardId);
   const moveDealMutation = useMoveDeal();
   const createActivityMutation = useCreateActivity();
 
@@ -116,6 +140,9 @@ export const useBoardsController = () => {
   const [ownerFilter, setOwnerFilter] = useState<'all' | 'mine'>('all');
   const [statusFilter, setStatusFilter] = useState<'open' | 'won' | 'lost' | 'all'>('open');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+
+  // Track last context signature to avoid unnecessary setContext calls
+  const lastContextSignatureRef = useRef<string | null>(null);
 
   // Set AI Context for Board (FULL CONTEXT)
   useEffect(() => {
@@ -126,87 +153,124 @@ export const useBoardsController = () => {
         activeBoardId: activeBoard?.id,
         activeBoardName: activeBoard?.name,
         dealsCount: deals.length,
+        isTempId: activeBoard?.id?.startsWith('temp-'),
       });
     }
 
-    if (activeBoard) {
-      // Performance: avoid O(S*N) by indexing stages once and scanning deals once.
-      const stageIdToLabel = new Map<string, string>();
-      const dealsPerStage: Record<string, number> = {};
-      for (const stage of activeBoard.stages) {
-        stageIdToLabel.set(stage.id, stage.label);
-        dealsPerStage[stage.label] = 0;
-      }
-
-      let pipelineValue = 0;
-      let stagnantDeals = 0;
-      let overdueDeals = 0;
-
-      for (const d of deals) {
-        pipelineValue += d.value ?? 0;
-        if (isDealRotting(d)) stagnantDeals += 1;
-        if (d.nextActivity?.isOverdue) overdueDeals += 1;
-
-        const label = stageIdToLabel.get(d.status);
-        if (label) dealsPerStage[label] = (dealsPerStage[label] ?? 0) + 1;
-      }
-
-      // Performance: avoid `find` for won/lost labels.
-      const wonStageLabel = activeBoard.wonStageId ? stageIdToLabel.get(activeBoard.wonStageId) : undefined;
-      const lostStageLabel = activeBoard.lostStageId ? stageIdToLabel.get(activeBoard.lostStageId) : undefined;
-
+    // Guard: don't set context for temp boards (they'll be replaced soon)
+    if (!activeBoard || activeBoard.id.startsWith('temp-')) {
+      // #region agent log
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[BoardsController] 🎯 Setting AI Context for board:', activeBoard.id, activeBoard.name);
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-context-skip',hypothesisId:'CTX1',location:'features/boards/hooks/useBoardsController.ts:useEffect',message:'Skipping context for temp board',data:{hasActiveBoard:!!activeBoard,boardId8:activeBoard?.id?.slice(0,8)},timestamp:Date.now()})}).catch(()=>{});
       }
-
-      setContext({
-        view: { type: 'kanban', name: activeBoard.name, url: `/boards/${activeBoard.id}` },
-        activeObject: {
-          type: 'board',
-          id: activeBoard.id,
-          name: activeBoard.name,
-          metadata: {
-            // Basic Info - Include boardId explicitly for tool usage
-            boardId: activeBoard.id, // <-- Explicit for AI to use in tool calls
-            description: activeBoard.description,
-            goal: activeBoard.goal,
-            columns: activeBoard.stages.map(s => s.label).join(', '),
-
-            // Full stage info for AI to use in tool calls
-            stages: activeBoard.stages.map(s => ({
-              id: s.id,
-              name: s.label,
-            })),
-
-            // Metrics
-            dealCount: deals.length,
-            pipelineValue,
-            dealsPerStage,
-            stagnantDeals,
-            overdueDeals,
-
-            // Board Config
-            wonStage: wonStageLabel,
-            lostStage: lostStageLabel,
-            linkedLifecycleStage: activeBoard.linkedLifecycleStage,
-
-            // AI Strategy
-            agentPersona: activeBoard.agentPersona,
-            entryTrigger: activeBoard.entryTrigger,
-            automationSuggestions: activeBoard.automationSuggestions,
-          }
-        },
-        // Active Filters
-        filters: {
-          status: statusFilter,
-          owner: ownerFilter,
-          search: searchTerm || undefined,
-          dateRange: (dateRange.start || dateRange.end) ? dateRange : undefined,
-        }
-      });
+      // #endregion
+      return;
     }
+
+    // Performance: avoid O(S*N) by indexing stages once and scanning deals once.
+    const stageIdToLabel = new Map<string, string>();
+    const dealsPerStage: Record<string, number> = {};
+    for (const stage of activeBoard.stages) {
+      stageIdToLabel.set(stage.id, stage.label);
+      dealsPerStage[stage.label] = 0;
+    }
+
+    let pipelineValue = 0;
+    let stagnantDeals = 0;
+    let overdueDeals = 0;
+
+    for (const d of deals) {
+      pipelineValue += d.value ?? 0;
+      if (isDealRotting(d)) stagnantDeals += 1;
+      if (d.nextActivity?.isOverdue) overdueDeals += 1;
+
+      const label = stageIdToLabel.get(d.status);
+      if (label) dealsPerStage[label] = (dealsPerStage[label] ?? 0) + 1;
+    }
+
+    // Performance: avoid `find` for won/lost labels.
+    const wonStageLabel = activeBoard.wonStageId ? stageIdToLabel.get(activeBoard.wonStageId) : undefined;
+    const lostStageLabel = activeBoard.lostStageId ? stageIdToLabel.get(activeBoard.lostStageId) : undefined;
+
+    // Compute signature BEFORE calling setContext to avoid unnecessary calls
+    // This matches the signature logic in AIContext.tsx
+    const contextSignature = [
+      activeBoard.id,
+      statusFilter,
+      ownerFilter,
+      searchTerm || '',
+      dateRange.start || '',
+      dateRange.end || '',
+      String(deals.length),
+      String(pipelineValue),
+      String(stagnantDeals),
+      String(overdueDeals),
+    ].join('|');
+
+    // Guard: only call setContext if signature actually changed
+    if (lastContextSignatureRef.current === contextSignature) {
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-context-skip-duplicate',hypothesisId:'CTX2',location:'features/boards/hooks/useBoardsController.ts:useEffect',message:'Skipping setContext - signature unchanged',data:{boardId8:activeBoard.id?.slice(0,8),signature:contextSignature.slice(0,50)},timestamp:Date.now()})}).catch(()=>{});
+      }
+      // #endregion
+      return;
+    }
+
+    lastContextSignatureRef.current = contextSignature;
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[BoardsController] 🎯 Setting AI Context for board:', activeBoard.id, activeBoard.name);
+    }
+
+    setContext({
+      view: { type: 'kanban', name: activeBoard.name, url: `/boards/${activeBoard.id}` },
+      activeObject: {
+        type: 'board',
+        id: activeBoard.id,
+        name: activeBoard.name,
+        metadata: {
+          // Basic Info - Include boardId explicitly for tool usage
+          boardId: activeBoard.id, // <-- Explicit for AI to use in tool calls
+          description: activeBoard.description,
+          goal: activeBoard.goal,
+          columns: activeBoard.stages.map(s => s.label).join(', '),
+
+          // Full stage info for AI to use in tool calls
+          stages: activeBoard.stages.map(s => ({
+            id: s.id,
+            name: s.label,
+          })),
+
+          // Metrics
+          dealCount: deals.length,
+          pipelineValue,
+          dealsPerStage,
+          stagnantDeals,
+          overdueDeals,
+
+          // Board Config
+          wonStage: wonStageLabel,
+          lostStage: lostStageLabel,
+          linkedLifecycleStage: activeBoard.linkedLifecycleStage,
+
+          // AI Strategy
+          agentPersona: activeBoard.agentPersona,
+          entryTrigger: activeBoard.entryTrigger,
+          automationSuggestions: activeBoard.automationSuggestions,
+        }
+      },
+      // Active Filters
+      filters: {
+        status: statusFilter,
+        owner: ownerFilter,
+        search: searchTerm || undefined,
+        dateRange: (dateRange.start || dateRange.end) ? dateRange : undefined,
+      }
+    });
+    // Note: Removed setContext from dependencies - it has internal guards to prevent loops
     // Note: Removed clearContext cleanup to prevent infinite loop with AIContext default setter
-  }, [activeBoard, deals, statusFilter, ownerFilter, searchTerm, dateRange, setContext]);
+  }, [activeBoard, deals, statusFilter, ownerFilter, searchTerm, dateRange]);
 
   // Get lifecycle stages from CRM context for automations
   const { lifecycleStages } = useCRM();
@@ -223,6 +287,10 @@ export const useBoardsController = () => {
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [editingBoard, setEditingBoard] = useState<Board | null>(null);
+  const [boardCreateOverlay, setBoardCreateOverlay] = useState<{
+    title: string;
+    subtitle?: string;
+  } | null>(null);
   const [boardToDelete, setBoardToDelete] = useState<{
     id: string;
     name: string;
@@ -280,7 +348,13 @@ export const useBoardsController = () => {
   };
 
   // Combined loading state
-  const isLoading = boardsLoading || dealsLoading;
+  // Avoid full-page "blink": dealsLoading can briefly flip to true when switching
+  // from temp board id -> real board id. Keep the page rendered and let deals load in-place.
+  // Also avoid the "empty state flash" on hard refresh: hold the loader until the FIRST successful
+  // boards fetch happened (dataUpdatedAt>0). This is more robust than relying solely on `isFetched`,
+  // which can be true via cache/hydration even when the live fetch hasn't run yet.
+  const hasEverLoadedBoards = boardsUpdatedAt > 0;
+  const isLoading = (boardsLoading || boardsFetching || !hasEverLoadedBoards) && boards.length === 0;
 
   useEffect(() => {
     const handleClickOutside = () => setOpenActivityMenuId(null);
@@ -350,9 +424,11 @@ export const useBoardsController = () => {
   }, [deals, searchTerm, ownerFilter, dateRange, statusFilter, profile]);
 
   // Drag & Drop Handlers
-  const handleDragStart = (e: React.DragEvent, id: string) => {
+  const handleDragStart = (e: React.DragEvent, id: string, title: string) => {
     setDraggingId(id);
     e.dataTransfer.setData('dealId', id);
+    // Fallback when optimistic temp id gets replaced mid-drag (avoid logging title).
+    e.dataTransfer.setData('dealTitle', title || '');
     e.dataTransfer.effectAllowed = 'move';
   };
 
@@ -364,9 +440,28 @@ export const useBoardsController = () => {
   const handleDrop = (e: React.DragEvent, stageId: string) => {
     e.preventDefault();
     const dealId = e.dataTransfer.getData('dealId') || lastMouseDownDealId.current;
+    const dealTitle = e.dataTransfer.getData('dealTitle') || '';
     if (dealId && activeBoard) {
-      const deal = deals.find(d => d.id === dealId);
+      let deal = deals.find(d => d.id === dealId);
+      // If the optimistic temp deal ID was replaced by a refetch during drag, try resolving by title.
+      if (!deal && dealTitle) {
+        const candidates = deals.filter(d => (d.title || '') === dealTitle);
+        if (candidates.length === 1) {
+          deal = candidates[0];
+        } else {
+          if (candidates.length > 1) {
+            addToast('Não foi possível mover: existem múltiplos negócios com o mesmo título. Aguarde salvar e tente novamente.', 'info');
+          }
+        }
+      }
       if (!deal) {
+        setDraggingId(null);
+        return;
+      }
+
+      // Guard: never send temp-* ids to the backend. This happens when user drags immediately after creating a deal.
+      if (deal.id.startsWith('temp-')) {
+        addToast('Aguarde o negócio salvar para mover (1s) e tente novamente.', 'info');
         setDraggingId(null);
         return;
       }
@@ -428,7 +523,13 @@ export const useBoardsController = () => {
     if (!activeBoard) return;
 
     const deal = deals.find(d => d.id === dealId);
-    if (!deal) return;
+    if (!deal) {
+      return;
+    }
+    if (deal.id.startsWith('temp-')) {
+      addToast('Aguarde o negócio salvar para mover (1s) e tente novamente.', 'info');
+      return;
+    }
 
     // Find the target stage to check if it's a lost stage
     const targetStage = activeBoard.stages.find(s => s.id === newStageId);
@@ -469,18 +570,21 @@ export const useBoardsController = () => {
       EMAIL: 'Enviar Email de Follow-up',
     };
 
-    createActivityMutation.mutate({
-      activity: {
-        dealId,
-        dealTitle,
-        type,
-        title: titles[type],
-        description: 'Agendado via Acesso Rápido',
-        date: tomorrow.toISOString(),
-        completed: false,
-        user: { name: 'Eu', avatar: '' },
+    createActivityMutation.mutate(
+      {
+        activity: {
+          dealId,
+          dealTitle,
+          type,
+          title: titles[type],
+          description: 'Agendado via Acesso Rápido',
+          date: tomorrow.toISOString(),
+          completed: false,
+          user: { name: 'Eu', avatar: '' },
+        },
       },
-    });
+      {}
+    );
     setOpenActivityMenuId(null);
   };
 
@@ -489,18 +593,51 @@ export const useBoardsController = () => {
     setActiveBoardId(boardId);
   };
 
+  const makeTempId = () => {
+    try {
+      if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+        return `temp-${crypto.randomUUID()}`;
+      }
+    } catch {
+      // ignore
+    }
+    return `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  };
+
   const handleCreateBoard = async (boardData: Omit<Board, 'id' | 'createdAt'>, order?: number) => {
-    createBoardMutation.mutate({ board: boardData, order }, {
+    const previousActiveBoardId = activeBoard?.id || activeBoardId || null;
+    const tempId = makeTempId();
+    // Make the board feel instant: select the optimistic temp board immediately.
+    setActiveBoardId(tempId);
+    setBoardCreateOverlay({
+      title: 'Criando board…',
+      subtitle: boardData?.name ? `— ${boardData.name}` : undefined,
+    });
+
+    createBoardMutation.mutate({ board: boardData, order, clientTempId: tempId }, {
       onSuccess: newBoard => {
+        try {
+          sessionStorage.removeItem('createBoardDraft.v1');
+        } catch {
+          // noop
+        }
         if (newBoard) {
           setActiveBoardId(newBoard.id);
         }
+        setBoardCreateOverlay(null);
         setIsCreateBoardModalOpen(false);
         setIsWizardOpen(false);
       },
       onError: (error) => {
         console.error('[handleCreateBoard] Error:', error);
         addToast(error.message || 'Erro ao criar board', 'error');
+        setBoardCreateOverlay(null);
+        // Restore previous selection if create fails.
+        if (previousActiveBoardId) {
+          setActiveBoardId(previousActiveBoardId);
+        }
+        // Re-open modal so user can retry (draft is restored from sessionStorage)
+        setIsCreateBoardModalOpen(true);
       },
     });
   };
@@ -510,13 +647,20 @@ export const useBoardsController = () => {
    * Uses mutateAsync to allow sequential creation without race conditions.
    */
   const createBoardAsync = async (boardData: Omit<Board, 'id' | 'createdAt'>, order?: number) => {
+    const previousActiveBoardId = activeBoard?.id || activeBoardId || null;
     try {
-      const newBoard = await createBoardMutation.mutateAsync({ board: boardData, order });
+      // Mirror the "instant" UX of handleCreateBoard (optimistic temp selection) for async flows too.
+      const tempId = makeTempId();
+      setActiveBoardId(tempId);
+      const newBoard = await createBoardMutation.mutateAsync({ board: boardData, order, clientTempId: tempId });
+      setActiveBoardId(newBoard.id);
       return newBoard;
     } catch (error) {
       const err = error as Error;
       console.error('[createBoardAsync] Error:', err);
       addToast(err.message || 'Erro ao criar board', 'error');
+      // If we failed after selecting a temp board, try to restore selection.
+      if (previousActiveBoardId) setActiveBoardId(previousActiveBoardId);
       throw err;
     }
   };
@@ -675,7 +819,8 @@ export const useBoardsController = () => {
     boardsLoading, // Specific loading state for boards
     boardsFetched, // True after first successful fetch
     activeBoard,
-    activeBoardId: effectiveActiveBoardId, // Sempre retorna o ID válido
+    activeBoardId, // Persisted selection (best for perf-first refresh)
+    effectiveActiveBoardId, // Actually resolved board id (null until boards arrive)
     handleSelectBoard,
     handleCreateBoard,
     createBoardAsync,
@@ -726,6 +871,8 @@ export const useBoardsController = () => {
     lossReasonModal,
     handleLossReasonConfirm,
     handleLossReasonClose,
+    // UX: global overlay while creating board (start-from-zero flow)
+    boardCreateOverlay,
   };
 };
 

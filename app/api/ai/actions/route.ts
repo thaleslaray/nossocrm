@@ -13,7 +13,7 @@
 // -> 200 { result?: any, error?: string, consentType?: string, retryAfter?: number }
 
 import { generateObject, generateText } from 'ai';
-import { getModel, type AIProvider } from '@/services/ai/config';
+import { getModel, type AIProvider } from '@/lib/ai/config';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';

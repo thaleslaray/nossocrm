@@ -9,7 +9,7 @@
 import React, { useCallback } from 'react';
 import { X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { cn } from '@/utils/cn';
+import { cn } from '@/lib/utils/cn';
 import { FocusTrap, useFocusReturn } from '@/lib/a11y';
 
 type ActionSheetProps = {

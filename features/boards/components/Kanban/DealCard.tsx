@@ -3,14 +3,14 @@ import Image from 'next/image';
 import { DealView } from '@/types';
 import { Building2, Hourglass, Trophy, XCircle } from 'lucide-react';
 import { ActivityStatusIcon } from './ActivityStatusIcon';
-import { priorityAriaLabelPtBr } from '@/utils/priority';
+import { priorityAriaLabelPtBr } from '@/lib/utils/priority';
 
 interface DealCardProps {
   deal: DealView;
   isRotting: boolean;
   activityStatus: string;
   isDragging: boolean;
-  onDragStart: (e: React.DragEvent, id: string) => void;
+  onDragStart: (e: React.DragEvent, id: string, title: string) => void;
   /** Callback de seleção do deal (mantido estável via useCallback no pai para permitir memoização) */
   onSelect: (dealId: string) => void;
   /**
@@ -73,8 +73,11 @@ const DealCardComponent: React.FC<DealCardProps> = ({
   const handleDragStart = (e: React.DragEvent) => {
     setLocalDragging(true);
     e.dataTransfer.setData('dealId', deal.id);
+    // Fallback mapping when optimistic temp id gets replaced mid-drag by a refetch.
+    // Do not log title; it can contain PII.
+    e.dataTransfer.setData('dealTitle', deal.title || '');
     e.dataTransfer.effectAllowed = 'move';
-    onDragStart(e, deal.id);
+    onDragStart(e, deal.id, deal.title || '');
   };
 
   const handleDragEnd = () => {
@@ -150,7 +153,7 @@ const DealCardComponent: React.FC<DealCardProps> = ({
   return (
     <div
       data-deal-id={deal.id}
-      draggable={true}
+      draggable={!deal.id.startsWith('temp-')}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onMouseDown={() => setLastMouseDownDealId(deal.id)}

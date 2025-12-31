@@ -44,3 +44,19 @@ export const queryKeys = {
         timeline: ['dashboard', 'timeline'] as const,
     },
 };
+
+/**
+ * Constante para a query key da view de deals (DealView[]).
+ * Esta é a ÚNICA fonte de verdade para deals no Kanban e outras UIs.
+ * Todos os pontos de escrita (mutations, Realtime, otimismo) devem usar esta key.
+ * 
+ * @example
+ * ```typescript
+ * // Leitura
+ * const { data } = useQuery({ queryKey: DEALS_VIEW_KEY, ... });
+ * 
+ * // Escrita
+ * queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, ...);
+ * ```
+ */
+export const DEALS_VIEW_KEY = [...queryKeys.deals.lists(), 'view'] as const;

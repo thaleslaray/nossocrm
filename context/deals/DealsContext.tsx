@@ -9,7 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Deal, DealView, DealItem, Company, Contact, Board } from '@/types';
 import { dealsService } from '@/lib/supabase';
 import { useAuth } from '../AuthContext';
-import { queryKeys } from '@/lib/query';
+import { queryKeys, DEALS_VIEW_KEY } from '@/lib/query';
 import { useDeals as useTanStackDealsQuery } from '@/lib/query/hooks/useDealsQuery';
 
 interface DealsContextType {
@@ -70,7 +70,6 @@ export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         console.error('Usuário não autenticado');
         return null;
       }
-
       const { data, error: addError } = await dealsService.create(deal);
 
       if (addError) {
@@ -78,9 +77,17 @@ export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return null;
       }
 
-      // Invalida cache para TanStack Query atualizar
-      await queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats });
+      // NÃO invalidar deals aqui! O CRMContext já fez insert otimista e o Realtime
+      // também adiciona ao cache. invalidateQueries causaria um refetch que poderia
+      // sobrescrever o cache otimista com dados desatualizados (eventual consistency).
+      // #region agent log
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[DealsContext.addDeal] ✅ Skipping invalidateQueries (cache managed by optimistic+Realtime)`, { dealId: data?.id?.slice(0,8) });
+        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DealsContext.tsx:82',message:'Skipping invalidateQueries',data:{dealId:data?.id?.slice(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'crm-create-deal','hypothesisId':'H4'})}).catch(()=>{});
+      }
+      // #endregion
+      // Apenas dashboard stats pode ser invalidado (não afeta deals cache)
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats });
 
       return data;
     },
@@ -88,18 +95,23 @@ export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 
   const updateDeal = useCallback(async (id: string, updates: Partial<Deal>) => {
+    // Optimistic update - atualiza a UI imediatamente
+    queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) =>
+      old.map(deal =>
+        deal.id === id ? { ...deal, ...updates, updatedAt: new Date().toISOString() } : deal
+      )
+    );
+
     const { error: updateError } = await dealsService.update(id, updates);
 
     if (updateError) {
       console.error('Erro ao atualizar deal:', updateError.message);
+      // Rollback: invalida para refetch em caso de erro
+      await queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
       return;
     }
 
-    // Invalida TODO o cache de deals (all + lists + details)
-    // queryKeys.deals.all = ['deals'] - isso invalida TODAS as queries que começam com 'deals'
-    await queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
-    // Invalida também as listas explicitamente para garantir que o Kanban seja atualizado
-    await queryClient.invalidateQueries({ queryKey: queryKeys.deals.lists() });
+    // Sucesso: Realtime vai sincronizar. Não precisa de invalidateQueries.
   }, [queryClient]);
 
   const updateDealStatus = useCallback(
@@ -118,15 +130,21 @@ export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 
   const deleteDeal = useCallback(async (id: string) => {
+    // Optimistic update - remove da UI imediatamente
+    queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) =>
+      old.filter(deal => deal.id !== id)
+    );
+
     const { error: deleteError } = await dealsService.delete(id);
 
     if (deleteError) {
       console.error('Erro ao deletar deal:', deleteError.message);
+      // Rollback: invalida para refetch em caso de erro
+      await queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
       return;
     }
 
-    // Invalida cache para TanStack Query atualizar
-    await queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
+    // Sucesso: atualiza stats do dashboard
     await queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats });
   }, [queryClient]);
 
