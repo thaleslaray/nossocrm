@@ -12,7 +12,16 @@
 - **Supabase**: Auth + Postgres + RLS. Clients in `lib/supabase/` (client/server/service-role)
 - **Proxy auth**: `proxy.ts` + `lib/supabase/middleware.ts` (not middleware.ts); excludes `/api/*`
 - **State**: TanStack Query with facades in `context/`, queries in `lib/query/`
+- **Cache**: Single Source of Truth pattern. See `docs/cache-architecture.md` for details.
 - **AI**: SDK v6, chat via `/api/ai/chat`, tools in `lib/ai/tools.ts` (always filter by `organization_id`)
+
+## Cache Rules (CRITICAL)
+- **One cache per entity**: All operations (CRUD, Realtime, optimistic) use the SAME cache
+- **Deals**: Always use `[...queryKeys.deals.lists(), 'view']` for all mutations
+- **Other entities**: Use `queryKeys.{entity}.lists()` for mutations
+- **NEVER use** `queryKeys.*.list({ filter })` for optimistic updates - those are separate caches
+- **Prefer** `setQueryData` over `invalidateQueries` for instant UI updates
+- See `docs/cache-architecture.md` for full guidelines
 
 ## Code Style
 - TypeScript 5.x strict, React 19, Tailwind CSS v4, Radix UI primitives
