@@ -1,6 +1,7 @@
 ## 31/12/2025
 
 - **Docs: Cache Architecture - Single Source of Truth**: Criado `docs/cache-architecture.md` documentando o padrão de cache única por entidade. Inclui query keys oficiais, padrões de implementação, anti-padrões e checklist. Também atualizado `AGENTS.md` com seção de Cache Rules.
+- **Fix: CRMContext.addDeal usando cache global correta**: O `CRMContext.addDeal` estava inserindo deals temporários na cache `queryKeys.deals.list({ boardId })` enquanto o resto do sistema (useDealsView, useMoveDeal, useRealtimeSync) usava `[...queryKeys.deals.lists(), 'view']`. Isso causava o bug onde o deal "sumia" da aba original mas "aparecia" na outra via Realtime. Agora todos os componentes leem/escrevem na mesma cache global.
 
 - **Realtime (board_stages) — colunas voltam a aparecer em tempo real**: `board_stages INSERT` agora **refaz fetch quando o INSERT é único** (caso típico “outro usuário criou uma coluna”), mas mantém **invalidate-only em bursts** (criação de board inserindo várias etapas) para evitar storm.
 - **AIContext — assinatura mais correta**: `setContext` agora inclui `user.id` na assinatura, evitando “contexto de usuário” stale em login/logout.
