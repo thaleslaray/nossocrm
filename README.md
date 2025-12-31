@@ -2,8 +2,6 @@
 
 > CRM inteligente com assistente de IA integrado. Gerencie seu pipeline de vendas, contatos e atividades de forma visual e produtiva.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/thaleslaray/nossocrm&project-name=nossocrm&repository-name=nossocrm)
-
 ---
 
 ## 📋 Índice
