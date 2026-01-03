@@ -102,9 +102,9 @@ export function WhatsAppThreadPanel(props: { dealId: string; contactId?: string 
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-white/5 flex items-center justify-between">
+      <div className="p-3 border-b border-slate-200 dark:border-white/5 flex items-center justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-white truncate">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
             WhatsApp
             {conversation?.contact_name ? ` • ${conversation.contact_name}` : ''}
           </p>
@@ -136,15 +136,17 @@ export function WhatsAppThreadPanel(props: { dealId: string; contactId?: string 
         )}
 
         {!loading && error && (
-          <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3">{error}</div>
+          <div className="text-sm text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+            {error}
+          </div>
         )}
 
         {!loading && !error && !conversation && (
-          <div className="text-sm text-slate-600 text-center py-8">Nenhuma conversa ainda</div>
+          <div className="text-sm text-slate-600 dark:text-slate-400 text-center py-8">Nenhuma conversa ainda</div>
         )}
 
         {!loading && !error && conversation && messages.length === 0 && (
-          <div className="text-sm text-slate-600 text-center py-8">Nenhuma mensagem ainda</div>
+          <div className="text-sm text-slate-600 dark:text-slate-400 text-center py-8">Nenhuma mensagem ainda</div>
         )}
 
         {!loading && !error && messages.map((m) => {
@@ -154,8 +156,8 @@ export function WhatsAppThreadPanel(props: { dealId: string; contactId?: string 
               <div
                 className={`max-w-[85%] rounded-2xl px-3 py-2 border ${
                   isUser
-                    ? 'bg-slate-900/40 border-white/5 text-slate-100'
-                    : 'bg-primary-500/10 border-primary-500/20 text-white'
+                    ? 'bg-white border-slate-200 text-slate-900 dark:bg-slate-900/40 dark:border-white/5 dark:text-slate-100'
+                    : 'bg-primary-500/10 border-primary-500/20 text-slate-900 dark:text-white'
                 }`}
               >
                 <p className="text-sm whitespace-pre-wrap break-words">{m.text || ''}</p>

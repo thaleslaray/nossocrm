@@ -38,6 +38,7 @@ import {
 import { StageProgressBar } from '../StageProgressBar';
 import { ActivityRow } from '@/features/activities/components/ActivityRow';
 import { formatPriorityPtBr } from '@/lib/utils/priority';
+import { WhatsAppThreadPanel } from '@/features/inbox/components/WhatsAppThreadPanel';
 
 interface DealDetailModalProps {
   dealId: string | null;
@@ -111,7 +112,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
   const [aiResult, setAiResult] = useState<{ suggestion: string; score: number } | null>(null);
   const [emailDraft, setEmailDraft] = useState<string | null>(null);
   const [newNote, setNewNote] = useState('');
-  const [activeTab, setActiveTab] = useState<'timeline' | 'products' | 'info'>('timeline');
+  const [activeTab, setActiveTab] = useState<'timeline' | 'products' | 'chat' | 'info'>('timeline');
   const noteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [objection, setObjection] = useState('');
@@ -790,6 +791,12 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                     Produtos
                   </button>
                   <button
+                    onClick={() => setActiveTab('chat')}
+                    className={`text-sm font-bold h-14 border-b-2 transition-colors ${activeTab === 'chat' ? 'border-primary-500 text-primary-600 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
+                  >
+                    Chat
+                  </button>
+                  <button
                     onClick={() => setActiveTab('info')}
                     className={`text-sm font-bold h-14 border-b-2 transition-colors ${activeTab === 'info' ? 'border-primary-500 text-primary-600 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
                   >
@@ -798,7 +805,13 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 dark:bg-black/10">
+              <div
+                className={
+                  activeTab === 'chat'
+                    ? 'flex-1 min-h-0 overflow-hidden p-6 bg-slate-50/30 dark:bg-black/10 flex flex-col'
+                    : 'flex-1 min-h-0 overflow-y-auto p-6 bg-slate-50/30 dark:bg-black/10'
+                }
+              >
                 {activeTab === 'timeline' && (
                   <div className="space-y-6">
                     <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl p-4 shadow-sm">
@@ -999,6 +1012,22 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                         </tfoot>
                       </table>
                     </div>
+                  </div>
+                )}
+
+                {activeTab === 'chat' && (
+                  <div className="flex-1 min-h-0">
+                    {!deal.contactId ? (
+                      <div className="h-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl p-4">
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          Este lead não tem um contato vinculado.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="h-full min-h-0 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden">
+                        <WhatsAppThreadPanel dealId={deal.id} contactId={deal.contactId} />
+                      </div>
+                    )}
                   </div>
                 )}
 
