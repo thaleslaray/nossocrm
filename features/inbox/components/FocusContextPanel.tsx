@@ -1,3 +1,4 @@
+import { WhatsAppThreadPanel } from './WhatsAppThreadPanel';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     User,
@@ -1778,27 +1779,10 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                                 </div>
                             )}
 
-                            {/* Chat - AI Assistant Embedded */}
+                            {/* Chat - WhatsApp (GPTMaker) */}
                             {activeTab === 'chat' && (
                                 <div className="flex-1 min-h-0 bg-slate-950 overflow-hidden">
-                                    <React.Suspense
-                                        fallback={
-                                            <div className="flex items-center justify-center h-full">
-                                                <Loader2 size={24} className="animate-spin text-primary-500" />
-                                            </div>
-                                        }
-                                    >
-                                        <AIAssistant
-                                            isOpen={true}
-                                            onClose={() => setActiveTab('notas')}
-                                            variant="sidebar"
-                                            activeBoard={board}
-                                            dealId={deal.id}
-                                            contactId={contact?.id}
-                                            cockpitSnapshot={cockpitSnapshot}
-                                            contextMode="props-only"
-                                        />
-                                    </React.Suspense>
+                                    <WhatsAppThreadPanel dealId={deal.id} contactId={contact?.id} />
                                 </div>
                             )}
                         </div>
@@ -1892,5 +1876,4 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
     );
 };
 
-// Lazy load AIAssistant to avoid circular dependencies and bundle bloat
-const AIAssistant = React.lazy(() => import('@/components/AIAssistant'));
+
