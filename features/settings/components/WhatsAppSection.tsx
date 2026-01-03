@@ -119,7 +119,6 @@ export const WhatsAppSection: React.FC = () => {
     <div className="pb-10">
       <SettingsSection
         title="WhatsApp (GPTMaker)"
-        description="Configure o webhook de mensagens do GPTMaker usando token na URL."
         icon={KeyRound}
       >
         <div className="flex items-center justify-between gap-3">
