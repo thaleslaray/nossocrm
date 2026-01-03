@@ -53,7 +53,7 @@ export const WhatsAppSection: React.FC = () => {
       if (error) throw error;
       setSources((data ?? []) as SourceRow[]);
     } catch (e) {
-      addToast({ type: 'error', message: e instanceof Error ? e.message : 'Erro ao carregar fontes' });
+      addToast(e instanceof Error ? e.message : 'Erro ao carregar fontes', 'error');
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ export const WhatsAppSection: React.FC = () => {
 
   async function createSource() {
     if (!organizationId) {
-      addToast({ type: 'error', message: 'Profile sem organização' });
+      addToast('Profile sem organização', 'error');
       return;
     }
 
@@ -86,10 +86,10 @@ export const WhatsAppSection: React.FC = () => {
 
       if (error) throw error;
 
-      addToast({ type: 'success', message: 'Token criado' });
+      addToast('Token criado', 'success');
       await load();
     } catch (e) {
-      addToast({ type: 'error', message: e instanceof Error ? e.message : 'Erro ao criar token' });
+      addToast(e instanceof Error ? e.message : 'Erro ao criar token', 'error');
     } finally {
       setLoading(false);
     }
@@ -100,10 +100,10 @@ export const WhatsAppSection: React.FC = () => {
     try {
       const { error } = await supabase.from('gptmaker_webhook_sources').delete().eq('id', id);
       if (error) throw error;
-      addToast({ type: 'success', message: 'Removido' });
+      addToast('Removido', 'success');
       await load();
     } catch (e) {
-      addToast({ type: 'error', message: e instanceof Error ? e.message : 'Erro ao remover' });
+      addToast(e instanceof Error ? e.message : 'Erro ao remover', 'error');
     } finally {
       setLoading(false);
     }
