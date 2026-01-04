@@ -38,18 +38,43 @@ export async function POST(req: Request) {
 
   const now = new Date().toISOString();
 
-  const { error } = await supabase
-    .from('gptmaker_conversations')
+  // Estratégia de migração: tenta WhatsApp nativo primeiro, depois legado GPTMaker.
+  const { data: waUpdated, error: waErr } = await supabase
+    .from('whatsapp_conversations')
     .update({
       human_takeover_at: now,
       human_takeover_by: user.id,
       updated_at: now,
     })
     .eq('id', conversationId)
-    .eq('organization_id', organizationId);
+    .eq('organization_id', organizationId)
+    .select('id')
+    .maybeSingle();
 
-  if (error) {
-    return new Response(error.message, { status: 500 });
+  if (waErr) {
+    return new Response(waErr.message, { status: 500 });
+  }
+
+  if (!waUpdated) {
+    const { data: legacyUpdated, error: legacyErr } = await supabase
+      .from('gptmaker_conversations')
+      .update({
+        human_takeover_at: now,
+        human_takeover_by: user.id,
+        updated_at: now,
+      })
+      .eq('id', conversationId)
+      .eq('organization_id', organizationId)
+      .select('id')
+      .maybeSingle();
+
+    if (legacyErr) {
+      return new Response(legacyErr.message, { status: 500 });
+    }
+
+    if (!legacyUpdated) {
+      return new Response('Conversa não encontrada', { status: 404 });
+    }
   }
 
   return Response.json({ ok: true }, { status: 200 });
