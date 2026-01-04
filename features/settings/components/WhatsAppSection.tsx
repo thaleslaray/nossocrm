@@ -5,12 +5,12 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 
-type SourceRow = {
+type AccountRow = {
   id: string;
-  name: string;
-  token: string;
-  channel: string;
   active: boolean;
+  provider: string;
+  name: string;
+  webhook_token: string;
 };
 
 function generateToken() {
@@ -25,14 +25,14 @@ function generateToken() {
 
 function buildWebhookUrl(token: string) {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  return `${base}/functions/v1/gptmaker-in/${token}`;
+  return `${base}/functions/v1/zapi-in/${token}`;
 }
 
 export const WhatsAppSection: React.FC = () => {
   const { profile } = useAuth();
   const { addToast } = useToast();
 
-  const [sources, setSources] = useState<SourceRow[]>([]);
+  const [account, setAccount] = useState<AccountRow | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -42,18 +42,21 @@ export const WhatsAppSection: React.FC = () => {
 
   async function load() {
     if (!canManage) return;
+    if (!organizationId) return;
 
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('gptmaker_webhook_sources')
-        .select('id, name, token, channel, active')
-        .order('created_at', { ascending: false });
+        .from('whatsapp_accounts')
+        .select('id, active, provider, name, webhook_token')
+        .eq('organization_id', organizationId)
+        .eq('provider', 'zapi')
+        .maybeSingle();
 
       if (error) throw error;
-      setSources((data ?? []) as SourceRow[]);
+      setAccount((data ?? null) as AccountRow | null);
     } catch (e) {
-      addToast(e instanceof Error ? e.message : 'Erro ao carregar fontes', 'error');
+      addToast(e instanceof Error ? e.message : 'Erro ao carregar conexão', 'error');
     } finally {
       setLoading(false);
     }
@@ -64,9 +67,14 @@ export const WhatsAppSection: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManage]);
 
-  async function createSource() {
+  async function createConnection() {
     if (!organizationId) {
       addToast('Profile sem organização', 'error');
+      return;
+    }
+
+    if (account) {
+      addToast('Já existe uma conexão Z-API configurada', 'error');
       return;
     }
 
@@ -75,35 +83,40 @@ export const WhatsAppSection: React.FC = () => {
     setLoading(true);
     try {
       const { error } = await supabase
-        .from('gptmaker_webhook_sources')
+        .from('whatsapp_accounts')
         .insert({
           organization_id: organizationId,
-          name: 'GPTMaker WhatsApp',
-          token,
-          channel: 'WHATSAPP',
+          provider: 'zapi',
+          name: 'Z-API WhatsApp',
+          webhook_token: token,
           active: true,
+          config: {},
         });
 
       if (error) throw error;
 
-      addToast('Token criado', 'success');
+      addToast('Conexão criada', 'success');
       await load();
     } catch (e) {
-      addToast(e instanceof Error ? e.message : 'Erro ao criar token', 'error');
+      addToast(e instanceof Error ? e.message : 'Erro ao criar conexão', 'error');
     } finally {
       setLoading(false);
     }
   }
 
-  async function removeSource(id: string) {
+  async function setConnectionActive(id: string, active: boolean) {
     setLoading(true);
     try {
-      const { error } = await supabase.from('gptmaker_webhook_sources').delete().eq('id', id);
+      const { error } = await supabase
+        .from('whatsapp_accounts')
+        .update({ active, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('organization_id', organizationId ?? '');
       if (error) throw error;
-      addToast('Removido', 'success');
+      addToast(active ? 'Conexão ativada' : 'Conexão desativada', 'success');
       await load();
     } catch (e) {
-      addToast(e instanceof Error ? e.message : 'Erro ao remover', 'error');
+      addToast(e instanceof Error ? e.message : 'Erro ao atualizar', 'error');
     } finally {
       setLoading(false);
     }
@@ -118,47 +131,55 @@ export const WhatsAppSection: React.FC = () => {
   return (
     <div className="pb-10">
       <SettingsSection
-        title="WhatsApp (GPTMaker)"
+        title="WhatsApp (Z-API)"
         icon={KeyRound}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm text-slate-600 dark:text-slate-300">
-            1) Crie um token aqui • 2) Cole a URL no webhook do GPTMaker
+            1) Crie a conexão aqui • 2) Cole a URL no webhook da Z-API
           </div>
           <button
             type="button"
-            disabled={!canManage || loading}
-            onClick={createSource}
+            disabled={!canManage || loading || !!account}
+            onClick={createConnection}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border border-primary-500/50 bg-primary-500/10 text-primary-700 dark:text-primary-300 hover:bg-primary-500/15 transition-colors disabled:opacity-50"
           >
             <Plus size={16} />
-            Criar token
+            Conectar
           </button>
         </div>
 
         <div className="mt-4 space-y-3">
-          {sources.length === 0 ? (
-            <div className="text-sm text-slate-600 dark:text-slate-400">Nenhuma fonte configurada ainda.</div>
+          {!account ? (
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+              Nenhuma conexão configurada ainda.
+            </div>
           ) : (
-            sources.map((s) => {
-              const url = buildWebhookUrl(s.token);
+            (() => {
+              const url = buildWebhookUrl(account.webhook_token);
               return (
-                <div key={s.id} className="p-4 rounded-xl border border-white/10 bg-white/5">
+                <div className="p-4 rounded-xl border border-white/10 bg-white/5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{s.name}</p>
-                      <p className="text-xs text-slate-500">Canal: {s.channel} • {s.active ? 'ativo' : 'inativo'}</p>
+                      <p className="text-sm font-semibold text-white truncate">{account.name}</p>
+                      <p className="text-xs text-slate-500">
+                        Provedor: {account.provider} • {account.active ? 'ativo' : 'inativo'}
+                      </p>
                     </div>
                     <button
                       type="button"
                       disabled={loading}
                       onClick={() => {
-                        if (confirm('Remover este token? Isso quebra o webhook no GPTMaker.')) {
-                          void removeSource(s.id);
+                        const nextActive = !account.active;
+                        const msg = nextActive
+                          ? 'Ativar esta conexão?'
+                          : 'Desativar esta conexão? O webhook da Z-API vai parar de enviar eventos.';
+                        if (confirm(msg)) {
+                          void setConnectionActive(account.id, nextActive);
                         }
                       }}
                       className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                      title="Remover"
+                      title={account.active ? 'Desativar' : 'Ativar'}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -174,17 +195,17 @@ export const WhatsAppSection: React.FC = () => {
                       />
                       <button
                         type="button"
-                        onClick={() => void copy(url, `url:${s.id}`)}
+                        onClick={() => void copy(url, `url:${account.id}`)}
                         className="p-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-200"
                         title="Copiar"
                       >
-                        {copied === `url:${s.id}` ? <Check size={16} /> : <Copy size={16} />}
+                        {copied === `url:${account.id}` ? <Check size={16} /> : <Copy size={16} />}
                       </button>
                     </div>
                   </div>
                 </div>
               );
-            })
+            })()
           )}
         </div>
       </SettingsSection>
