@@ -64,7 +64,6 @@ export const WhatsAppSection: React.FC = () => {
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManage]);
 
   async function createConnection() {
