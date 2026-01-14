@@ -35,6 +35,7 @@
 - **Mensagem**: item em `whatsapp_messages` (in/out) com `sent_at`.
 - **provider_message_id**: ID estável do provider para dedupe (quando disponível).
 - **provider_conversation_id**: chave estável do provider para threading (ex.: `chatId`, `remoteJid`).
+- **context_id (API)**: campo retornado no `GET /api/whatsapp/thread` que representa o identificador de contexto da conversa. Para WhatsApp nativo, mapeia para `provider_conversation_id`.
 - **Takeover humano**: preenchimento de `human_takeover_at` e `human_takeover_by` na conversa.
 - **Tenant**: organização (`organization_id`).
 

@@ -16,12 +16,12 @@ description: "Tasks: WhatsApp Lite (Nativo)"
 
 **Purpose**: Garantir que os artefatos de design estão completos e consistentes para guiar implementação/validação.
 
-- [ ] T001 [P] Consolidar user stories/FRs/edge cases em specs/Featwhatsapp-lite-nativo/spec.md
-- [ ] T002 [P] Consolidar arquitetura/decisões e gates em specs/Featwhatsapp-lite-nativo/plan.md
-- [ ] T003 [P] Validar decisões (auth token, threading, dedupe, phone) em specs/Featwhatsapp-lite-nativo/research.md
-- [ ] T004 [P] Validar entidades/índices/RLS em specs/Featwhatsapp-lite-nativo/data-model.md
-- [ ] T005 [P] Validar contrato OpenAPI e schemas em specs/Featwhatsapp-lite-nativo/contracts/openapi.yaml
-- [ ] T006 [P] Validar quickstart ponta-a-ponta em specs/Featwhatsapp-lite-nativo/quickstart.md
+- [x] T001 [P] Consolidar user stories/FRs/edge cases em specs/Featwhatsapp-lite-nativo/spec.md
+- [x] T002 [P] Consolidar arquitetura/decisões e gates em specs/Featwhatsapp-lite-nativo/plan.md
+- [x] T003 [P] Validar decisões (auth token, threading, dedupe, phone) em specs/Featwhatsapp-lite-nativo/research.md
+- [x] T004 [P] Validar entidades/índices/RLS em specs/Featwhatsapp-lite-nativo/data-model.md
+- [x] T005 [P] Validar contrato OpenAPI e schemas em specs/Featwhatsapp-lite-nativo/contracts/openapi.yaml
+- [x] T006 [P] Validar quickstart ponta-a-ponta em specs/Featwhatsapp-lite-nativo/quickstart.md
 
 ---
 
@@ -29,12 +29,12 @@ description: "Tasks: WhatsApp Lite (Nativo)"
 
 **Purpose**: Infra e fundações que devem estar corretas antes das user stories.
 
-- [ ] T007 Validar schema/índices/RLS das tabelas `whatsapp_*` em supabase/migrations/20260104010000_whatsapp_core.sql
-- [ ] T008 Validar singleton Z-API (1 conta por organização) em supabase/migrations/20260104020000_whatsapp_zapi_singleton.sql
-- [ ] T009 [P] Garantir boundary Supabase (service role só no runtime) em supabase/functions/zapi-in/index.ts
-- [ ] T010 [P] Garantir UI de Settings para gerenciar `whatsapp_accounts` em features/settings/components/WhatsAppSection.tsx
-- [ ] T011 [P] Garantir mitigação CSRF + `401/403` (sem redirect) em app/api/whatsapp/thread/route.ts
-- [ ] T012 [P] Garantir mitigação CSRF + `401/403` (sem redirect) em app/api/whatsapp/takeover/route.ts
+- [x] T007 Validar schema/índices/RLS das tabelas `whatsapp_*` em supabase/migrations/20260104010000_whatsapp_core.sql
+- [x] T008 Validar singleton Z-API (1 conta por organização) em supabase/migrations/20260104020000_whatsapp_zapi_singleton.sql
+- [x] T009 [P] Garantir boundary Supabase (service role só no runtime) em supabase/functions/zapi-in/index.ts
+- [x] T010 [P] Garantir UI de Settings para gerenciar `whatsapp_accounts` em features/settings/components/WhatsAppSection.tsx
+- [x] T011 [P] Garantir mitigação CSRF + `401/403` (sem redirect) em app/api/whatsapp/thread/route.ts
+- [x] T012 [P] Garantir mitigação CSRF + `401/403` (sem redirect) em app/api/whatsapp/takeover/route.ts
 
 **Checkpoint**: Base pronta (banco + RLS + função + endpoints) para iniciar as user stories.
 
@@ -48,18 +48,18 @@ description: "Tasks: WhatsApp Lite (Nativo)"
 
 ### Implementation (US1)
 
-- [ ] T013 [US1] Resolver token na URL e buscar `whatsapp_accounts` por `webhook_token` em supabase/functions/zapi-in/index.ts
-- [ ] T014 [US1] Validar account ativa e retornar `404` quando token inválido/inativa em supabase/functions/zapi-in/index.ts
-- [ ] T015 [US1] Parsing best-effort de texto (text/message/body/...) em supabase/functions/zapi-in/index.ts
-- [ ] T016 [US1] Parsing best-effort de remetente (phone/from/sender/...) e normalização E.164 (BR) em supabase/functions/zapi-in/index.ts
-- [ ] T017 [US1] Parsing best-effort de `provider_message_id` (messageId/id/msgId/...) em supabase/functions/zapi-in/index.ts
-- [ ] T018 [US1] Definir `provider_conversation_id` estável (chatId/remoteJid/...) com fallback seguro em supabase/functions/zapi-in/index.ts
-- [ ] T019 [US1] Resolver `contact_id` e `deal_id` best-effort a partir do telefone em supabase/functions/zapi-in/index.ts
-- [ ] T020 [US1] Upsert de conversa por `(organization_id, account_id, provider_conversation_id)` em supabase/functions/zapi-in/index.ts
-- [ ] T021 [US1] Upsert de mensagem com dedupe por `(conversation_id, provider_message_id)` quando disponível em supabase/functions/zapi-in/index.ts
-- [ ] T022 [US1] Atualizar `last_message_at/updated_at` best-effort após inserção em supabase/functions/zapi-in/index.ts
-- [ ] T023 [P] [US1] Manter quickstart com exemplos de payload/idempotência em specs/Featwhatsapp-lite-nativo/quickstart.md
-- [ ] T024 [P] [US1] Manter contrato OpenAPI coerente com response do webhook em specs/Featwhatsapp-lite-nativo/contracts/openapi.yaml
+- [x] T013 [US1] Resolver token na URL e buscar `whatsapp_accounts` por `webhook_token` em supabase/functions/zapi-in/index.ts
+- [x] T014 [US1] Validar account ativa e retornar `404` quando token inválido/inativa em supabase/functions/zapi-in/index.ts
+- [x] T015 [US1] Parsing best-effort de texto (text/message/body/...) em supabase/functions/zapi-in/index.ts
+- [x] T016 [US1] Parsing best-effort de remetente (phone/from/sender/...) e normalização E.164 (BR) em supabase/functions/zapi-in/index.ts
+- [x] T017 [US1] Parsing best-effort de `provider_message_id` (messageId/id/msgId/...) em supabase/functions/zapi-in/index.ts
+- [x] T018 [US1] Definir `provider_conversation_id` estável (chatId/remoteJid/...) com fallback seguro em supabase/functions/zapi-in/index.ts
+- [x] T019 [US1] Resolver `contact_id` e `deal_id` best-effort a partir do telefone em supabase/functions/zapi-in/index.ts
+- [x] T020 [US1] Upsert de conversa por `(organization_id, account_id, provider_conversation_id)` em supabase/functions/zapi-in/index.ts
+- [x] T021 [US1] Upsert de mensagem com dedupe por `(conversation_id, provider_message_id)` quando disponível em supabase/functions/zapi-in/index.ts
+- [x] T022 [US1] Atualizar `last_message_at/updated_at` best-effort após inserção em supabase/functions/zapi-in/index.ts
+- [x] T023 [P] [US1] Manter quickstart com exemplos de payload/idempotência em specs/Featwhatsapp-lite-nativo/quickstart.md
+- [x] T024 [P] [US1] Manter contrato OpenAPI coerente com response do webhook em specs/Featwhatsapp-lite-nativo/contracts/openapi.yaml
 
 **Checkpoint**: ingestão funcionando e idempotente (quando `provider_message_id` existe).
 
@@ -73,12 +73,12 @@ description: "Tasks: WhatsApp Lite (Nativo)"
 
 ### Implementation (US2)
 
-- [ ] T025 [US2] Validar query params e retornar vazio quando `contactId` ausente em app/api/whatsapp/thread/route.ts
-- [ ] T026 [US2] Validar auth por cookie e retornar `401` quando não autenticado em app/api/whatsapp/thread/route.ts
-- [ ] T027 [US2] Resolver `organization_id` via `profiles` e fallback best-effort via `dealId` em app/api/whatsapp/thread/route.ts
-- [ ] T028 [US2] Consultar `whatsapp_conversations` por `organization_id` + `contact_id` e retornar a mais recente em app/api/whatsapp/thread/route.ts
-- [ ] T029 [US2] Consultar `whatsapp_messages` por `organization_id` + `conversation_id` e ordenar por `sent_at asc` em app/api/whatsapp/thread/route.ts
-- [ ] T030 [P] [US2] Manter contrato OpenAPI coerente com response de thread em specs/Featwhatsapp-lite-nativo/contracts/openapi.yaml
+- [x] T025 [US2] Validar query params e retornar vazio quando `contactId` ausente em app/api/whatsapp/thread/route.ts
+- [x] T026 [US2] Validar auth por cookie e retornar `401` quando não autenticado em app/api/whatsapp/thread/route.ts
+- [x] T027 [US2] Resolver `organization_id` via `profiles` e fallback best-effort via `dealId` em app/api/whatsapp/thread/route.ts
+- [x] T028 [US2] Consultar `whatsapp_conversations` por `organization_id` + `contact_id` e retornar a mais recente em app/api/whatsapp/thread/route.ts
+- [x] T029 [US2] Consultar `whatsapp_messages` por `organization_id` + `conversation_id` e ordenar por `sent_at asc` em app/api/whatsapp/thread/route.ts
+- [x] T030 [P] [US2] Manter contrato OpenAPI coerente com response de thread em specs/Featwhatsapp-lite-nativo/contracts/openapi.yaml
 
 **Checkpoint**: thread retorna conversa+mensagens corretamente e com isolamento por organização.
 
@@ -92,11 +92,11 @@ description: "Tasks: WhatsApp Lite (Nativo)"
 
 ### Implementation (US3)
 
-- [ ] T031 [US3] Validar auth por cookie e retornar `401` quando não autenticado em app/api/whatsapp/takeover/route.ts
-- [ ] T032 [US3] Validar payload `{ conversationId }` e retornar `400` quando ausente em app/api/whatsapp/takeover/route.ts
-- [ ] T033 [US3] Resolver `organization_id` via `profiles` e retornar `409` quando ausente em app/api/whatsapp/takeover/route.ts
-- [ ] T034 [US3] Atualizar takeover em `whatsapp_conversations` filtrando por `id` + `organization_id` em app/api/whatsapp/takeover/route.ts
-- [ ] T035 [P] [US3] Manter quickstart com exemplo de takeover em specs/Featwhatsapp-lite-nativo/quickstart.md
+- [x] T031 [US3] Validar auth por cookie e retornar `401` quando não autenticado em app/api/whatsapp/takeover/route.ts
+- [x] T032 [US3] Validar payload `{ conversationId }` e retornar `400` quando ausente em app/api/whatsapp/takeover/route.ts
+- [x] T033 [US3] Resolver `organization_id` via `profiles` e retornar `409` quando ausente em app/api/whatsapp/takeover/route.ts
+- [x] T034 [US3] Atualizar takeover em `whatsapp_conversations` filtrando por `id` + `organization_id` em app/api/whatsapp/takeover/route.ts
+- [x] T035 [P] [US3] Manter quickstart com exemplo de takeover em specs/Featwhatsapp-lite-nativo/quickstart.md
 
 **Checkpoint**: takeover preenche campos corretamente e retorna erros esperados.
 
@@ -106,9 +106,9 @@ description: "Tasks: WhatsApp Lite (Nativo)"
 
 **Purpose**: Consolidação, qualidade e consistência entre docs/contratos/código.
 
-- [ ] T036 [P] Revisar consistência docs vs código (schemas/endpoints) em specs/Featwhatsapp-lite-nativo/contracts/openapi.yaml
-- [ ] T037 [P] Revisar consistência do quickstart vs setup real do repo em specs/Featwhatsapp-lite-nativo/quickstart.md
-- [ ] T038 [P] Revisar gates de segurança (multi-tenant + `/api/*` sem redirect) em .specify/memory/constitution.md
+- [x] T036 [P] Revisar consistência docs vs código (schemas/endpoints) em specs/Featwhatsapp-lite-nativo/contracts/openapi.yaml
+- [x] T037 [P] Revisar consistência do quickstart vs setup real do repo em specs/Featwhatsapp-lite-nativo/quickstart.md
+- [x] T038 [P] Revisar gates de segurança (multi-tenant + `/api/*` sem redirect) em .specify/memory/constitution.md
 - [x] T039 Executar `npm run lint` e corrigir issues relevantes em package.json
 - [x] T040 Executar `npm run typecheck` e corrigir issues relevantes em package.json
 - [x] T041 Executar `npm run test:run` e corrigir issues relevantes em package.json
