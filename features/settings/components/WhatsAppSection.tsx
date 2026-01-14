@@ -13,6 +13,30 @@ type AccountRow = {
   webhook_token: string;
 };
 
+type PostgrestishError = {
+  message?: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+};
+
+function getErrorMessage(e: unknown, fallback: string) {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const pe = e as PostgrestishError;
+    if (typeof pe.message === 'string' && pe.message.trim()) return pe.message;
+  }
+  return fallback;
+}
+
+function isDuplicateConstraint(e: unknown) {
+  if (!e || typeof e !== 'object') return false;
+  const pe = e as PostgrestishError;
+  if (pe.code === '23505') return true;
+  const msg = typeof pe.message === 'string' ? pe.message : '';
+  return msg.includes('duplicate key') || msg.includes('unique constraint');
+}
+
 function generateToken() {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
@@ -56,7 +80,7 @@ export const WhatsAppSection: React.FC = () => {
       if (error) throw error;
       setAccount((data ?? null) as AccountRow | null);
     } catch (e) {
-      addToast(e instanceof Error ? e.message : 'Erro ao carregar conexão', 'error');
+      addToast(getErrorMessage(e, 'Erro ao carregar conexão'), 'error');
     } finally {
       setLoading(false);
     }
@@ -64,7 +88,7 @@ export const WhatsAppSection: React.FC = () => {
 
   useEffect(() => {
     void load();
-  }, [canManage]);
+  }, [canManage, organizationId]);
 
   async function createConnection() {
     if (!organizationId) {
@@ -72,15 +96,26 @@ export const WhatsAppSection: React.FC = () => {
       return;
     }
 
-    if (account) {
-      addToast('Já existe uma conexão Z-API configurada', 'error');
-      return;
-    }
-
-    const token = generateToken();
-
     setLoading(true);
+
     try {
+      // Evita tentar inserir duplicado quando já existe conexão no banco.
+      const { data: existing, error: existingErr } = await supabase
+        .from('whatsapp_accounts')
+        .select('id, active, provider, name, webhook_token')
+        .eq('organization_id', organizationId)
+        .eq('provider', 'zapi')
+        .maybeSingle();
+
+      if (existingErr) throw existingErr;
+      if (existing) {
+        setAccount(existing as AccountRow);
+        addToast('Conexão Z-API já existe. Carregada com sucesso.', 'info');
+        return;
+      }
+
+      const token = generateToken();
+
       const { error } = await supabase
         .from('whatsapp_accounts')
         .insert({
@@ -97,7 +132,13 @@ export const WhatsAppSection: React.FC = () => {
       addToast('Conexão criada', 'success');
       await load();
     } catch (e) {
-      addToast(e instanceof Error ? e.message : 'Erro ao criar conexão', 'error');
+      // Caso clássico: já existe conexão (índice singleton por organização). Recarrega e segue.
+      if (isDuplicateConstraint(e)) {
+        await load();
+        addToast('Já existe uma conexão Z-API configurada. Carreguei a existente.', 'info');
+        return;
+      }
+      addToast(getErrorMessage(e, 'Erro ao criar conexão'), 'error');
     } finally {
       setLoading(false);
     }
@@ -115,7 +156,7 @@ export const WhatsAppSection: React.FC = () => {
       addToast(active ? 'Conexão ativada' : 'Conexão desativada', 'success');
       await load();
     } catch (e) {
-      addToast(e instanceof Error ? e.message : 'Erro ao atualizar', 'error');
+      addToast(getErrorMessage(e, 'Erro ao atualizar'), 'error');
     } finally {
       setLoading(false);
     }
