@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { normalizePhoneE164 } from '@/lib/phone';
 
 function asOptionalString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
@@ -60,6 +61,16 @@ export async function GET(req: Request) {
 
   // Estratégia de migração: tenta WhatsApp nativo primeiro (whatsapp_*), senão cai no legado (gptmaker_*).
 
+  // Busca telefone do contato (para fallback por contact_phone quando a ingestão não conseguiu resolver contact_id)
+  const { data: contactRow } = await supabase
+    .from('contacts')
+    .select('phone')
+    .eq('organization_id', organizationId)
+    .eq('id', contactId)
+    .maybeSingle();
+
+  const contactPhoneE164 = normalizePhoneE164(contactRow?.phone ?? null, { defaultCountry: 'BR' }) || null;
+
   // 1) WhatsApp nativo
   const { data: waConversation, error: waConvErr } = await supabase
     .from('whatsapp_conversations')
@@ -83,12 +94,42 @@ export async function GET(req: Request) {
     return Response.json({ error: waConvErr.message }, { status: 500 });
   }
 
-  if (waConversation) {
+  // Fallback: se a conversa nativa foi ingerida sem contact_id, tenta casar por telefone.
+  const waConversationByPhone =
+    !waConversation && contactPhoneE164
+      ? (
+          await supabase
+            .from('whatsapp_conversations')
+            .select(
+              'id, provider_conversation_id, channel, contact_phone, human_takeover_at, human_takeover_by, last_message_at, contact:contacts(name)'
+            )
+            .eq('organization_id', organizationId)
+            .eq('contact_phone', contactPhoneE164)
+            .order('last_message_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        )
+      : null;
+
+  const waConversationFinal = waConversation ?? waConversationByPhone?.data ?? null;
+  const waConvPhoneErr = waConversationByPhone?.error ?? null;
+
+  if (waConvPhoneErr) {
+    if (isMissingTableError(waConvPhoneErr.message)) {
+      return new Response(
+        'Tabelas do WhatsApp Lite não existem neste projeto Supabase. Aplique as migrations em supabase/migrations/20260104010000_whatsapp_core.sql e 20260104020000_whatsapp_zapi_singleton.sql no mesmo projeto configurado em NEXT_PUBLIC_SUPABASE_URL.',
+        { status: 500 }
+      );
+    }
+    return Response.json({ error: waConvPhoneErr.message }, { status: 500 });
+  }
+
+  if (waConversationFinal) {
     const { data: waMessages, error: waMsgErr } = await supabase
       .from('whatsapp_messages')
       .select('id, role, text, sent_at')
       .eq('organization_id', organizationId)
-      .eq('conversation_id', waConversation.id)
+      .eq('conversation_id', waConversationFinal.id)
       .order('sent_at', { ascending: true });
 
     if (waMsgErr) {
@@ -103,14 +144,14 @@ export async function GET(req: Request) {
     }
 
     const conversation = {
-      id: waConversation.id,
-      context_id: waConversation.provider_conversation_id,
-      channel: waConversation.channel,
-      contact_phone: waConversation.contact_phone,
-      contact_name: (waConversation as any)?.contact?.name ?? null,
-      human_takeover_at: waConversation.human_takeover_at,
-      human_takeover_by: waConversation.human_takeover_by,
-      last_message_at: waConversation.last_message_at,
+      id: waConversationFinal.id,
+      context_id: waConversationFinal.provider_conversation_id,
+      channel: waConversationFinal.channel,
+      contact_phone: waConversationFinal.contact_phone,
+      contact_name: (waConversationFinal as any)?.contact?.name ?? null,
+      human_takeover_at: waConversationFinal.human_takeover_at,
+      human_takeover_by: waConversationFinal.human_takeover_by,
+      last_message_at: waConversationFinal.last_message_at,
     };
 
     return Response.json({ conversation, messages: waMessages ?? [] }, { status: 200 });
