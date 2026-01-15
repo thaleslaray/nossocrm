@@ -163,3 +163,76 @@ description: "Tasks: WhatsApp Lite (Nativo)"
 
 - Adicionar US2 e validar com dados ingeridos.
 - Adicionar US3 e validar takeover com uma conversa existente.
+
+---
+
+## Phase 7: User Story 4 — Onboarding simples via UI (Priority: P1)
+
+**Goal**: Como admin, quero conectar a Z-API de forma guiada no CRM (sem SQL), para copiar a URL do webhook e configurar na Z-API.
+
+**Independent Test**: (1) abrir Settings → WhatsApp (Z-API), (2) criar/carregar conexão, (3) copiar URL do webhook, (4) colar na Z-API (Ao receber), (5) enviar mensagem real e ver a conversa no Lead.
+
+### Implementation (US4)
+- [x] T042 [US4] Mapear e documentar `whatsapp_accounts.config` (jsonb) para Z-API em specs/Featwhatsapp-lite-nativo/data-model.md
+- [x] T043 [US4] Criar `GET /api/whatsapp/account` (retorna conta Z-API + webhook URL) em app/api/whatsapp/account/route.ts
+- [x] T044 [US4] Criar `POST /api/whatsapp/account` (cria conta Z-API se não existir; idempotente) em app/api/whatsapp/account/route.ts
+- [x] T045 [US4] Persistir campos de configuração (ex.: `instance_id`, `instance_token`, `instance_api_base`) em `whatsapp_accounts.config` via `PUT /api/whatsapp/account` em app/api/whatsapp/account/route.ts
+- [x] T046 [US4] Validar `same-origin` + `401/403` sem redirect em app/api/whatsapp/account/route.ts
+- [x] T047 [US4] Garantir filtro por `organization_id` em todas as queries/mutações em app/api/whatsapp/account/route.ts
+- [x] T048 [P] [US4] Refatorar Settings para consumir `/api/whatsapp/account` (sem usar Supabase client direto) em features/settings/components/WhatsAppSection.tsx
+- [x] T049 [P] [US4] Implementar UX “wizard” mínimo (passos + copiar URL) em features/settings/components/WhatsAppSection.tsx
+- [x] T050 [P] [US4] Atualizar quickstart separando: setup do sistema vs onboarding via UI em specs/Featwhatsapp-lite-nativo/quickstart.md
+
+**Checkpoint**: Admin consegue copiar a URL do webhook sem tocar em SQL.
+
+---
+
+## Phase 8: User Story 5 — Rotação de token (Priority: P1)
+
+**Goal**: Como admin, quero rotacionar o `webhook_token` com um clique para revogar webhooks antigos.
+
+**Independent Test**: rotacionar token via UI e confirmar que a URL muda; webhook antigo passa a retornar `404`.
+
+### Implementation (US5)
+
+- [x] T051 [US5] Implementar ação `POST /api/whatsapp/account/rotate-token` (gera novo token e retorna nova URL) em app/api/whatsapp/account/rotate-token/route.ts
+- [x] T052 [US5] Garantir idempotência e regras de acesso (admin only) em app/api/whatsapp/account/rotate-token/route.ts
+- [x] T053 [P] [US5] Adicionar botão “Rotacionar token” com confirmação e atualização imediata em features/settings/components/WhatsAppSection.tsx
+- [x] T054 [P] [US5] Atualizar quickstart com orientação de rotação/segurança em specs/Featwhatsapp-lite-nativo/quickstart.md
+
+**Checkpoint**: Token antigo revogado e URL nova disponível.
+
+---
+
+## Phase 9: Optional — Configurar webhook automaticamente via API (Priority: P2)
+
+**Goal**: Como admin, quero clicar “Configurar webhook automaticamente” e o CRM chamar a API da Z-API para setar a URL.
+
+**Independent Test**: salvar credenciais e executar a ação; status deve indicar sucesso/erro e persistir em `whatsapp_accounts.config`.
+
+- [ ] T055 [P] Investigar endpoint oficial da Z-API para setar webhooks e documentar em specs/Featwhatsapp-lite-nativo/research.md
+- [ ] T056 Implementar `POST /api/whatsapp/account/configure-webhook` (server-side fetch com timeout) em app/api/whatsapp/account/configure-webhook/route.ts
+- [ ] T057 [P] Persistir `webhook_config_status` em `whatsapp_accounts.config` em app/api/whatsapp/account/configure-webhook/route.ts
+- [ ] T058 [P] Adicionar botão “Configurar webhook automaticamente” e exibir status em features/settings/components/WhatsAppSection.tsx
+
+---
+
+## Phase 10: Optional — Endpoint de teste de conexão (Priority: P2)
+
+**Goal**: Como admin, quero testar credenciais (ping/status) para validar que a instância está ativa.
+
+**Independent Test**: clicar “Testar conexão” e ver resultado 200/4xx coerente.
+
+- [ ] T059 Implementar `GET /api/whatsapp/test-connection` (server-side fetch com timeout) em app/api/whatsapp/test-connection/route.ts
+- [ ] T060 [P] Adicionar botão “Testar conexão” e exibir resultado em features/settings/components/WhatsAppSection.tsx
+
+---
+
+## Phase 11: Polish & Quality (Onboarding)
+
+**Purpose**: Qualidade, mensagens de erro úteis, docs e (se adotarmos) testes.
+
+- [ ] T061 [P] Padronizar mensagens de erro acessíveis no wizard (aria + estados de loading) em features/settings/components/WhatsAppSection.tsx
+- [ ] T062 [P] (Opcional) Adicionar testes Vitest dos route handlers (401/403, admin-only, org filter) em app/api/whatsapp/account/route.test.ts
+- [ ] T063 [P] (Opcional) Adicionar testes RTL do wizard (fluxo básico) em features/settings/components/WhatsAppSection.test.tsx
+- [ ] T064 Executar `npm run lint && npm run typecheck && npm run test:run` e corrigir issues relacionadas

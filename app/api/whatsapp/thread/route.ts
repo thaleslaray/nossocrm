@@ -5,6 +5,16 @@ function asOptionalString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+function isMissingTableError(message: string) {
+  // Supabase/PostgREST error for missing table in schema cache typically looks like:
+  // "Could not find the table 'public.whatsapp_conversations' in the schema cache"
+  const m = message.toLowerCase();
+  return (
+    m.includes("could not find the table") &&
+    (m.includes('whatsapp_conversations') || m.includes('whatsapp_messages'))
+  );
+}
+
 export async function GET(req: Request) {
   // Mitigação CSRF: endpoint autenticado por cookies.
   if (!isAllowedOrigin(req)) {
@@ -63,6 +73,13 @@ export async function GET(req: Request) {
     .maybeSingle();
 
   if (waConvErr) {
+    if (isMissingTableError(waConvErr.message)) {
+      return new Response(
+        'Tabelas do WhatsApp Lite não existem neste projeto Supabase. Aplique as migrations em supabase/migrations/20260104010000_whatsapp_core.sql e 20260104020000_whatsapp_zapi_singleton.sql no mesmo projeto configurado em NEXT_PUBLIC_SUPABASE_URL.',
+        { status: 500 }
+      );
+    }
+
     return Response.json({ error: waConvErr.message }, { status: 500 });
   }
 
@@ -75,6 +92,13 @@ export async function GET(req: Request) {
       .order('sent_at', { ascending: true });
 
     if (waMsgErr) {
+      if (isMissingTableError(waMsgErr.message)) {
+        return new Response(
+          'Tabelas do WhatsApp Lite não existem neste projeto Supabase. Aplique as migrations em supabase/migrations/20260104010000_whatsapp_core.sql e 20260104020000_whatsapp_zapi_singleton.sql no mesmo projeto configurado em NEXT_PUBLIC_SUPABASE_URL.',
+          { status: 500 }
+        );
+      }
+
       return Response.json({ error: waMsgErr.message }, { status: 500 });
     }
 

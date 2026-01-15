@@ -6,7 +6,9 @@
 - Para Edge Function: `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` (ou `CRM_SUPABASE_URL` / `CRM_SUPABASE_SERVICE_ROLE_KEY`)
 - Migrations aplicadas no seu projeto Supabase
 
-## 1) Aplicar migrations
+## A) Setup do sistema (feito uma vez por ambiente)
+
+### 1) Aplicar migrations
 
 As tabelas/RLS/índices estão em:
 - `supabase/migrations/20260104010000_whatsapp_core.sql`
@@ -14,33 +16,41 @@ As tabelas/RLS/índices estão em:
 
 Aplique via fluxo padrão do seu setup (CLI Supabase ou SQL editor do Supabase).
 
-## 2) Deploy da Edge Function
+### 2) Deploy da Edge Function
 
 Deploy da function `zapi-in` (via Supabase CLI):
 - `supabase functions deploy zapi-in`
 
 Garanta que as env vars de runtime estejam configuradas no projeto.
 
-## 3) Criar um `whatsapp_accounts` (provider zapi)
+## B) Onboarding do cliente/admin via UI (sem SQL)
 
-No banco (mesma `organization_id` do seu usuário), crie a conta:
+### 3) Criar/Carregar a conexão no CRM
 
-- `provider`: `zapi`
-- `webhook_token`: gere um token aleatório (ex.: UUID)
-- `active`: `true`
+No CRM (logado como **admin**):
 
-Exemplo (SQL):
+1. Vá em **Settings → WhatsApp (Z-API)**
+2. Clique em **Conectar** (isso cria a linha em `whatsapp_accounts` de forma idempotente)
+3. (Opcional) Preencha e salve:
+  - `Instance ID`
+  - `Token`
+  - `API Base` (ex.: `https://api.z-api.io`)
 
-```sql
-insert into public.whatsapp_accounts (organization_id, provider, name, webhook_token, active)
-values ('<ORG_UUID>', 'zapi', 'WhatsApp', '<TOKEN>', true);
-```
+Ao final, a UI vai exibir a **URL do webhook** pronta para copiar.
 
-## 4) Configurar o webhook no provider (Z-API)
+### 4) Configurar o webhook no provider (Z-API)
 
 Aponte o webhook para:
 
 - `https://<SUPABASE_PROJECT>.supabase.co/functions/v1/zapi-in/<TOKEN>`
+
+### 4.1) Rotação de token (recomendado)
+
+Se você suspeitar que a URL do webhook vazou (ou só quiser “revogar” URLs antigas), use o botão **“Rotacionar token”** no CRM.
+
+- A URL vai mudar imediatamente.
+- Atualize o webhook configurado na Z-API para a nova URL.
+- URLs antigas passam a retornar `404` na Edge Function.
 
 ## 5) Teste rápido do webhook
 
@@ -93,6 +103,15 @@ Deve preencher `human_takeover_at` e `human_takeover_by`.
 - Nunca use `SUPABASE_SERVICE_ROLE_KEY` no client.
 - Rotas `/api/*` devem retornar `401/403` (sem redirects).
 - Todas as queries devem filtrar por `organization_id`.
+
+## Troubleshooting
+
+### Erro: “Could not find the table 'public.whatsapp_*' in the schema cache”
+
+Isso indica que as migrations não foram aplicadas **no mesmo projeto** apontado por `NEXT_PUBLIC_SUPABASE_URL`.
+
+- Aplique `supabase/migrations/20260104010000_whatsapp_core.sql` e `20260104020000_whatsapp_zapi_singleton.sql` no projeto correto.
+- Se estiver usando PostgREST com cache, recarregue schema (ou aguarde alguns segundos após aplicar as migrations).
 
 ## Observabilidade (dicas)
 

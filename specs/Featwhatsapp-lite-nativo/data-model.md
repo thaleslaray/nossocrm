@@ -19,6 +19,15 @@ Conexão por provider (nesta feature: `provider='zapi'`).
 - `config` (jsonb)
 - `created_at`, `updated_at` (timestamptz)
 
+**`config` (jsonb) — Z-API (proposto / US4)**
+
+Armazenamos as credenciais/config do provider em `whatsapp_accounts.config` (JSONB) para evitar criar colunas específicas por provider.
+
+- `instance_id` (string): identificador da instância na Z-API.
+- `instance_token` (string): token da instância na Z-API (credencial sensível; admin-only via RLS).
+- `instance_api_base` (string): base URL da API da Z-API (ex.: `https://api.z-api.io`).
+- `webhook_config_status` (any, opcional): reservado para um futuro “configurar webhook automaticamente” (P2), para persistir status/erro.
+
 **Regras/validações**
 - `webhook_token` MUST ser único.
 - Para Z-API: singleton por organização via índice parcial em `organization_id` (onde `provider='zapi'`).

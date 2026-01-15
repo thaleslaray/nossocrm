@@ -5,6 +5,11 @@ function asOptionalString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+function isMissingTableError(message: string) {
+  const m = message.toLowerCase();
+  return m.includes("could not find the table") && m.includes('whatsapp_conversations');
+}
+
 export async function POST(req: Request) {
   // Mitigação CSRF: endpoint autenticado por cookies.
   if (!isAllowedOrigin(req)) {
@@ -52,6 +57,12 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (waErr) {
+    if (isMissingTableError(waErr.message)) {
+      return new Response(
+        'Tabela whatsapp_conversations não existe neste projeto Supabase. Aplique as migrations em supabase/migrations/20260104010000_whatsapp_core.sql e 20260104020000_whatsapp_zapi_singleton.sql no mesmo projeto configurado em NEXT_PUBLIC_SUPABASE_URL.',
+        { status: 500 }
+      );
+    }
     return new Response(waErr.message, { status: 500 });
   }
 
