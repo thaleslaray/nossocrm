@@ -162,6 +162,16 @@ components:
           format: uuid
         provider_conversation_id:
           type: string
+        contact_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Contato resolvido/criado (quando telefone normaliza).
+        deal_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Deal resolvido/criado (quando telefone normaliza e board/stage são encontrados).
         message_id:
           type: string
           nullable: true

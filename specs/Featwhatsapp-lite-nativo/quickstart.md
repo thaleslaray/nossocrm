@@ -67,6 +67,11 @@ Valide no banco:
 - existe uma linha em `whatsapp_conversations`
 - existe uma linha em `whatsapp_messages` (e não duplica ao reenviar o mesmo payload)
 
+Se o telefone do payload **normalizar para E.164** e ainda não existir `contacts.phone` na organização, o webhook também deve:
+- criar um `contacts`
+- criar um `deals` aberto
+- preencher `whatsapp_conversations.contact_id` e `whatsapp_conversations.deal_id`
+
 ### Teste de idempotência (evento duplicado)
 
 - Reenvie o mesmo `curl` com o mesmo `messageId`.

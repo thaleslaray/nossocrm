@@ -94,3 +94,25 @@ Mensagens inbound/outbound.
 
 - `human_takeover_at/by` em `whatsapp_conversations` muda de `NULL` -> preenchido quando o usuário executa takeover.
 - Não há “undo” definido nesta feature (pode ser adicionado futuramente).
+
+## Integração com CRM (auto-criação de lead)
+
+Quando chegar mensagem inbound e **não houver match** de `contacts.phone` (E.164) para a organização:
+
+- Criar `contacts` com:
+	- `phone`: telefone E.164 normalizado (BR) quando possível
+	- `name`: derivado do telefone quando não houver nome (ex.: `WhatsApp +55...`)
+	- `stage`: default do schema (`LEAD`)
+	- `status`: default do schema (`ACTIVE`)
+	- `organization_id`: tenant atual
+
+- Criar `deals` com:
+	- `title`: derivado do contato/telefone (ex.: `WhatsApp - <nome/telefone>`)
+	- `status`: `open` (padrão usado em fixtures do repo)
+	- `board_id`: board default da organização (`boards.is_default=true` ou fallback para o primeiro por `created_at`)
+	- `stage_id`: primeiro stage do board (menor `board_stages.order`)
+	- `contact_id`: contato criado
+	- `is_won/is_lost`: `false` (explícito, para evitar valores `NULL` em bases legadas)
+	- `organization_id`: tenant atual
+
+Após isso, `whatsapp_conversations.contact_id` e `whatsapp_conversations.deal_id` devem ser preenchidos.

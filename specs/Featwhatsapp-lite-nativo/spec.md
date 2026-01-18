@@ -1,4 +1,5 @@
-﻿# Feature Specification: WhatsApp Lite (Nativo)
+﻿#+#+#+#+###
+# Feature Specification: WhatsApp Lite (Nativo)
 
 **Feature Branch**: `Featwhatsapp-lite-nativo`  
 **Created**: 2026-01-07  
@@ -9,13 +10,13 @@
 
 ### In scope
 - Ingestão inbound via webhook Z-API (Supabase Edge Function) e persistência em `whatsapp_accounts`, `whatsapp_conversations`, `whatsapp_messages`.
+- Criação automática de **contato + deal** quando chegar mensagem inbound e não houver match de telefone (desde que o telefone normalize).
 - Leitura da thread por contato via API autenticada no Next.js.
 - Takeover humano (marcação de atendimento humano) via API autenticada no Next.js.
 
 ### Out of scope (explicitamente)
 - Envio outbound de mensagens.
 - Download/armazenamento de mídia (além de metadados; `media` permanece vazio nesta iteração).
-- Criação automática de contato/deal (o vínculo é best-effort quando já existir).
 - Integrações com Inbox/Atividades/IA além do que já existe no repo.
 
 ## External Actors & Systems
@@ -96,12 +97,22 @@ Como usuário autenticado, quero marcar que a conversa está sob atendimento hum
 1. **Given** uma conversa existente, **When** faço takeover, **Then** `human_takeover_at/by` são preenchidos.
 2. **Given** uma conversa inexistente, **When** faço takeover, **Then** recebo `404`.
 
+### User Story 4  Criar lead automaticamente no inbound (Priority: P1)
+Como sistema, quero que ao chegar uma mensagem de um número não cadastrado, seja criado automaticamente um **contato** e um **deal aberto** para que a conversa já nasça vinculada a um lead no pipeline.
+
+**Independent Test**: enviar payload para `POST /functions/v1/zapi-in/<token>` com um telefone novo e validar criação de `contacts`, `deals` e vínculo em `whatsapp_conversations`.
+
+**Acceptance Scenarios**:
+1. **Given** um webhook com telefone normalizável e sem contato existente, **When** recebido, **Then** cria `contacts` + `deals` e a conversa fica com `contact_id` e `deal_id` preenchidos.
+2. **Given** um webhook com telefone normalizável e contato existente, **When** recebido, **Then** não duplica contato; e vincula o deal aberto mais recente (ou cria novo se não houver deal aberto).
+3. **Given** um webhook com telefone inválido (não normaliza), **When** recebido, **Then** a conversa/mensagem são persistidas, mas `contact_phone/contact_id/deal_id` podem ficar `null`.
+
 ### Edge Cases
-- Webhook com telefone inválido (não normaliza para E.164)  salvar conversa/mensagem mesmo assim, com `contact_phone=null`.
-- Contact matching best-effort: se não achar contato por `contacts.phone`, `contact_id/deal_id` ficam `null`.
-- Múltiplos deals do mesmo contato: associar o deal mais recente (best-effort).
-- Account inativa ou token inválido  `404` (não revelar detalhes).
-- Payload com campos diferentes (Z-API varia)  parser best-effort (texto, ids, timestamp).
+- Webhook com telefone inválido (não normaliza para E.164): salvar conversa/mensagem mesmo assim, com `contact_phone=null`.
+- Contact/deal auto-create: se não achar contato por `contacts.phone`, criar contato + deal (quando o telefone normaliza); caso contrário `contact_id/deal_id` podem ficar `null`.
+- Múltiplos deals do mesmo contato: associar o deal aberto mais recente (best-effort).
+- Account inativa ou token inválido: `404` (não revelar detalhes).
+- Payload com campos diferentes (Z-API varia): parser best-effort (texto, ids, timestamp).
 - Mensagens fora de ordem: persistir `sent_at` best-effort e ordenar por `sent_at` na leitura; não reordenar no webhook.
 - Payload parcialmente válido: persistir o que for possível (ex.: `text=null`) e sempre registrar `raw_payload`.
 - Tipos de evento desconhecidos: tratar como payload genérico (best-effort), sem quebrar o endpoint.
@@ -114,7 +125,7 @@ Como usuário autenticado, quero marcar que a conversa está sob atendimento hum
 - **FR-003**: Persistir/atualizar conversa em `whatsapp_conversations` por `(organization_id, account_id, provider_conversation_id)`.
 - **FR-004**: Persistir mensagem em `whatsapp_messages` e deduplicar por `(conversation_id, provider_message_id)` quando disponível.
 - **FR-005**: Normalizar telefone para E.164 (BR) quando possível.
-- **FR-006**: Resolver `contact_id` e `deal_id` best-effort a partir do telefone.
+- **FR-006**: Resolver `contact_id` e `deal_id` a partir do telefone; quando não existir, criar automaticamente `contacts` + `deals` (desde que o telefone normalize).
 - **FR-007**: Disponibilizar leitura da thread via `GET /api/whatsapp/thread?contactId=<uuid>&dealId=<uuid?>`.
 - **FR-008**: Disponibilizar takeover via `POST /api/whatsapp/takeover` com `{ conversationId }`.
 - **FR-009**: APIs autenticadas por cookie MUST retornar `401/403` (sem redirect) quando não autenticado/origem inválida.

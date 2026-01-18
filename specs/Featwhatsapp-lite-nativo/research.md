@@ -34,10 +34,18 @@
   - Armazenar somente dígitos: perde informação de país; pior para integrações.
 
 ### 6) Vincular contato/deal (best-effort)
-- **Decision**: buscar `contacts` por match exato em E.164 e vincular o deal mais recente do contato.
-- **Rationale**: melhora UX sem exigir mudanças no fluxo de cadastro.
+- **Decision**: resolver `contacts` por match em E.164; quando não existir (e o telefone normalizar), criar automaticamente **contato + deal aberto** e vincular a conversa.
+- **Rationale**: reduz fricção operacional (o lead nasce sozinho); evita depender de cadastro manual para que a thread apareça corretamente; mantém multi-tenant e idempotência no banco.
 - **Alternatives considered**:
-  - Criar contato automaticamente: arriscado (dados incompletos/duplicados) e pode violar regras de negócio.
+  - Manter apenas best-effort sem criação: rejeitado porque deixa conversas “órfãs” (`contact_id=null`) e degrada a UX.
+  - Criar só contato (sem deal): rejeitado por não atender o fluxo comercial (precisa criar oportunidade/negócio junto).
+  - Criar deal sempre (mesmo se já existir): rejeitado por risco de duplicidade; preferir reaproveitar deal aberto quando existir.
+
+### 7) Qual número “recebe a mensagem do lead”
+- **Decision**: o número que recebe mensagens é o **número de WhatsApp conectado na instância da Z-API** (a “linha” que você vinculou no painel da Z-API).
+- **Rationale**: o NossoCRM não “cria um número por lead”; ele apenas recebe webhooks do provider para o número conectado e associa cada remetente (telefone do cliente) a um contato/deal.
+- **Alternatives considered**:
+  - Múltiplas linhas por organização: fora do escopo do WhatsApp Lite atual (singleton por org).
 
 ## Padrões de segurança do repo (relevantes)
 
