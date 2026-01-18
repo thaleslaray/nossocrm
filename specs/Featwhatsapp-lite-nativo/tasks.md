@@ -204,35 +204,57 @@ description: "Tasks: WhatsApp Lite (Nativo)"
 
 ---
 
-## Phase 9: Optional — Configurar webhook automaticamente via API (Priority: P2)
+## Phase 9: User Story 4 (Evolução) — Auto-criação de contato+deal no inbound (Priority: P1)
 
-**Goal**: Como admin, quero clicar “Configurar webhook automaticamente” e o CRM chamar a API da Z-API para setar a URL.
+**Goal**: Quando chegar mensagem inbound de um número não cadastrado (telefone novo), criar automaticamente **contato + deal aberto** na organização, para que a conversa já nasça vinculada ao CRM.
 
-**Independent Test**: salvar credenciais e executar a ação; status deve indicar sucesso/erro e persistir em `whatsapp_accounts.config`.
+**Independent Test**: enviar webhook com telefone novo (não cadastrado) e validar: (1) novo `contacts` criado, (2) novo `deals` aberto no board/stage default, (3) `whatsapp_conversations.contact_id/deal_id` preenchidos.
 
-- [ ] T055 [P] Investigar endpoint oficial da Z-API para setar webhooks e documentar em specs/Featwhatsapp-lite-nativo/research.md
-- [ ] T056 Implementar `POST /api/whatsapp/account/configure-webhook` (server-side fetch com timeout) em app/api/whatsapp/account/configure-webhook/route.ts
-- [ ] T057 [P] Persistir `webhook_config_status` em `whatsapp_accounts.config` em app/api/whatsapp/account/configure-webhook/route.ts
-- [ ] T058 [P] Adicionar botão “Configurar webhook automaticamente” e exibir status em features/settings/components/WhatsAppSection.tsx
+### Implementation (US4 Evolution)
+
+- [ ] T065 [P] Selecionar board default (is_default=true, ou fallback primeiro por created_at) em supabase/functions/zapi-in/index.ts
+- [ ] T066 [P] Selecionar stage default (menor order, ou is_default) do board selecionado em supabase/functions/zapi-in/index.ts
+- [ ] T067 [US4] Quando não achar `contacts.phone` (E.164), criar contato com (name, phone, organization_id) em supabase/functions/zapi-in/index.ts
+- [ ] T068 [US4] Quando contato foi criado, criar deal com (title, board_id, stage_id, contact_id, organization_id, is_won=false, is_lost=false) em supabase/functions/zapi-in/index.ts
+- [ ] T069 [US4] Tratar duplicidade de deals no retry: se trigger retorna erro unique, buscar deal aberto existente do contato em supabase/functions/zapi-in/index.ts
+- [ ] T070 [US4] Retornar `contact_id` e `deal_id` no response `200` do webhook em supabase/functions/zapi-in/index.ts
+- [ ] T071 [P] Atualizar contrato OpenAPI para incluir `contact_id`, `deal_id` em response de webhook em specs/Featwhatsapp-lite-nativo/contracts/openapi.yaml
+- [ ] T072 [P] Atualizar quickstart com exemplo de auto-criação (webhook com telefone novo) em specs/Featwhatsapp-lite-nativo/quickstart.md
+- [ ] T073 Executar `npm run lint`, `npm run typecheck` e corrigir issues em package.json
+
+**Checkpoint**: Lead nasce automaticamente (contato+deal) quando mensagem inbound vem de número novo.
 
 ---
 
-## Phase 10: Optional — Endpoint de teste de conexão (Priority: P2)
+## Phase 10: Optional — Configurar webhook automaticamente via API (Priority: P2)
+
+**Goal**: Como admin, quero clicar "Configurar webhook automaticamente" e o CRM chamar a API da Z-API para setar a URL.
+
+**Independent Test**: salvar credenciais e executar a ação; status deve indicar sucesso/erro e persistir em `whatsapp_accounts.config`.
+
+- [ ] T074 [P] Investigar endpoint oficial da Z-API para setar webhooks e documentar em specs/Featwhatsapp-lite-nativo/research.md
+- [ ] T075 Implementar `POST /api/whatsapp/account/configure-webhook` (server-side fetch com timeout) em app/api/whatsapp/account/configure-webhook/route.ts
+- [ ] T076 [P] Persistir `webhook_config_status` em `whatsapp_accounts.config` em app/api/whatsapp/account/configure-webhook/route.ts
+- [ ] T077 [P] Adicionar botão "Configurar webhook automaticamente" e exibir status em features/settings/components/WhatsAppSection.tsx
+
+---
+
+## Phase 11: Optional — Endpoint de teste de conexão (Priority: P2)
 
 **Goal**: Como admin, quero testar credenciais (ping/status) para validar que a instância está ativa.
 
 **Independent Test**: clicar “Testar conexão” e ver resultado 200/4xx coerente.
 
-- [ ] T059 Implementar `GET /api/whatsapp/test-connection` (server-side fetch com timeout) em app/api/whatsapp/test-connection/route.ts
-- [ ] T060 [P] Adicionar botão “Testar conexão” e exibir resultado em features/settings/components/WhatsAppSection.tsx
+- [ ] T078 Implementar `GET /api/whatsapp/test-connection` (server-side fetch com timeout) em app/api/whatsapp/test-connection/route.ts
+- [ ] T079 [P] Adicionar botão "Testar conexão" e exibir resultado em features/settings/components/WhatsAppSection.tsx
 
 ---
 
-## Phase 11: Polish & Quality (Onboarding)
+## Phase 12: Polish & Quality (Final)
 
 **Purpose**: Qualidade, mensagens de erro úteis, docs e (se adotarmos) testes.
 
-- [ ] T061 [P] Padronizar mensagens de erro acessíveis no wizard (aria + estados de loading) em features/settings/components/WhatsAppSection.tsx
-- [ ] T062 [P] (Opcional) Adicionar testes Vitest dos route handlers (401/403, admin-only, org filter) em app/api/whatsapp/account/route.test.ts
-- [ ] T063 [P] (Opcional) Adicionar testes RTL do wizard (fluxo básico) em features/settings/components/WhatsAppSection.test.tsx
-- [ ] T064 Executar `npm run lint && npm run typecheck && npm run test:run` e corrigir issues relacionadas
+- [ ] T080 [P] Padronizar mensagens de erro acessíveis no wizard (aria + estados de loading) em features/settings/components/WhatsAppSection.tsx
+- [ ] T081 [P] (Opcional) Adicionar testes Vitest dos route handlers (401/403, admin-only, org filter) em app/api/whatsapp/account/route.test.ts
+- [ ] T082 [P] (Opcional) Adicionar testes RTL do wizard (fluxo básico) em features/settings/components/WhatsAppSection.test.tsx
+- [ ] T083 Executar `npm run lint && npm run typecheck && npm run test:run` e corrigir issues relacionadas

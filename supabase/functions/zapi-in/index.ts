@@ -154,6 +154,121 @@ function pickConversationId(payload: ZapiInbound, phoneE164?: string, msgId?: st
   return phoneE164 ?? digitsOnly(phoneE164) ?? msgId ?? crypto.randomUUID();
 }
 
+async function selectDefaultBoard(
+  supabase: ReturnType<typeof createClient>,
+  organizationId: string
+): Promise<string | null> {
+  // T065: Selecionar board default (is_default=true, senão primeiro por created_at)
+  const { data: board } = await supabase
+    .from("boards")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  return board?.id ?? null;
+}
+
+async function selectDefaultStage(
+  supabase: ReturnType<typeof createClient>,
+  organizationId: string,
+  boardId: string
+): Promise<string | null> {
+  // T066: Selecionar stage default (menor order)
+  const { data: stage } = await supabase
+    .from("board_stages")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("board_id", boardId)
+    .order("order", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  return stage?.id ?? null;
+}
+
+async function createOrGetDealForContact(
+  supabase: ReturnType<typeof createClient>,
+  organizationId: string,
+  contactId: string
+): Promise<string | null> {
+  // T069: Tratar duplicidade de deals no retry
+  // 1) Buscar deal aberto existente do contato
+  const { data: existingDeal } = await supabase
+    .from("deals")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("contact_id", contactId)
+    .eq("is_won", false)
+    .eq("is_lost", false)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingDeal?.id) return existingDeal.id;
+
+  // 2) Selecionar board/stage default para novo deal
+  const boardId = await selectDefaultBoard(supabase, organizationId);
+  if (!boardId) return null;
+
+  const stageId = await selectDefaultStage(supabase, organizationId, boardId);
+  if (!stageId) return null;
+
+  // 3) Resolver nome do contato (best-effort)
+  const { data: contact } = await supabase
+    .from("contacts")
+    .select("name")
+    .eq("id", contactId)
+    .single();
+
+  const contactName = contact?.name ?? "Lead WhatsApp";
+  const dealTitle = `WhatsApp - ${contactName}`;
+
+  // 4) Criar novo deal (com defaults do repo)
+  const { data: newDeal, error: dealErr } = await supabase
+    .from("deals")
+    .insert({
+      organization_id: organizationId,
+      title: dealTitle,
+      board_id: boardId,
+      stage_id: stageId,
+      contact_id: contactId,
+      status: "open",
+      value: 0,
+      probability: 0,
+      is_won: false,
+      is_lost: false,
+    })
+    .select("id")
+    .single();
+
+  if (dealErr) {
+    // T069: Se trigger de duplicidade retornar erro unique, fazer retry com fetch
+    if (dealErr.code === "23505" || dealErr.message?.includes("unique")) {
+      const { data: retryDeal } = await supabase
+        .from("deals")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("contact_id", contactId)
+        .eq("is_won", false)
+        .eq("is_lost", false)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      return retryDeal?.id ?? null;
+    }
+    return null;
+  }
+
+  return newDeal?.id ?? null;
+}
+
 async function bestEffortResolveContactAndDeal(
   supabase: ReturnType<typeof createClient>,
   organizationId: string,
@@ -169,19 +284,46 @@ async function bestEffortResolveContactAndDeal(
     .eq("phone", phoneE164)
     .maybeSingle();
 
-  const contactId = contactExact?.id ?? null;
+  let contactId = contactExact?.id ?? null;
+
+  // T067: Se não encontrou contato, criar automaticamente
+  if (!contactId) {
+    const contactName = `WhatsApp ${phoneE164}`;
+    const { data: newContact, error: contactErr } = await supabase
+      .from("contacts")
+      .insert({
+        organization_id: organizationId,
+        name: contactName,
+        phone: phoneE164,
+        stage: "LEAD",
+        status: "ACTIVE",
+      })
+      .select("id")
+      .single();
+
+    if (contactErr) {
+      // Best-effort: se duplicidade, buscar contato existente
+      if (contactErr.code === "23505" || contactErr.message?.includes("unique")) {
+        const { data: retryContact } = await supabase
+          .from("contacts")
+          .select("id")
+          .eq("organization_id", organizationId)
+          .eq("phone", phoneE164)
+          .maybeSingle();
+
+        contactId = retryContact?.id ?? null;
+      }
+    } else {
+      contactId = newContact?.id ?? null;
+    }
+  }
+
   if (!contactId) return { contactId: null, dealId: null };
 
-  const { data: deal } = await supabase
-    .from("deals")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .eq("contact_id", contactId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // T068: Criar ou buscar deal aberto do contato
+  const dealId = await createOrGetDealForContact(supabase, organizationId, contactId);
 
-  return { contactId, dealId: deal?.id ?? null };
+  return { contactId, dealId: dealId ?? null };
 }
 
 Deno.serve(async (req) => {
@@ -290,6 +432,8 @@ Deno.serve(async (req) => {
     account_id: account.id,
     conversation_id: conversation.id,
     provider_conversation_id: conversation.provider_conversation_id,
+    contact_id: contactId ?? null,
+    deal_id: dealId ?? null,
     message_id: providerMessageId ?? null,
   });
 });
