@@ -1,0 +1,118 @@
+# Data Model — WhatsApp Lite (Nativo)
+
+Baseado nas migrations:
+- `supabase/migrations/20260104010000_whatsapp_core.sql`
+- `supabase/migrations/20260104020000_whatsapp_zapi_singleton.sql`
+
+## Entidades
+
+### `whatsapp_accounts`
+Conexão por provider (nesta feature: `provider='zapi'`).
+
+**Campos principais**
+- `id` (uuid, PK)
+- `organization_id` (uuid, FK organizations)
+- `provider` (text)
+- `name` (text)
+- `webhook_token` (text, unique)
+- `active` (boolean)
+- `config` (jsonb)
+- `created_at`, `updated_at` (timestamptz)
+
+**`config` (jsonb) — Z-API (proposto / US4)**
+
+Armazenamos as credenciais/config do provider em `whatsapp_accounts.config` (JSONB) para evitar criar colunas específicas por provider.
+
+- `instance_id` (string): identificador da instância na Z-API.
+- `instance_token` (string): token da instância na Z-API (credencial sensível; admin-only via RLS).
+- `instance_api_base` (string): base URL da API da Z-API (ex.: `https://api.z-api.io`).
+- `webhook_config_status` (any, opcional): reservado para um futuro “configurar webhook automaticamente” (P2), para persistir status/erro.
+
+**Regras/validações**
+- `webhook_token` MUST ser único.
+- Para Z-API: singleton por organização via índice parcial em `organization_id` (onde `provider='zapi'`).
+
+**RLS**
+- Admins da organização podem gerenciar (FOR ALL) quando `profiles.role='admin'`.
+
+### `whatsapp_conversations`
+Thread de conversa por contato/chave do provider.
+
+**Campos principais**
+- `id` (uuid, PK)
+- `organization_id` (uuid)
+- `account_id` (uuid, FK whatsapp_accounts)
+- `provider_conversation_id` (text)
+- `channel` (text, default 'WHATSAPP')
+- `contact_phone` (text, E.164 quando possível)
+- `contact_id` (uuid, FK contacts, nullable)
+- `deal_id` (uuid, FK deals, nullable)
+- `human_takeover_at` (timestamptz, nullable)
+- `human_takeover_by` (uuid, FK profiles, nullable)
+- `last_message_at` (timestamptz, nullable)
+- `created_at`, `updated_at` (timestamptz)
+
+**Relacionamentos**
+- N conversas por account.
+- 0..1 contato e 0..1 deal associados (best-effort).
+
+**Índices**
+- Unique: `(organization_id, account_id, provider_conversation_id)`.
+- Listagem: `(organization_id, contact_id, last_message_at desc)` e `(organization_id, deal_id, last_message_at desc)`.
+
+**RLS**
+- Membros da organização podem SELECT.
+- Membros podem UPDATE (inclui takeover) — filtrado por organização.
+
+### `whatsapp_messages`
+Mensagens inbound/outbound.
+
+**Campos principais**
+- `id` (uuid, PK)
+- `organization_id` (uuid)
+- `conversation_id` (uuid, FK whatsapp_conversations)
+- `provider_message_id` (text, nullable)
+- `direction` (text, ex.: 'in' | 'out')
+- `role` (text, ex.: 'user' | 'assistant')
+- `text` (text, nullable)
+- `media` (jsonb)
+- `raw_payload` (jsonb)
+- `sent_at` (timestamptz)
+- `created_at` (timestamptz)
+
+**Regras/validações**
+- Quando `provider_message_id` existe: dedupe por `(conversation_id, provider_message_id)`.
+
+**Índices**
+- Unique parcial: `(conversation_id, provider_message_id)` WHERE `provider_message_id IS NOT NULL`.
+- Leitura por thread: `(conversation_id, sent_at asc)`.
+
+**RLS**
+- Membros da organização podem SELECT.
+
+## Transições de estado (takeover)
+
+- `human_takeover_at/by` em `whatsapp_conversations` muda de `NULL` -> preenchido quando o usuário executa takeover.
+- Não há “undo” definido nesta feature (pode ser adicionado futuramente).
+
+## Integração com CRM (auto-criação de lead)
+
+Quando chegar mensagem inbound e **não houver match** de `contacts.phone` (E.164) para a organização:
+
+- Criar `contacts` com:
+	- `phone`: telefone E.164 normalizado (BR) quando possível
+	- `name`: derivado do telefone quando não houver nome (ex.: `WhatsApp +55...`)
+	- `stage`: default do schema (`LEAD`)
+	- `status`: default do schema (`ACTIVE`)
+	- `organization_id`: tenant atual
+
+- Criar `deals` com:
+	- `title`: derivado do contato/telefone (ex.: `WhatsApp - <nome/telefone>`)
+	- `status`: `open` (padrão usado em fixtures do repo)
+	- `board_id`: board default da organização (`boards.is_default=true` ou fallback para o primeiro por `created_at`)
+	- `stage_id`: primeiro stage do board (menor `board_stages.order`)
+	- `contact_id`: contato criado
+	- `is_won/is_lost`: `false` (explícito, para evitar valores `NULL` em bases legadas)
+	- `organization_id`: tenant atual
+
+Após isso, `whatsapp_conversations.contact_id` e `whatsapp_conversations.deal_id` devem ser preenchidos.

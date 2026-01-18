@@ -14,6 +14,17 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
 
+    // Common Node/TS artifacts (match .gitignore expectations)
+    "node_modules/**",
+    "coverage/**",
+    "dist/**",
+    ".vercel/**",
+    "supabase/.temp/**",
+
+    // Local/dev tools
+    ".cursor/**",
+    ".specify/**",
+
     // Repo-specific ignores (generated/auxiliary code)
     "testsprite_tests/**",
     "tmp/**",

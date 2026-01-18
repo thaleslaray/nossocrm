@@ -1,0 +1,239 @@
+openapi: 3.0.3
+info:
+  title: NossoCRM — WhatsApp Lite (Nativo)
+  version: 0.1.0
+  description: |
+    Contratos para WhatsApp Lite (Z-API) no NossoCRM.
+
+servers:
+  - url: https://{host}
+    variables:
+      host:
+        default: localhost:3000
+
+paths:
+  /functions/v1/zapi-in/{token}:
+    post:
+      summary: Webhook Z-API inbound (Edge Function)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZapiInOk'
+        '400':
+          description: JSON inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Token ausente/Account não encontrada ou inativa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Método não permitido
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/whatsapp/thread:
+    get:
+      summary: Busca conversa + mensagens do WhatsApp de um contato
+      description: Endpoint autenticado por cookies; bloqueia origens não permitidas.
+      parameters:
+        - name: contactId
+          in: query
+          required: false
+          description: UUID do contato. Se ausente, retorna conversa nula.
+          schema:
+            type: string
+            format: uuid
+        - name: dealId
+          in: query
+          required: false
+          description: UUID do deal (best-effort para inferir organizationId quando profile estiver incompleto).
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (CSRF)
+        '409':
+          description: Profile sem organização
+        '500':
+          description: Erro interno
+
+  /api/whatsapp/takeover:
+    post:
+      summary: Marca takeover humano de uma conversa
+      description: Endpoint autenticado por cookies; bloqueia origens não permitidas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversationId]
+              properties:
+                conversationId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+        '400':
+          description: conversationId obrigatório
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (CSRF)
+        '404':
+          description: Conversa não encontrada
+        '409':
+          description: Profile sem organização
+        '500':
+          description: Erro interno
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+    ZapiInOk:
+      type: object
+      required: [ok, type, provider, account_id, conversation_id, provider_conversation_id]
+      properties:
+        ok:
+          type: boolean
+        type:
+          type: string
+          example: message
+        provider:
+          type: string
+          example: zapi
+        account_id:
+          type: string
+          format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+        provider_conversation_id:
+          type: string
+        contact_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Contato resolvido/criado (quando telefone normaliza).
+        deal_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Deal resolvido/criado (quando telefone normaliza e board/stage são encontrados).
+        message_id:
+          type: string
+          nullable: true
+
+    ThreadConversation:
+      type: object
+      required: [id, context_id, channel]
+      properties:
+        id:
+          type: string
+          format: uuid
+        context_id:
+          type: string
+          description: provider_conversation_id (whatsapp nativo) ou context_id (legado)
+        channel:
+          type: string
+          example: WHATSAPP
+        contact_phone:
+          type: string
+          nullable: true
+        contact_name:
+          type: string
+          nullable: true
+        human_takeover_at:
+          type: string
+          format: date-time
+          nullable: true
+        human_takeover_by:
+          type: string
+          format: uuid
+          nullable: true
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    ThreadMessage:
+      type: object
+      required: [id, role, sent_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          example: user
+        text:
+          type: string
+          nullable: true
+        sent_at:
+          type: string
+          format: date-time
+
+    ThreadResponse:
+      type: object
+      required: [conversation, messages]
+      properties:
+        conversation:
+          allOf:
+            - $ref: '#/components/schemas/ThreadConversation'
+          nullable: true
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ThreadMessage'
