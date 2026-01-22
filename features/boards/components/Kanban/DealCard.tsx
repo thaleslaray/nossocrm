@@ -216,6 +216,18 @@ const DealCardComponent: React.FC<DealCardProps> = ({
             ✗ PERDIDO
           </span>
         )}
+        {/* Agency Service Badge */}
+        {deal.serviceName && (
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
+            {deal.serviceName}
+          </span>
+        )}
+        {/* Lead Source Badge */}
+        {deal.source && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">
+            {deal.source}
+          </span>
+        )}
         {/* Regular tags */}
         {deal.tags.slice(0, isClosed ? 1 : 2).map((tag, index) => (
           <span

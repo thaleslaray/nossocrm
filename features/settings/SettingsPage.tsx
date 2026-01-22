@@ -12,9 +12,10 @@ import { AICenterSettings } from './AICenterSettings';
 
 import { UsersPage } from './UsersPage';
 import { useAuth } from '@/context/AuthContext';
-import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Rocket } from 'lucide-react';
+import { AgencySettingsTab } from './components/agency';
 
-type SettingsTab = 'general' | 'products' | 'integrations' | 'ai' | 'data' | 'users';
+type SettingsTab = 'general' | 'products' | 'agency' | 'integrations' | 'ai' | 'data' | 'users';
 
 interface GeneralSettingsProps {
   hash?: string;
@@ -187,6 +188,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
       setActiveTab('ai');
     } else if (pathname?.includes('/settings/products')) {
       setActiveTab('products');
+    } else if (pathname?.includes('/settings/agency')) {
+      setActiveTab('agency');
     } else if (pathname?.includes('/settings/integracoes')) {
       setActiveTab('integrations');
     } else if (pathname?.includes('/settings/data')) {
@@ -201,6 +204,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
   const tabs = [
     { id: 'general' as SettingsTab, name: 'Geral', icon: SettingsIcon },
     ...(profile?.role === 'admin' ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
+    { id: 'agency' as SettingsTab, name: 'Agência', icon: Rocket },
     ...(profile?.role === 'admin' ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
     { id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles },
     { id: 'data' as SettingsTab, name: 'Dados', icon: Database },
@@ -211,6 +215,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     switch (activeTab) {
       case 'products':
         return <ProductsSettings />;
+      case 'agency':
+        return <AgencySettingsTab />;
       case 'integrations':
         return <IntegrationsSettings />;
       case 'ai':

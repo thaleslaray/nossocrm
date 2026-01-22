@@ -6,6 +6,7 @@ import { X, Building2, User, Mail, Phone, AlertCircle, Loader2 } from 'lucide-re
 import { DebugFillButton } from '@/components/debug/DebugFillButton';
 import { fakeDeal, fakeContact, fakeCompany } from '@/lib/debug';
 import { ContactSearchCombobox } from '@/components/ui/ContactSearchCombobox';
+import { useActiveAgencyServices } from '@/lib/query/hooks';
 
 interface CreateDealModalProps {
     isOpen: boolean;
@@ -49,8 +50,13 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
     // Estado do deal
     const [dealData, setDealData] = useState({
         title: '',
-        value: ''
+        value: '',
+        serviceId: '',
+        source: ''
     });
+
+    // Agency services for dropdown
+    const { data: services = [] } = useActiveAgencyServices();
 
     // Estado de UI
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,7 +67,7 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
         setSelectedCompany(null);
         setIsCreatingNew(false);
         setNewContactData({ name: '', email: '', phone: '', companyName: '' });
-        setDealData({ title: '', value: '' });
+        setDealData({ title: '', value: '', serviceId: '', source: '' });
         setError(null);
         setIsSubmitting(false);
     };
@@ -154,6 +160,9 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                 customFields: {},
                 isWon: false,
                 isLost: false,
+                // Agency fields
+                serviceId: dealData.serviceId || undefined,
+                source: dealData.source || undefined,
             };
 
             let result;
@@ -386,6 +395,55 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                                     value={dealData.value}
                                     onChange={e => setDealData(prev => ({ ...prev, value: e.target.value }))}
                                 />
+                            </div>
+
+                            {/* Agency Service */}
+                            {services.length > 0 && (
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-500 mb-1">Serviço</label>
+                                    <select
+                                        className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                                        value={dealData.serviceId}
+                                        onChange={e => {
+                                            const selectedService = services.find(s => s.id === e.target.value);
+                                            setDealData(prev => ({
+                                                ...prev,
+                                                serviceId: e.target.value,
+                                                // Auto-fill value if empty
+                                                value: prev.value || (selectedService ? String(selectedService.price) : prev.value)
+                                            }));
+                                        }}
+                                    >
+                                        <option value="">Selecione um serviço...</option>
+                                        {services.map(service => (
+                                            <option key={service.id} value={service.id}>
+                                                {service.name} - R$ {service.price.toLocaleString()}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Lead Source */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">Origem do Lead</label>
+                                <select
+                                    className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                                    value={dealData.source}
+                                    onChange={e => setDealData(prev => ({ ...prev, source: e.target.value }))}
+                                >
+                                    <option value="">Selecione a origem...</option>
+                                    <option value="WEBSITE">Website</option>
+                                    <option value="INSTAGRAM">Instagram</option>
+                                    <option value="FACEBOOK">Facebook</option>
+                                    <option value="GOOGLE_ADS">Google Ads</option>
+                                    <option value="LINKEDIN">LinkedIn</option>
+                                    <option value="INDICACAO">Indicação</option>
+                                    <option value="WHATSAPP">WhatsApp</option>
+                                    <option value="LIGACAO_ATIVA">Ligação Ativa</option>
+                                    <option value="EVENTO">Evento</option>
+                                    <option value="OUTRO">Outro</option>
+                                </select>
                             </div>
                         </div>
                     </div>
