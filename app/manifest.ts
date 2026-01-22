@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'NossoCRM',
-    short_name: 'NossoCRM',
-    description: 'CRM Inteligente para Gestão de Vendas',
+    name: 'Ads Rocket',
+    short_name: 'Ads Rocket',
+    description: 'CRM Inteligente e Técnico para Gestão de Vendas e Tarefas',
     start_url: '/boards',
     display: 'standalone',
     background_color: '#ffffff',

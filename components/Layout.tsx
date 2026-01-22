@@ -243,7 +243,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               N
             </div>
             <span className={`text-xl font-bold font-display tracking-tight text-slate-900 dark:text-white whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-              NossoCRM
+              Ads Rocket
             </span>
           </div>
 
@@ -266,6 +266,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             { to: '/boards', icon: KanbanSquare, label: 'Boards', prefetch: 'boards' as const },
             { to: '/contacts', icon: Users, label: 'Contatos', prefetch: 'contacts' as const },
             { to: '/activities', icon: CheckSquare, label: 'Atividades', prefetch: 'activities' as const },
+            { to: '/admin', icon: Settings, label: 'Admin', prefetch: 'settings' as const },
             { to: '/reports', icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const },
             { to: '/settings', icon: Settings, label: 'Configurações', prefetch: 'settings' as const },
           ].map((item) => {
