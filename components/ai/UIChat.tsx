@@ -553,7 +553,7 @@ export function UIChat({
                     <Sparkles className="w-5 h-5 text-primary-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <h2 className="font-semibold text-white">NossoCRM Pilot</h2>
+                    <h2 className="font-semibold text-white">Ads Rocket Pilot</h2>
                     <p className="text-xs text-slate-400 truncate">
                         {headerSubtitle}
                     </p>

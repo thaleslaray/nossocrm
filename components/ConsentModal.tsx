@@ -21,7 +21,7 @@ interface ConsentModalProps {
 const CONSENT_LABELS: Record<ConsentType, { title: string; description: string }> = {
   terms: {
     title: 'Termos de Uso',
-    description: 'Li e aceito os Termos de Uso do NossoCRM.',
+    description: 'Li e aceito os Termos de Uso do Ads Rocket.',
   },
   privacy: {
     title: 'Política de Privacidade',

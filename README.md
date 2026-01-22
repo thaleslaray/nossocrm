@@ -1,6 +1,6 @@
-# NossoCRM
+# Ads Rocket
 
-> CRM inteligente com assistente de IA integrado. Gerencie seu pipeline de vendas, contatos e atividades de forma visual e produtiva.
+> CRM inteligente e técnico com assistente de IA integrado. Gerencie seu pipeline de vendas, contatos, tarefas e atividades de forma visual, produtiva e profissional.
 
 ---
 
@@ -19,9 +19,9 @@
 
 ## 🎯 Sobre
 
-**NossoCRM** é uma plataforma completa de gestão de relacionamento com clientes (CRM) que ajuda equipes de vendas a serem mais produtivas e organizadas.
+**Ads Rocket** é uma plataforma completa de gestão de relacionamento com clientes (CRM) que ajuda equipes de vendas a serem mais produtivas e organizadas.
 
-### Por que escolher NossoCRM?
+### Por que escolher Ads Rocket?
 
 - 🚀 **Instalação em minutos**: Deploy automático na Vercel + wizard que configura tudo
 - 🤖 **Assistente de IA**: Converse com seu CRM e peça análises, crie deals, gere scripts de vendas
@@ -121,12 +121,12 @@ Antes de começar, você precisa de contas gratuitas nestes serviços:
 
 O primeiro passo é fazer uma cópia do projeto no seu GitHub:
 
-1. Acesse o repositório: [github.com/thaleslaray/nossocrm](https://github.com/thaleslaray/nossocrm)
+1. Acesse o repositório: [github.com/thaleslaray/ads-rocket](https://github.com/thaleslaray/ads-rocket)
 2. Clique no botão **Fork** (canto superior direito)
 3. Escolha sua conta pessoal ou organização
 4. Aguarde o fork ser criado
 
-> ✅ **Pronto quando**: Você ver o repositório `nossocrm` na sua conta do GitHub
+> ✅ **Pronto quando**: Você ver o repositório `ads-rocket` na sua conta do GitHub
 
 <details>
 <summary><strong>Como fazer fork (com imagens)</strong></summary>
@@ -151,13 +151,13 @@ Agora vamos colocar o projeto no ar usando a Vercel:
 1. Acesse [vercel.com](https://vercel.com) e faça login
 2. Clique em **Add New Project** (ou **New Project**)
 3. Conecte sua conta do GitHub (se ainda não conectou)
-4. Na lista de repositórios, encontre e selecione **nossocrm** (seu fork)
+4. Na lista de repositórios, encontre e selecione **ads-rocket** (seu fork)
 5. Clique em **Deploy**
 
 > ⏱️ **Aguarde**: O deploy leva cerca de 2-3 minutos
 
 6. Quando terminar, você verá uma mensagem de sucesso
-7. **Copie a URL** do seu projeto (ex: `https://nossocrm-abc123.vercel.app`)
+7. **Copie a URL** do seu projeto (ex: `https://ads-rocket-abc123.vercel.app`)
 
 > ✅ **Pronto quando**: Você tiver uma URL funcionando (pode estar sem configuração ainda, é normal!)
 
@@ -168,7 +168,7 @@ Agora vamos colocar o projeto no ar usando a Vercel:
    - Na dashboard da Vercel, clique em "Add New" → "Project"
 
 2. **Importar repositório**
-   - Selecione seu fork do `nossocrm`
+   - Selecione seu fork do `ads-rocket`
    - Se não aparecer, clique em "Adjust GitHub App Permissions" e dê permissão
 
 3. **Configurações do projeto**
@@ -204,7 +204,7 @@ Agora vamos configurar tudo usando o wizard automatizado:
    **a) Token da Vercel:**
    - Vá em Vercel → Settings → Tokens
    - Clique em "Create Token"
-   - Dê um nome (ex: "NossoCRM Installer")
+   - Dê um nome (ex: "Ads Rocket Installer")
    - Copie o token (aparece só uma vez!)
 
    **b) Credenciais do Supabase:**
@@ -312,7 +312,7 @@ Na primeira vez, você precisará:
 
 ### Navegação Principal
 
-O NossoCRM tem estas áreas principais:
+O Ads Rocket tem estas áreas principais:
 
 - **📊 Dashboard**: Visão geral com métricas e gráficos
 - **📋 Pipeline**: Visualização Kanban das oportunidades
@@ -394,7 +394,7 @@ Para usar o assistente de IA, você precisa configurar uma chave de API:
 
 ### Configurar Permissões
 
-O NossoCRM tem dois tipos de usuários:
+O Ads Rocket tem dois tipos de usuários:
 
 - **👑 Administrador**: Pode tudo (configurações, usuários, etc.)
 - **👤 Vendedor**: Pode usar o CRM normalmente, mas não altera configurações
@@ -511,7 +511,7 @@ Veja o guia completo em: [docs/webhooks.md](./docs/webhooks.md)
 
 ### Contato
 
-- 🐛 **Problemas**: Abra uma [issue no GitHub](https://github.com/thaleslaray/nossocrm/issues)
+- 🐛 **Problemas**: Abra uma [issue no GitHub](https://github.com/thaleslaray/ads-rocket/issues)
 - 💬 **Dúvidas**: Entre em contato com o mantenedor
 - 📖 **Documentação completa**: Veja a pasta `docs/`
 
@@ -536,8 +536,8 @@ Se você quer desenvolver ou contribuir:
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/thaleslaray/nossocrm.git
-cd nossocrm
+git clone https://github.com/thaleslaray/ads-rocket.git
+cd ads-rocket
 
 # 2. Instale dependências
 npm install
@@ -563,7 +563,7 @@ npm test             # Rodar testes
 ### Estrutura do Projeto
 
 ```
-nossocrm/
+ads-rocket/
 ├── app/              # Rotas Next.js
 ├── features/         # Módulos por domínio
 ├── components/       # Componentes compartilhados

@@ -18,7 +18,7 @@ export function InstallBanner() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-slate-900 dark:text-white">
-              Instale o NossoCRM
+              Instale o Ads Rocket
             </div>
             <div className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
               {platformHint === 'ios'
