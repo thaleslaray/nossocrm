@@ -2,11 +2,19 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Send, Loader2, Bot, User, Sparkles, Wrench, X, MessageCircle, Minimize2, Maximize2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAI } from '@/context/AIContext';
-import ReactMarkdown from 'react-markdown';
+import dynamic from 'next/dynamic';
 import remarkGfm from 'remark-gfm';
+
+// Lazy load react-markdown para reduzir bundle inicial em ~35KB
+// O chat geralmente inicia minimizado (startMinimized={true}), então o markdown
+// só é carregado quando o usuário abre o chat e há mensagens para renderizar
+const ReactMarkdown = dynamic(() => import('react-markdown'), {
+    ssr: false,
+    loading: () => <span className="animate-pulse text-slate-400">...</span>
+});
 
 function humanizeTestLabel(input: unknown): string | undefined {
     const raw = typeof input === 'string' ? input.trim() : '';
