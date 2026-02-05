@@ -233,10 +233,13 @@ export const contactsService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
+      // Safety limit: Prevent unbounded queries when pagination isn't used
+      // For paginated access, use getAllPaginated() instead
       const { data, error } = await supabase
         .from('contacts')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (error) return { data: null, error };
       return { data: (data || []).map(c => transformContact(c as DbContact)), error: null };
