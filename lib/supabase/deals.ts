@@ -133,10 +133,24 @@ export interface DbDealItem {
  * @param items - Itens do deal no formato do banco.
  * @returns Deal no formato da aplicação.
  */
-const transformDeal = (db: DbDeal, items: DbDealItem[]): Deal => {
+/**
+ * Tipo do deal com items aninhados (retornado por embedded select).
+ */
+interface DbDealWithItems extends DbDeal {
+  deal_items: DbDealItem[];
+}
+
+const transformDeal = (db: DbDeal | DbDealWithItems, items?: DbDealItem[]): Deal => {
   // Usar stage_id como status (UUID do estágio no kanban)
   // is_won e is_lost indicam se o deal foi fechado
   const stageStatus = db.stage_id || db.status || '';
+
+  // Items podem vir aninhados (embedded select) ou como array separado (legado)
+  const dealItems = 'deal_items' in db ? db.deal_items : (items || []);
+  // Se vier array separado, filtra por deal_id (compatibilidade)
+  const filteredItems = 'deal_items' in db
+    ? dealItems
+    : dealItems.filter(i => i.deal_id === db.id);
 
   return {
     id: db.id,
@@ -160,16 +174,14 @@ const transformDeal = (db: DbDeal, items: DbDealItem[]): Deal => {
     customFields: db.custom_fields || {},
     createdAt: db.created_at,
     updatedAt: db.updated_at,
-    items: items
-      .filter(i => i.deal_id === db.id)
-      .map(i => ({
-        id: i.id,
-        organizationId: i.organization_id,
-        productId: i.product_id || '',
-        name: i.name,
-        quantity: i.quantity,
-        price: i.price,
-      })),
+    items: filteredItems.map(i => ({
+      id: i.id,
+      organizationId: i.organization_id,
+      productId: i.product_id || '',
+      name: i.name,
+      quantity: i.quantity,
+      price: i.price,
+    })),
     owner: { name: 'Sem Dono', avatar: '' }, // Will be enriched later
     ownerId: db.owner_id || undefined,
   };
@@ -243,17 +255,20 @@ export const dealsService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
-      const [dealsResult, itemsResult] = await Promise.all([
-        supabase.from('deals').select('*').order('created_at', { ascending: false }),
-        supabase.from('deal_items').select('*'),
-      ]);
+      // Embedded select: traz deal_items junto com deals em UMA query
+      // Elimina N+1: antes carregava TODOS items e filtrava no cliente
+      // Agora o Postgres já retorna os items aninhados por deal
+      const { data, error } = await supabase
+        .from('deals')
+        .select(`
+          *,
+          deal_items (*)
+        `)
+        .order('created_at', { ascending: false });
 
-      if (dealsResult.error) return { data: null, error: dealsResult.error };
-      if (itemsResult.error) return { data: null, error: itemsResult.error };
+      if (error) return { data: null, error };
 
-      const deals = (dealsResult.data || []).map(d =>
-        transformDeal(d as DbDeal, (itemsResult.data || []) as DbDealItem[])
-      );
+      const deals = (data || []).map(d => transformDeal(d as DbDealWithItems));
       return { data: deals, error: null };
     } catch (e) {
       return { data: null, error: e as Error };
