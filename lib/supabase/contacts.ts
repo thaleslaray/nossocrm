@@ -224,8 +224,42 @@ export const contactsService = {
   },
 
   /**
+   * Busca contatos por uma lista de IDs.
+   * Otimizado para buscar apenas os contatos necessários.
+   *
+   * @param ids - Array de IDs de contatos a buscar.
+   * @returns Promise com array de contatos ou erro.
+   */
+  async getByIds(ids: string[]): Promise<{ data: Contact[] | null; error: Error | null }> {
+    try {
+      if (!supabase) {
+        return { data: null, error: new Error('Supabase não configurado') };
+      }
+      // Se não há IDs, retorna array vazio (evita query inválida)
+      if (!ids || ids.length === 0) {
+        return { data: [], error: null };
+      }
+      // Remove duplicatas e valores vazios
+      const uniqueIds = [...new Set(ids.filter(Boolean))];
+      if (uniqueIds.length === 0) {
+        return { data: [], error: null };
+      }
+
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .in('id', uniqueIds);
+
+      if (error) return { data: null, error };
+      return { data: (data || []).map(c => transformContact(c as DbContact)), error: null };
+    } catch (e) {
+      return { data: null, error: e as Error };
+    }
+  },
+
+  /**
    * Busca todos os contatos da organização.
-   * 
+   *
    * @returns Promise com array de contatos ou erro.
    */
   async getAll(): Promise<{ data: Contact[] | null; error: Error | null }> {
@@ -527,8 +561,42 @@ export const contactsService = {
  */
 export const companiesService = {
   /**
+   * Busca empresas por uma lista de IDs.
+   * Otimizado para buscar apenas as empresas necessárias.
+   *
+   * @param ids - Array de IDs de empresas a buscar.
+   * @returns Promise com array de empresas ou erro.
+   */
+  async getByIds(ids: string[]): Promise<{ data: CRMCompany[] | null; error: Error | null }> {
+    try {
+      if (!supabase) {
+        return { data: null, error: new Error('Supabase não configurado') };
+      }
+      // Se não há IDs, retorna array vazio
+      if (!ids || ids.length === 0) {
+        return { data: [], error: null };
+      }
+      // Remove duplicatas e valores vazios
+      const uniqueIds = [...new Set(ids.filter(Boolean))];
+      if (uniqueIds.length === 0) {
+        return { data: [], error: null };
+      }
+
+      const { data, error } = await supabase
+        .from('crm_companies')
+        .select('*')
+        .in('id', uniqueIds);
+
+      if (error) return { data: null, error };
+      return { data: (data || []).map(c => transformCRMCompany(c as DbCRMCompany)), error: null };
+    } catch (e) {
+      return { data: null, error: e as Error };
+    }
+  },
+
+  /**
    * Busca todas as empresas CRM da organização.
-   * 
+   *
    * @returns Promise com array de empresas ou erro.
    */
   async getAll(): Promise<{ data: CRMCompany[] | null; error: Error | null }> {

@@ -75,20 +75,29 @@ export const useDealsView = (filters?: DealsFilters) => {
       ? [...queryKeys.deals.list(filters as Record<string, unknown>), 'view']
       : [...queryKeys.deals.lists(), 'view'],
     queryFn: async () => {
-      // Fetch all data in parallel (including stages for stageLabel)
-      const [dealsResult, contactsResult, companiesResult, stagesResult] = await Promise.all([
+      // Step 1: Fetch deals and stages first (always needed)
+      const [dealsResult, stagesResult] = await Promise.all([
         dealsService.getAll(),
-        contactsService.getAll(),
-        companiesService.getAll(),
         boardStagesService.getAll(),
       ]);
 
       if (dealsResult.error) throw dealsResult.error;
 
       const deals = dealsResult.data || [];
+      const stages = stagesResult.data || [];
+
+      // Step 2: Extract unique IDs referenced by deals (avoid fetching unused data)
+      const contactIds = deals.map(d => d.contactId).filter(Boolean);
+      const companyIds = deals.map(d => d.clientCompanyId).filter(Boolean) as string[];
+
+      // Step 3: Fetch only referenced contacts and companies in parallel
+      const [contactsResult, companiesResult] = await Promise.all([
+        contactsService.getByIds(contactIds),
+        companiesService.getByIds(companyIds),
+      ]);
+
       const contacts = contactsResult.data || [];
       const companies = companiesResult.data || [];
-      const stages = stagesResult.data || [];
 
       // Create lookup maps
       const contactMap = new Map(contacts.map(c => [c.id, c]));
@@ -164,20 +173,29 @@ export const useDealsByBoard = (boardId: string) => {
     // CRÍTICO: Usar a mesma query key que useDealsView para compartilhar cache
     queryKey: [...queryKeys.deals.lists(), 'view'],
     queryFn: async () => {
-      // Fetch all data in parallel (including all stages)
-      const [dealsResult, contactsResult, companiesResult, stagesResult] = await Promise.all([
+      // Step 1: Fetch deals and stages first
+      const [dealsResult, stagesResult] = await Promise.all([
         dealsService.getAll(),
-        contactsService.getAll(),
-        companiesService.getAll(),
         boardStagesService.getAll(),
       ]);
 
       if (dealsResult.error) throw dealsResult.error;
 
       const deals = dealsResult.data || [];
+      const stages = stagesResult.data || [];
+
+      // Step 2: Extract unique IDs referenced by deals
+      const contactIds = deals.map(d => d.contactId).filter(Boolean);
+      const companyIds = deals.map(d => d.clientCompanyId).filter(Boolean) as string[];
+
+      // Step 3: Fetch only referenced contacts and companies
+      const [contactsResult, companiesResult] = await Promise.all([
+        contactsService.getByIds(contactIds),
+        companiesService.getByIds(companyIds),
+      ]);
+
       const contacts = contactsResult.data || [];
       const companies = companiesResult.data || [];
-      const stages = stagesResult.data || [];
 
       // Create lookup maps
       const contactMap = new Map(contacts.map(c => [c.id, c]));
