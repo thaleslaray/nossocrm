@@ -1,6 +1,7 @@
 import { supabase } from './client';
 import { LifecycleStage } from '@/types';
 import { sanitizeUUID } from './utils';
+import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from '@/lib/ai/defaults';
 
 // ============================================
 // SETTINGS SERVICE
@@ -140,8 +141,8 @@ export const settingsService = {
         .from('user_settings')
         .upsert({
           user_id: user.id,
-          ai_provider: 'google',
-          ai_model: 'gemini-2.5-flash',
+          ai_provider: AI_DEFAULT_PROVIDER,
+          ai_model: AI_DEFAULT_MODELS[AI_DEFAULT_PROVIDER],
           ai_thinking: true,
           ai_search: true,
           ai_anthropic_caching: false,

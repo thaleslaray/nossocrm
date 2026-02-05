@@ -12,6 +12,7 @@ import { usePathname } from 'next/navigation';
 import { LifecycleStage, Product, CustomFieldDefinition, Lead } from '@/types';
 import { settingsService, lifecycleStagesService, productsService } from '@/lib/supabase';
 import { useAuth } from '../AuthContext';
+import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from '@/lib/ai/defaults';
 
 const DEFAULT_LIFECYCLE_STAGES: LifecycleStage[] = [
   { id: 'LEAD', name: 'Lead', color: 'bg-blue-500', order: 0, isDefault: true },
@@ -133,11 +134,11 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, []);
 
   // AI Config state - separate keys per provider
-  const [aiProvider, setAiProviderState] = useState<AIConfig['provider']>('google');
+  const [aiProvider, setAiProviderState] = useState<AIConfig['provider']>(AI_DEFAULT_PROVIDER);
   const [aiGoogleKey, setAiGoogleKeyState] = useState<string>('');
   const [aiOpenaiKey, setAiOpenaiKeyState] = useState<string>('');
   const [aiAnthropicKey, setAiAnthropicKeyState] = useState<string>('');
-  const [aiModel, setAiModelState] = useState<string>('gemini-2.5-flash');
+  const [aiModel, setAiModelState] = useState<string>(AI_DEFAULT_MODELS[AI_DEFAULT_PROVIDER]);
   const [aiOrgEnabled, setAiOrgEnabledState] = useState<boolean>(true);
   const [aiHasGoogleKey, setAiHasGoogleKey] = useState<boolean>(false);
   const [aiHasOpenaiKey, setAiHasOpenaiKey] = useState<boolean>(false);

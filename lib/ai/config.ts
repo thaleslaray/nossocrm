@@ -11,6 +11,7 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { AI_DEFAULT_MODELS } from './defaults';
 
 /**
  * Provedores de IA suportados pelo sistema.
@@ -23,7 +24,7 @@ export type AIProvider = 'google' | 'openai' | 'anthropic';
  * Cria e retorna uma instância do modelo de IA configurada.
  * 
  * Suporta múltiplos provedores com modelos padrão:
- * - Google: gemini-1.5-flash
+ * - Google: gemini-3-flash-preview
  * - OpenAI: gpt-4o
  * - Anthropic: claude-3-5-sonnet-20240620
  * 
@@ -36,7 +37,7 @@ export type AIProvider = 'google' | 'openai' | 'anthropic';
  * @example
  * ```typescript
  * // Usando Google Gemini
- * const model = getModel('google', 'sua-api-key', 'gemini-1.5-pro');
+ * const model = getModel('google', 'sua-api-key', 'gemini-3-pro-preview');
  * 
  * // Usando OpenAI com modelo padrão
  * const model = getModel('openai', 'sua-api-key', '');
@@ -50,15 +51,15 @@ export const getModel = (provider: AIProvider, apiKey: string, modelId: string) 
     switch (provider) {
         case 'google':
             const google = createGoogleGenerativeAI({ apiKey });
-            return google(modelId || 'gemini-1.5-flash');
+            return google(modelId || AI_DEFAULT_MODELS.google);
 
         case 'openai':
             const openai = createOpenAI({ apiKey });
-            return openai(modelId || 'gpt-4o');
+            return openai(modelId || AI_DEFAULT_MODELS.openai);
 
         case 'anthropic':
             const anthropic = createAnthropic({ apiKey });
-            return anthropic(modelId || 'claude-3-5-sonnet-20240620');
+            return anthropic(modelId || AI_DEFAULT_MODELS.anthropic);
 
         default:
             throw new Error(`Provider ${provider} not supported`);

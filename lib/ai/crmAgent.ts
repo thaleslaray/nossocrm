@@ -5,6 +5,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { CRMCallOptionsSchema, type CRMCallOptions } from '@/types/ai';
 import { createCRMTools } from './tools';
 import { formatPriorityPtBr } from '@/lib/utils/priority';
+import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from './defaults';
 
 type AIProvider = 'google' | 'openai' | 'anthropic';
 
@@ -444,14 +445,14 @@ APRESENTAÇÃO (MUITO IMPORTANTE):
  * @param context - Type-safe context from the request
  * @param userId - Current user ID
  * @param apiKey - Google AI API key from organization_settings
- * @param modelId - Model to use (default: gemini-2.0-flash-exp)
+ * @param modelId - Model to use (default from AI_DEFAULT_MODELS)
  */
 export async function createCRMAgent(
     context: CRMCallOptions,
     userId: string,
     apiKey: string,
-    modelId: string = 'gemini-2.0-flash-exp',
-    provider: AIProvider = 'google'
+    modelId: string = AI_DEFAULT_MODELS.google,
+    provider: AIProvider = AI_DEFAULT_PROVIDER
 ) {
     console.log('[CRMAgent] 🤖 Creating agent with context:', {
         boardId: context.boardId,
@@ -482,7 +483,7 @@ export async function createCRMAgent(
                             // Muitos modelos "preview"/novos oscilam mais; aqui fazemos fallback automático
                             // para um modelo estável sem exigir intervenção do usuário.
                             fromModels: [modelId],
-                            toModel: 'gpt-4o',
+                            toModel: AI_DEFAULT_MODELS.openai,
                             // Default já cobre 429/5xx; manter explícito só para clareza.
                             statuses: [429, 500, 502, 503, 504],
                         },

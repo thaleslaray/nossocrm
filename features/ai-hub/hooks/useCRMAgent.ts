@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
 import { streamText, tool, ModelMessage, stepCountIs } from 'ai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 import { useCRM } from '@/context/CRMContext';
+import { useSettings } from '@/context/settings/SettingsContext';
+import { getModel } from '@/lib/ai/config';
 import { Activity, Deal } from '@/types';
 
 export interface AgentMessage {
@@ -39,19 +40,20 @@ export function useCRMAgent(options: UseCRMAgentOptions = {}) {
     aiApiKey,
   } = useCRM();
 
+  const { aiProvider, aiModel } = useSettings();
+
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Cria o modelo Google com Gemini 2.5 Flash
-  const getModel = useCallback(() => {
+  // Cria o modelo usando provider e model das configurações do usuário
+  const getConfiguredModel = useCallback(() => {
     if (!aiApiKey) {
       throw new Error('API Key não configurada. Vá em Configurações > IA para adicionar.');
     }
-    const google = createGoogleGenerativeAI({ apiKey: aiApiKey });
-    return google('gemini-2.5-flash');
-  }, [aiApiKey]);
+    return getModel(aiProvider, aiApiKey, aiModel);
+  }, [aiApiKey, aiProvider, aiModel]);
 
   // ============================================
   // EXECUTORES DAS TOOLS (conectam com o CRM)
@@ -436,7 +438,7 @@ export function useCRMAgent(options: UseCRMAgentOptions = {}) {
     abortControllerRef.current = new AbortController();
 
     try {
-      const model = getModel();
+      const model = getConfiguredModel();
 
       // Converte mensagens para o formato do SDK
       const coreMessages: ModelMessage[] = [

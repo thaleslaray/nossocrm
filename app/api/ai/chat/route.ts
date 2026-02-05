@@ -4,6 +4,7 @@
 import { createAgentUIStreamResponse, UIMessage } from 'ai';
 import { createCRMAgent } from '@/lib/ai/crmAgent';
 import { createClient } from '@/lib/supabase/server';
+import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 import type { CRMCallOptions } from '@/types/ai';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { isAIFeatureEnabled } from '@/lib/ai/features/server';
@@ -171,7 +172,7 @@ export async function POST(req: Request) {
     }
 
     const resolvedModelId =
-        modelId || (provider === 'google' ? 'gemini-2.5-flash' : provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-5');
+        modelId || AI_DEFAULT_MODELS[provider as keyof typeof AI_DEFAULT_MODELS] || AI_DEFAULT_MODELS.google;
 
     // 5. Build type-safe context for agent
     const context: CRMCallOptions = {

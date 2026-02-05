@@ -1,4 +1,5 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { AI_DEFAULT_MODELS } from './defaults';
 
 /**
  * Creates a Google Generative AI provider with the given API key.
@@ -11,6 +12,6 @@ export function createProvider(apiKey: string) {
 
 /**
  * Default model to use for the CRM assistant.
- * gemini-2.0-flash-exp has better tool/function calling support.
+ * @deprecated Prefer importing from `@/lib/ai/defaults` directly.
  */
-export const DEFAULT_MODEL = 'gemini-2.0-flash-exp';
+export const DEFAULT_MODEL = AI_DEFAULT_MODELS.google;

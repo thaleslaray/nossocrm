@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 
 function json<T>(body: T, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -66,7 +67,7 @@ export async function GET() {
     return json({
       aiEnabled,
       aiProvider: (orgSettings?.ai_provider || 'google') as Provider,
-      aiModel: orgSettings?.ai_model || 'gemini-2.5-flash',
+      aiModel: orgSettings?.ai_model || AI_DEFAULT_MODELS.google,
       aiGoogleKey: '',
       aiOpenaiKey: '',
       aiAnthropicKey: '',
@@ -79,7 +80,7 @@ export async function GET() {
   return json({
     aiEnabled,
     aiProvider: (orgSettings?.ai_provider || 'google') as Provider,
-    aiModel: orgSettings?.ai_model || 'gemini-2.5-flash',
+    aiModel: orgSettings?.ai_model || AI_DEFAULT_MODELS.google,
     aiGoogleKey: orgSettings?.ai_google_key || '',
     aiOpenaiKey: orgSettings?.ai_openai_key || '',
     aiAnthropicKey: orgSettings?.ai_anthropic_key || '',
