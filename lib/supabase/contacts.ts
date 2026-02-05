@@ -536,10 +536,12 @@ export const companiesService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
+      // Safety limit: Prevent unbounded queries
       const { data, error } = await supabase
         .from('crm_companies')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (error) return { data: null, error };
       return { data: (data || []).map(c => transformCRMCompany(c as DbCRMCompany)), error: null };
