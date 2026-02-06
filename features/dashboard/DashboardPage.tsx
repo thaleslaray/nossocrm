@@ -6,6 +6,7 @@ import { TrendingUp, TrendingDown, Users, DollarSign, Target, Clock, MoreVertica
 import { StatCard } from './components/StatCard';
 import { ActivityFeedItem } from './components/ActivityFeedItem';
 import { PipelineAlertsModal } from './components/PipelineAlertsModal';
+import { AgencyDashboardSection } from './components/AgencyDashboardSection';
 import { useDashboardMetrics, PeriodFilter, COMPARISON_LABELS } from './hooks/useDashboardMetrics';
 import { PeriodFilterSelect } from '@/components/filters/PeriodFilterSelect';
 import { LazyFunnelChart, ChartWrapper } from '@/components/charts';
@@ -137,6 +138,14 @@ const DashboardPage: React.FC = () => {
           {/* Button removed */}
         </div>
       </div>
+
+      {/* Agency Dashboard Section */}
+      <div className="shrink-0">
+        <AgencyDashboardSection />
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-slate-200 dark:border-white/10 shrink-0"></div>
 
       {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">

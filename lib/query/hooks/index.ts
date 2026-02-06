@@ -79,3 +79,16 @@ export {
   useMoveDeal,
   useMoveDealSimple,
 } from './useMoveDeal';
+
+// Agency Settings Module
+export {
+  useAgencyProfile,
+  useUpsertAgencyProfile,
+  useAgencyServices,
+  useActiveAgencyServices,
+  useCreateAgencyService,
+  useUpdateAgencyService,
+  useDeleteAgencyService,
+  useToggleAgencyService,
+  useInvalidateAgency,
+} from './useAgencyQuery';

@@ -43,6 +43,18 @@ export const queryKeys = {
         funnel: ['dashboard', 'funnel'] as const,
         timeline: ['dashboard', 'timeline'] as const,
     },
+
+    // Agency Settings Module
+    agency: {
+        all: ['agency'] as const,
+        profile: () => ['agency', 'profile'] as const,
+        services: {
+            all: ['agency', 'services'] as const,
+            lists: () => ['agency', 'services', 'list'] as const,
+            active: () => ['agency', 'services', 'active'] as const,
+            detail: (id: string) => ['agency', 'services', 'detail', id] as const,
+        },
+    },
 };
 
 /**

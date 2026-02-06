@@ -239,6 +239,10 @@ export interface Deal {
   lastStageChangeDate?: string; // For stagnation tracking
   lossReason?: string; // For win/loss analysis
 
+  // Agency Module Fields
+  source?: string; // Origem do lead (ex: 'WEBSITE', 'INSTAGRAM', 'GOOGLE_ADS')
+  serviceId?: string; // ID do serviço da agência vinculado ao deal
+
   // @deprecated - Use clientCompanyId instead
   companyId?: string;
 }
@@ -250,6 +254,9 @@ export interface DealView extends Deal {
   contactEmail: string;
   /** Nome/label do estágio atual (resolvido a partir do status UUID) */
   stageLabel: string;
+
+  // Agency Module Fields (denormalized)
+  serviceName?: string; // Nome do serviço vinculado (resolve serviceId)
 
   // @deprecated - Use clientCompanyName instead
   companyName?: string;
@@ -488,3 +495,125 @@ export interface ContactsServerFilters {
 
 /** Colunas ordenáveis na tabela de contatos. */
 export type ContactSortableColumn = 'name' | 'created_at' | 'updated_at' | 'stage';
+
+// =============================================================================
+// AGENCY SETTINGS MODULE
+// =============================================================================
+
+/**
+ * AgencyProfile - Perfil completo da agência
+ * Perfil único por organização com informações de branding, contato e metas
+ */
+export interface AgencyProfile {
+  id: string;
+  organizationId?: OrganizationId;
+
+  // Basic Information
+  name: string;
+  description?: string;
+
+  // Contact Information
+  phone?: string;
+  email?: string;
+  instagram?: string;
+  website?: string;
+
+  // Branding
+  logoUrl?: string;
+  primaryColor?: string;
+
+  // Goals & Metrics
+  monthlyGoal?: number; // Meta de receita mensal em R$
+  clientGoal?: number;  // Meta de clientes no mês
+
+  // Timestamps
+  createdAt: string;
+  updatedAt?: string;
+}
+
+/**
+ * AgencyService - Serviço no catálogo da agência
+ * Cada serviço pode ser vinculado a deals e tem preço/comissão definidos
+ */
+export interface AgencyService {
+  id: string;
+  organizationId?: OrganizationId;
+
+  // Service Information
+  name: string;
+  description?: string;
+
+  // Pricing
+  price: number;
+  commission?: number; // Percentage (0-100)
+
+  // Status
+  active: boolean;
+
+  // Timestamps
+  createdAt: string;
+  updatedAt?: string;
+}
+
+/**
+ * Lead Source - Origens de leads personalizadas para agências
+ */
+export type LeadSource =
+  | 'WEBSITE'
+  | 'INSTAGRAM'
+  | 'FACEBOOK'
+  | 'GOOGLE_ADS'
+  | 'LINKEDIN'
+  | 'INDICACAO'
+  | 'WHATSAPP'
+  | 'LIGACAO_ATIVA'
+  | 'EVENTO'
+  | 'OUTRO';
+
+/**
+ * AGENCY_DEFAULT_STAGES - Pipeline padrão para agências de tráfego pago
+ * Otimizado para vendas recorrentes (gestão de mídia)
+ */
+export const AGENCY_DEFAULT_STAGES: BoardStage[] = [
+  {
+    id: 'stage-novo-lead',
+    label: 'Novo Lead',
+    color: '#3B82F6', // blue-500
+  },
+  {
+    id: 'stage-qualificacao',
+    label: 'Qualificação',
+    color: '#8B5CF6', // violet-500
+  },
+  {
+    id: 'stage-proposta',
+    label: 'Proposta Enviada',
+    color: '#F59E0B', // amber-500
+  },
+  {
+    id: 'stage-negociacao',
+    label: 'Negociação',
+    color: '#EC4899', // pink-500
+  },
+  {
+    id: 'stage-fechamento',
+    label: 'Fechamento',
+    color: '#10B981', // green-500
+  },
+];
+
+/**
+ * Quick Actions disponíveis por stage no Kanban
+ */
+export type QuickActionType =
+  | 'send_proposal'
+  | 'start_negotiation'
+  | 'mark_won'
+  | 'mark_lost';
+
+export interface QuickAction {
+  type: QuickActionType;
+  label: string;
+  icon: string;
+  nextStageId?: string; // Stage para o qual o deal deve mover após ação
+}
