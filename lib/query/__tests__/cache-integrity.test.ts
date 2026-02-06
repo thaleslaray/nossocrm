@@ -176,7 +176,7 @@ describe('Cache Integrity - Deals', () => {
 
   describe('Documentação', () => {
     it('AGENTS.md deve documentar a regra de cache', () => {
-      const agentsPath = path.join(__dirname, '../../../../AGENTS.md');
+      const agentsPath = path.join(process.cwd(), 'AGENTS.md');
       
       if (!fs.existsSync(agentsPath)) {
         console.warn('⚠️ AGENTS.md não encontrado');

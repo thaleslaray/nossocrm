@@ -1,0 +1,10 @@
+[1mdiff --git a/package.json b/package.json[m
+[1mindex d246a00..37fddbd 100644[m
+[1m--- a/package.json[m
+[1m+++ b/package.json[m
+[36m@@ -83,5 +83,4 @@[m
+     "vitest": "^4.0.0",[m
+     "vitest-axe": "^0.1.0"[m
+   },[m
+[31m-  "type": "module"[m
+ }[m
