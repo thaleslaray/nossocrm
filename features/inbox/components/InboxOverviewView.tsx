@@ -3,6 +3,8 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, TrendingUp, UserX, ArrowRight, Sparkles, Target } from 'lucide-react';
 import type { Activity } from '@/types';
 import type { AISuggestion } from '../hooks/useInboxController';
+import { usePendingAdvanceCountQuery } from '@/lib/query/hooks';
+import { PendingAdvancesSection, PendingAdvancesStatCard } from './PendingAdvancesSection';
 
 interface InboxOverviewViewProps {
   overdueActivities: Activity[];
@@ -162,8 +164,9 @@ export const InboxOverviewView: React.FC<InboxOverviewViewProps> = ({
   onOpenCriticalSuggestions,
   onOpenPending,
 }) => {
+  const { data: pendingAdvanceCount = 0 } = usePendingAdvanceCountQuery();
   const todayTotal = todayMeetings.length + todayTasks.length;
-  const totalPending = overdueActivities.length + todayTotal + aiSuggestions.length;
+  const totalPending = overdueActivities.length + todayTotal + aiSuggestions.length + pendingAdvanceCount;
 
   const highPrioritySuggestions = useMemo(
     () => aiSuggestions.filter(s => s.priority === 'high'),
@@ -213,7 +216,7 @@ export const InboxOverviewView: React.FC<InboxOverviewViewProps> = ({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard
           label="Atrasados"
           value={overdueActivities.length}
@@ -235,6 +238,7 @@ export const InboxOverviewView: React.FC<InboxOverviewViewProps> = ({
           hint={highPrioritySuggestions.length > 0 ? 'Risco/Oportunidade agora' : 'Sem urgências'}
           onClick={onOpenCriticalSuggestions}
         />
+        <PendingAdvancesStatCard count={pendingAdvanceCount} />
         <StatCard
           label="Pendências"
           value={totalPending}
@@ -245,7 +249,7 @@ export const InboxOverviewView: React.FC<InboxOverviewViewProps> = ({
       </div>
 
       {/* Groups */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-4">
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-2">
@@ -301,6 +305,9 @@ export const InboxOverviewView: React.FC<InboxOverviewViewProps> = ({
             </div>
           )}
         </div>
+
+        {/* Pending Advances (HITL) */}
+        <PendingAdvancesSection limit={5} />
       </div>
     </div>
   );

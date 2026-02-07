@@ -6,7 +6,8 @@
 
 **Feature**: 001-unified-messaging-inbox
 **Generated**: 2026-02-06
-**Status**: ✅ Complete (100%)
+**Updated**: 2026-02-06 (Phase 2 added)
+**Status**: 🔄 In Progress (MVP Complete, Phase 2 Pending)
 
 ---
 
@@ -23,6 +24,8 @@
 
 ## Progress Summary
 
+### MVP (Phases 1-8) ✅ COMPLETE
+
 | Phase | Description | Status | Tasks |
 |-------|-------------|--------|-------|
 | Phase 1 | Setup & Foundational | ✅ Complete | 0 remaining |
@@ -34,7 +37,16 @@
 | Phase 7 | US5 - Vinculação Automática | ✅ Complete | 0 remaining |
 | Phase 8 | Polish & Integration | ✅ Complete | 0 remaining |
 
-**Total Remaining: 0 tasks** ✅
+### Post-MVP Phase 2: Templates + Instagram
+
+| Phase | Description | Status | Tasks |
+|-------|-------------|--------|-------|
+| Phase 9 | WhatsApp Templates (Backend) | ⏳ Pending | 5 tasks |
+| Phase 10 | WhatsApp Templates (UI) | ⏳ Pending | 4 tasks |
+| Phase 11 | Instagram Integration | ⏳ Pending | 4 tasks |
+| Phase 12 | Phase 2 Polish | ⏳ Pending | 3 tasks |
+
+**MVP Tasks**: 37 ✅ | **Phase 2 Tasks**: 16 ⏳ | **Total Remaining: 16 tasks**
 
 ---
 
@@ -266,6 +278,129 @@ T033 & T034 & T035 & T036  # Then T037
 
 ---
 
+# POST-MVP: PHASE 2 (Templates + Instagram)
+
+> Providers já implementados. Faltam: API Routes, Query Hooks, UI Components.
+
+---
+
+## Phase 9: WhatsApp Templates (Backend) ⏳ PENDING
+
+**Goal**: API completa para sincronizar e enviar templates WhatsApp
+**Requirements**: FR-6.3 (Templates pré-aprovados)
+
+### API Routes
+
+| ID | Task | File | Status | Parallel |
+|----|------|------|--------|----------|
+| T038 | Create templates sync API route | `app/api/messaging/templates/sync/route.ts` | ⏳ | |
+| T039 | Create send-template API route | `app/api/messaging/messages/send-template/route.ts` | ⏳ | [P] |
+| T040 | Create list templates API route | `app/api/messaging/templates/route.ts` | ⏳ | [P] |
+
+### Query Hooks
+
+| ID | Task | File | Status | Parallel |
+|----|------|------|--------|----------|
+| T041 | Create useTemplatesQuery hook | `lib/query/hooks/useTemplatesQuery.ts` | ⏳ | [P] |
+| T042 | Create useTemplateSyncMutation hook | `lib/query/hooks/useTemplateSyncMutation.ts` | ⏳ | [P] |
+
+### Test Criteria
+- [ ] POST /api/messaging/templates/sync retorna templates do Meta
+- [ ] GET /api/messaging/templates?channelId=X lista templates
+- [ ] POST /api/messaging/messages/send-template envia template e cria message
+- [ ] useTemplatesQuery retorna cache atualizado após sync
+
+---
+
+## Phase 10: WhatsApp Templates (UI) ⏳ PENDING
+
+**Goal**: Admin pode gerenciar templates, vendedor pode enviar templates
+**Requirements**: FR-3.1, FR-6.3
+
+| ID | Task | File | Status | Parallel |
+|----|------|------|--------|----------|
+| T043 | Create TemplateManager component | `features/messaging/components/TemplateManager.tsx` | ⏳ | |
+| T044 | Create TemplateSyncModal component | `features/messaging/components/Modals/TemplateSyncModal.tsx` | ⏳ | [P] |
+| T045 | Add Templates tab to ChannelsSection | `features/settings/components/ChannelsSection.tsx` | ⏳ | |
+| T046 | Integrate TemplateSelector in MessageInput | `features/messaging/components/MessageInput.tsx` | ⏳ | |
+
+### Test Criteria
+- [ ] Admin vê lista de templates com status badges
+- [ ] Botão "Sincronizar Templates" dispara sync e mostra progress
+- [ ] Vendedor vê botão de template quando janela 24h expirada
+- [ ] TemplateSelector filtra por categoria e permite preencher variáveis
+
+---
+
+## Phase 11: Instagram Integration ⏳ PENDING
+
+**Goal**: Testar e polir integração Instagram
+**Requirements**: Spec.md Fase 2 - Instagram como canal
+
+| ID | Task | File | Status | Parallel |
+|----|------|------|--------|----------|
+| T047 | Add Instagram to ChannelSetupWizard | `features/settings/components/ChannelSetupWizard.tsx` | ⏳ | |
+| T048 | Create Instagram-specific UI adaptations | `features/messaging/components/ChannelIndicator.tsx` | ⏳ | [P] |
+| T049 | Implement rate limiter for Instagram (200 req/h) | `lib/messaging/utils/rate-limiter.ts` | ⏳ | |
+| T050 | Test Instagram webhook end-to-end | Manual testing | ⏳ | |
+
+### Test Criteria
+- [ ] Admin pode adicionar canal Instagram via wizard
+- [ ] Ícone Instagram (rosa) aparece nas conversas
+- [ ] Rate limiter bloqueia envio quando > 200 msgs/hora
+- [ ] Receber DM do Instagram aparece no inbox
+
+---
+
+## Phase 12: Phase 2 Polish ⏳ PENDING
+
+**Goal**: Webhook de template events, documentação, testes
+
+| ID | Task | File | Status | Parallel |
+|----|------|------|--------|----------|
+| T051 | Add template event handler to webhook | `supabase/functions/messaging-webhook-meta/index.ts` | ⏳ | |
+| T052 | Enable realtime for messaging_templates | Migration | ⏳ | [P] |
+| T053 | Create setup documentation (Meta credentials) | `docs/messaging-setup.md` | ⏳ | [P] |
+
+### Test Criteria
+- [ ] Quando Meta aprova template, status atualiza automaticamente
+- [ ] Mudanças em templates aparecem em realtime na UI
+- [ ] Documentação cobre setup Meta Cloud API e Instagram
+
+---
+
+## Phase 2 Dependency Graph
+
+```
+Phase 9 (Templates Backend)
+    │
+    ├──> Phase 10 (Templates UI)
+    │
+    └──> Phase 12 (Polish)
+
+Phase 11 (Instagram) ──> Phase 12 (Polish)
+```
+
+**Notes**:
+- Phases 9 e 11 podem rodar em paralelo
+- Phase 10 depende de Phase 9 (precisa das APIs)
+- Phase 12 depende de 9, 10, 11
+
+---
+
+## Phase 2 Checkpoint Markers
+
+| Phase | Checkpoint Verification |
+|-------|------------------------|
+| Phase 9 ✓ | API routes funcionam, templates sincronizam do Meta |
+| Phase 10 ✓ | Admin vê templates, vendedor envia templates |
+| Phase 11 ✓ | Canal Instagram funciona end-to-end |
+| Phase 12 ✓ | Webhooks de template funcionam, docs completa |
+
+---
+
+# ORIGINAL MVP DOCUMENTATION
+
 ## Implementation Strategy
 
 ### MVP Scope (Recommended)
@@ -306,6 +441,7 @@ After each phase, verify:
 ## Notes
 
 1. **Tests not included** - Not explicitly requested in spec. Add test tasks if TDD approach desired.
-2. **Instagram provider** - Deferred to Phase 5 (spec.md), not in current task list.
-3. **Existing code** - ~65% already implemented, tasks only for remaining work.
-4. **Tech stack** - All tasks use approved technologies from tech-stack.md.
+2. **Instagram provider** - Now included in Phase 11 (Post-MVP Phase 2).
+3. **Templates** - Provider methods exist, Phase 9-10 add API routes and UI.
+4. **Existing code** - MVP 100% complete, Phase 2 adds 16 new tasks.
+5. **Tech stack** - All tasks use approved technologies from tech-stack.md.

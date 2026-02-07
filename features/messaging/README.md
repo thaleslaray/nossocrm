@@ -209,3 +209,126 @@ Quando uma nova conversa é criada (primeira mensagem de um contato):
 - Suporte a HTML e texto plain
 - Tracking de abertura, cliques, bounces
 - Webhooks via Svix
+
+## AI Agent de Vendas
+
+O AI Agent responde automaticamente às mensagens de leads, qualificando-os e avançando no funil.
+
+### Modos de Configuração
+
+| Modo | Descrição | Quando Usar |
+|------|-----------|-------------|
+| **Zero Config** | BANT automático, sem configuração | Começar rápido |
+| **Templates** | BANT/SPIN/MEDDIC/GPCT pré-definidos | Seguir metodologia específica |
+| **Auto-Learn** | IA aprende com conversas de sucesso | Personalizar com seu estilo |
+| **Advanced** | Prompts manuais por estágio | Controle total |
+
+### Arquitetura
+
+```
+lib/ai/agent/
+├── agent.service.ts          # Core: processIncomingMessage()
+├── prompt-templates.ts       # Templates de prompt por estágio
+├── stage-evaluator.ts        # Avaliação de avanço de estágio
+├── hitl-stage-advance.ts     # Human-in-the-Loop para aprovação
+├── few-shot-learner.ts       # Aprendizado com conversas
+├── generative-schema.ts      # Schemas Zod gerados em runtime
+├── adaptive-context.ts       # Contexto adaptativo Lightfield
+└── secure-tools.ts           # Ferramentas seguras (org_id injetado)
+```
+
+### Human-in-the-Loop (HITL)
+
+Quando a confiança do avanço de estágio está entre 70-85%, o sistema pede confirmação humana:
+
+- **≥ 85%**: Avança automaticamente
+- **70-85%**: Mostra sugestão no inbox para aprovação
+- **< 70%**: Não sugere avanço
+
+Componentes UI:
+- `features/messaging/components/StageAdvanceSuggestion.tsx` - Sugestão editável
+- `features/inbox/components/PendingAdvancesSection.tsx` - Lista no inbox
+
+### Few-Shot Learning
+
+O modo "Auto-Learn" extrai padrões de 2-10 conversas de sucesso:
+
+1. Usuário seleciona conversas com deals ganhos
+2. IA analisa e extrai:
+   - Estilo de saudação
+   - Perguntas de qualificação
+   - Tratamento de objeções
+   - Técnicas de fechamento
+   - Critérios de qualificação personalizados
+3. Schema Zod gerado em runtime com critérios aprendidos
+4. IA usa padrões para responder novos leads
+
+### API Routes
+
+```typescript
+// Processar mensagem com AI
+POST /api/messaging/ai/process
+Body: { conversationId, organizationId }
+
+// Templates de IA
+GET /api/ai/templates
+POST /api/ai/templates
+GET /api/ai/templates/[id]
+PATCH /api/ai/templates/[id]
+
+// Few-Shot Learning
+GET /api/ai/learn          // Buscar padrões aprendidos
+POST /api/ai/learn         // Aprender de conversas
+DELETE /api/ai/learn       // Limpar padrões
+
+// Human-in-the-Loop
+GET /api/ai/hitl           // Listar pending advances
+GET /api/ai/hitl/count     // Contar pending
+POST /api/ai/hitl/[id]     // Resolver pending advance
+```
+
+### Query Hooks (AI)
+
+```typescript
+// Configuração
+useAIConfigQuery()
+useUpdateAIConfigMutation()
+useAITemplatesQuery()
+
+// HITL
+usePendingAdvancesQuery()
+usePendingAdvanceCountQuery()
+useResolvePendingAdvanceMutation()
+
+// Few-Shot Learning
+useLearnedPatternsQuery()
+useLearnMutation()
+useClearPatternsMutation()
+```
+
+### Fluxo de Processamento
+
+```
+Webhook recebe mensagem
+    ↓
+Cria/atualiza conversa e mensagem
+    ↓
+Chama /api/messaging/ai/process (se AI habilitada)
+    ↓
+agent.service.processIncomingMessage()
+    ├── Busca contexto (deal, contato, histórico)
+    ├── Gera resposta com AI
+    ├── Avalia critérios de avanço
+    │   ├── Confidence ≥ 85%: Avança automaticamente
+    │   ├── 70-85%: Cria pending advance (HITL)
+    │   └── < 70%: Mantém estágio atual
+    ├── Envia resposta via channel provider
+    └── Registra atividade no deal
+```
+
+### Segurança
+
+- **Contextual Tool Collections**: AI nunca executa queries diretamente
+- **org_id Injection**: Todas as queries filtradas por organização
+- **API Keys no Banco**: Credenciais em `organization_settings`, não em env vars
+- **HITL para ações críticas**: Avanços de baixa confiança requerem aprovação

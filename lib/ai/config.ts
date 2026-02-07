@@ -11,7 +11,7 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { AI_DEFAULT_MODELS } from './defaults';
+import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from './defaults';
 
 /**
  * Provedores de IA suportados pelo sistema.
@@ -64,4 +64,51 @@ export const getModel = (provider: AIProvider, apiKey: string, modelId: string) 
         default:
             throw new Error(`Provider ${provider} not supported`);
     }
+};
+
+/**
+ * Configuração de modelo para uso com env vars.
+ */
+export interface ModelConfig {
+    provider?: AIProvider;
+    model?: string;
+}
+
+/**
+ * Retorna um modelo de IA usando variáveis de ambiente.
+ *
+ * Usa as seguintes env vars:
+ * - GOOGLE_GENERATIVE_AI_API_KEY
+ * - OPENAI_API_KEY
+ * - ANTHROPIC_API_KEY
+ *
+ * @param config - Configuração opcional (provider e model)
+ * @returns Instância configurada do modelo de IA
+ *
+ * @example
+ * ```typescript
+ * // Usa provider padrão (google) com model padrão
+ * const model = getModelFromEnv();
+ *
+ * // Especifica provider e model
+ * const model = getModelFromEnv({ provider: 'openai', model: 'gpt-4o-mini' });
+ * ```
+ */
+export const getModelFromEnv = (config?: ModelConfig) => {
+    const provider = config?.provider || AI_DEFAULT_PROVIDER;
+    const model = config?.model || '';
+
+    const envKeyMap: Record<AIProvider, string> = {
+        google: 'GOOGLE_GENERATIVE_AI_API_KEY',
+        openai: 'OPENAI_API_KEY',
+        anthropic: 'ANTHROPIC_API_KEY',
+    };
+
+    const apiKey = process.env[envKeyMap[provider]];
+
+    if (!apiKey) {
+        throw new Error(`API Key for ${provider} not found in environment (${envKeyMap[provider]})`);
+    }
+
+    return getModel(provider, apiKey, model);
 };

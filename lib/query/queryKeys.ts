@@ -123,6 +123,41 @@ export const queryKeys = {
      * Boards with stages for destination selector.
      */
     boardsWithStages: createQueryKeys('boardsWithStages'),
+
+    // =========================================================================
+    // AI MODULE
+    // =========================================================================
+
+    /**
+     * AI configuration query keys.
+     * Configures autonomous AI agent per stage.
+     */
+    ai: {
+        /** All AI configs */
+        all: ['ai'] as const,
+        /** Organization AI config (mode, template, learned patterns) */
+        orgConfig: () => ['ai', 'orgConfig'] as const,
+        /** Stage configs for a board */
+        stageConfigs: (boardId: string | undefined) => ['ai', 'stageConfigs', boardId] as const,
+        /** Config for a specific stage */
+        stageConfig: (stageId: string | undefined) => ['ai', 'stageConfig', stageId] as const,
+        /** AI conversation logs */
+        logs: (conversationId: string) => ['ai', 'logs', conversationId] as const,
+        /** Pending stage advances (HITL) */
+        pendingAdvances: (dealId?: string) => ['ai', 'pendingAdvances', dealId] as const,
+        /** Pending advances count */
+        pendingAdvanceCount: () => ['ai', 'pendingAdvances', 'count'] as const,
+    },
+
+    /**
+     * AI qualification templates query keys.
+     */
+    aiTemplates: createExtendedQueryKeys('aiTemplates', base => ({
+        /** System templates only */
+        system: () => [...base.all, 'system'] as const,
+        /** Custom templates only */
+        custom: () => [...base.all, 'custom'] as const,
+    })),
 };
 
 /**

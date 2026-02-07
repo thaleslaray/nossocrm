@@ -1,8 +1,9 @@
 import React, { useMemo, useState, useId } from 'react';
-import { Plus, GripVertical, Trash2, ChevronDown, Settings, Copy } from 'lucide-react';
+import { Plus, GripVertical, Trash2, ChevronDown, Settings, Copy, Bot } from 'lucide-react';
 import { Board, BoardStage, ContactStage } from '@/types';
 import { BOARD_TEMPLATES, BoardTemplateType } from '@/lib/templates/board-templates';
 import { LifecycleSettingsModal } from '@/features/settings/components/LifecycleSettingsModal';
+import { BoardAIConfigModal } from './BoardAIConfigModal';
 import { useCRM } from '@/context/CRMContext';
 import { useToast } from '@/context/ToastContext';
 import { Modal } from '@/components/ui/Modal';
@@ -134,6 +135,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
   const [selectedTemplate, setSelectedTemplate] = useState<BoardTemplateType | ''>('');
   const [stages, setStages] = useState<BoardStage[]>([]);
   const [isLifecycleModalOpen, setIsLifecycleModalOpen] = useState(false);
+  const [isAIConfigModalOpen, setIsAIConfigModalOpen] = useState(false);
   const [draggingStageId, setDraggingStageId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
 
@@ -622,6 +624,15 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                       <Plus size={14} />
                       Adicionar etapa
                     </button>
+                    {editingBoard && (
+                      <button
+                        onClick={() => setIsAIConfigModalOpen(true)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                      >
+                        <Bot size={14} />
+                        Configurar AI
+                      </button>
+                    )}
                     <button
                       onClick={() => setIsLifecycleModalOpen(true)}
                       className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors"
@@ -776,6 +787,14 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
         isOpen={isLifecycleModalOpen}
         onClose={() => setIsLifecycleModalOpen(false)}
       />
+
+      {editingBoard && (
+        <BoardAIConfigModal
+          isOpen={isAIConfigModalOpen}
+          onClose={() => setIsAIConfigModalOpen(false)}
+          board={editingBoard}
+        />
+      )}
     </>
   );
 };

@@ -199,6 +199,59 @@ function getMessagePreview(content: MessageContent): string {
   }
 }
 
+/**
+ * Trigger AI Agent processing for inbound message.
+ * Calls the Next.js API endpoint to process and potentially respond.
+ * Fire-and-forget: errors are logged but don't fail the webhook.
+ */
+async function triggerAIProcessing(params: {
+  conversationId: string;
+  organizationId: string;
+  messageText: string;
+  messageId?: string;
+}): Promise<void> {
+  const appUrl = Deno.env.get("CRM_APP_URL");
+  if (!appUrl) {
+    console.log("[Webhook] CRM_APP_URL not set, skipping AI processing");
+    return;
+  }
+
+  const internalSecret = Deno.env.get("INTERNAL_API_SECRET");
+  if (!internalSecret) {
+    console.log("[Webhook] INTERNAL_API_SECRET not set, skipping AI processing");
+    return;
+  }
+
+  const endpoint = `${appUrl}/api/messaging/ai/process`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Secret": internalSecret,
+      },
+      body: JSON.stringify({
+        conversationId: params.conversationId,
+        organizationId: params.organizationId,
+        messageText: params.messageText,
+        messageId: params.messageId,
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[Webhook] AI processing failed: ${response.status} ${text}`);
+      return;
+    }
+
+    const result = await response.json();
+    console.log("[Webhook] AI processing result:", result);
+  } catch (error) {
+    console.error("[Webhook] AI processing fetch error:", error);
+  }
+}
+
 // =============================================================================
 // MAIN HANDLER
 // =============================================================================
@@ -580,6 +633,20 @@ async function handleInboundMessage(
       status: "open",
     })
     .eq("id", conversationId);
+
+  // Trigger AI Agent processing (async, fire-and-forget)
+  // Only process text messages for AI response
+  if (content.type === "text" && content.text) {
+    triggerAIProcessing({
+      conversationId,
+      organizationId: channel.organization_id,
+      messageText: content.text,
+      messageId: externalMessageId,
+    }).catch((err) => {
+      // Log but don't fail the webhook
+      console.error("[Webhook] AI processing trigger error:", err);
+    });
+  }
 }
 
 /**

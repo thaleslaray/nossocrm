@@ -153,3 +153,34 @@ export {
   useUpdateLeadRoutingRule,
   useDeleteLeadRoutingRule,
 } from './useLeadRoutingRulesQuery';
+
+// =============================================================================
+// AI MODULE
+// =============================================================================
+
+// AI Agent Configuration
+export {
+  useAIConfigQuery,
+  useUpdateAIConfigMutation,
+  useAITemplatesQuery,
+  useAITemplateQuery,
+  type OrgAIConfig,
+  type AITemplate,
+  type TemplateStage,
+} from './useAIConfigQuery';
+
+// Pending Stage Advances (HITL)
+export {
+  usePendingAdvancesQuery,
+  usePendingAdvanceCountQuery,
+  useResolvePendingAdvanceMutation,
+  type PendingAdvanceListItem,
+  type ResolvePendingAdvanceParams,
+} from './usePendingAdvancesQuery';
+
+// Few-Shot Learning
+export {
+  useLearnedPatternsQuery,
+  useLearnMutation,
+  useClearPatternsMutation,
+} from './useLearnedPatternsQuery';
