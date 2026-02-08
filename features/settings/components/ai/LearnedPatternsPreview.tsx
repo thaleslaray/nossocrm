@@ -73,7 +73,7 @@ export function LearnedPatternsPreview({
             <h4 className="font-medium text-slate-900 dark:text-white">Padrões Aprendidos</h4>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Extraídos de {patterns.extractedFrom.length} conversas
+            Extraídos de {patterns.extractedFrom?.length ?? 0} conversas
           </p>
         </div>
 
