@@ -90,6 +90,9 @@ export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board 
     return Math.min(100, Math.max(0, (current / targetValueNumber) * 100));
   }, [calculatedProgress.value, targetValueNumber]);
 
+  const strategyKpiTypeSelectClassName =
+    "bg-transparent text-[10px] font-bold uppercase text-slate-400 focus:text-blue-500 focus:outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark] [&>option]:bg-white dark:[&>option]:bg-slate-900 [&>option]:text-slate-900 dark:[&>option]:text-white";
+
   const hasStrategy = board.goal || board.agentPersona || board.entryTrigger;
 
   if (!hasStrategy && !isEditing) {
@@ -221,7 +224,7 @@ export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board 
                           }
                         />
                         <select
-                          className="bg-transparent text-[10px] font-bold uppercase text-slate-400 focus:text-blue-500 focus:outline-none cursor-pointer"
+                          className={strategyKpiTypeSelectClassName}
                           value={editedBoard.goal?.type || 'number'}
                           onChange={e =>
                             setEditedBoard({
