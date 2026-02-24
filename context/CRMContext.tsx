@@ -400,6 +400,21 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           [...queryKeys.deals.lists(), 'view'],
           (old = []) => [optimisticDealView, ...old]
         );
+
+        // Keep raw deals cache in sync as well (DealDetailModal reads through CRMContext -> raw deals).
+        // Without this, a newly created card can be visible in Kanban but non-clickable until delayed refetch.
+        queryClient.setQueryData<Deal[]>(
+          queryKeys.deals.lists(),
+          (old = []) => {
+            const optimisticDeal: Deal = {
+              ...(deal as Deal),
+              id: optimisticTempId,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            return [optimisticDeal, ...old.filter((d) => d.id !== optimisticTempId)];
+          }
+        );
         
         // #region agent log
         if (process.env.NODE_ENV !== 'production') {
@@ -535,10 +550,24 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
               return already ? withoutTemp : [createdDealView, ...withoutTemp];
             }
           );
+
+          queryClient.setQueryData<Deal[]>(
+            queryKeys.deals.lists(),
+            (old = []) => {
+              const withoutTemp = old.filter((d) => d.id !== optimisticTempId);
+              const already = withoutTemp.some((d) => d.id === createdDeal.id);
+              return already ? withoutTemp : [createdDeal, ...withoutTemp];
+            }
+          );
         } else {
           // Failed to create: remove optimistic item
           queryClient.setQueryData<DealView[]>(
             [...queryKeys.deals.lists(), 'view'],
+            (old = []) => old.filter((d) => d.id !== optimisticTempId)
+          );
+
+          queryClient.setQueryData<Deal[]>(
+            queryKeys.deals.lists(),
             (old = []) => old.filter((d) => d.id !== optimisticTempId)
           );
         }

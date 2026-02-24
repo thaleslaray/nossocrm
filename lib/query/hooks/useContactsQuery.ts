@@ -319,10 +319,21 @@ export const useCreateContact = () => {
       }
     },
     onSuccess: (data, _newContact, context) => {
-      // Replace temp contact in any paginated caches we touched
-      const tempId = (context as any)?.tempId as string | undefined;
-      if (!tempId) return;
+      const tempId = (context as { tempId?: string } | undefined)?.tempId;
 
+      // Keep base list cache in sync immediately (important when server read is eventually consistent)
+      queryClient.setQueryData<Contact[]>(queryKeys.contacts.lists(), (old = []) => {
+        const withoutTemp = tempId ? old.filter((c) => c.id !== tempId) : old;
+        const existingIdx = withoutTemp.findIndex((c) => c.id === data.id);
+        if (existingIdx >= 0) {
+          const next = [...withoutTemp];
+          next[existingIdx] = data;
+          return next;
+        }
+        return [data, ...withoutTemp];
+      });
+
+      // Upsert definitive server record in all first-page paginated caches that match current filters
       const queries = queryClient.getQueriesData<PaginatedResponse<Contact>>({
         queryKey: queryKeys.contacts.all,
       });
@@ -330,15 +341,32 @@ export const useCreateContact = () => {
       for (const [key, old] of queries) {
         if (!Array.isArray(key)) continue;
         if (key[1] !== 'paginated') continue;
-        if (!old) continue;
+        const paginationKey = key[2] as PaginationState | undefined;
+        const filtersKey = key[3] as ContactsServerFilters | undefined;
+        if (!paginationKey || paginationKey.pageIndex !== 0) continue;
+        if (!matchesContactsServerFilters(data, filtersKey)) continue;
 
-        const idx = old.data.findIndex((c) => c.id === tempId);
-        if (idx === -1) continue;
         queryClient.setQueryData<PaginatedResponse<Contact>>(key, (curr) => {
           if (!curr) return curr;
-          const next = [...curr.data];
-          next[idx] = data;
-          return { ...curr, data: next };
+
+          const withoutTemp = tempId ? curr.data.filter((c) => c.id !== tempId) : curr.data;
+          const existingIdx = withoutTemp.findIndex((c) => c.id === data.id);
+          if (existingIdx >= 0) {
+            const next = [...withoutTemp];
+            next[existingIdx] = data;
+            return { ...curr, data: next };
+          }
+
+          const insertAtStart = (filtersKey?.sortOrder || 'desc') === 'desc';
+          const nextData = insertAtStart ? [data, ...withoutTemp] : [...withoutTemp, data];
+          const trimmed = nextData.slice(0, curr.pageSize);
+
+          return {
+            ...curr,
+            data: trimmed,
+            totalCount: Math.max(curr.totalCount, withoutTemp.length + 1),
+            hasMore: true,
+          };
         });
       }
     },
