@@ -341,6 +341,9 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
     }
   };
 
+  const selectClassName =
+    'w-full appearance-none px-4 py-2.5 pr-10 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent [&>option]:bg-white dark:[&>option]:bg-slate-900 [&>option]:text-slate-900 dark:[&>option]:text-white';
+
   return (
     <>
       <Modal
@@ -375,7 +378,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                         const next = availableBoards.find(b => b.id === e.target.value);
                         if (next) onSwitchEditingBoard(next);
                       }}
-                      className="w-full appearance-none px-4 py-2.5 pr-10 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className={selectClassName}
                       aria-label="Selecionar board para editar"
                     >
                       {availableBoards.map(b => (
@@ -468,7 +471,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                   <select
                     value={selectedTemplate}
                     onChange={(e) => handleTemplateSelect(e.target.value as BoardTemplateType | '')}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className={selectClassName}
                   >
                     <option value="">Board em branco</option>
                     <option value="PRE_SALES">🎯 Pré-venda (Lead → MQL)</option>
@@ -492,7 +495,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                 <select
                   value={linkedLifecycleStage}
                   onChange={(e) => setLinkedLifecycleStage(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className={selectClassName}
                 >
                   <option value="">Nenhum (board genérico)</option>
                   {lifecycleStages.map(stage => (
