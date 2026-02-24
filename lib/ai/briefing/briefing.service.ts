@@ -381,6 +381,21 @@ INSTRUÇÕES FINAIS:
 
     const briefing = result.output;
 
+    // Log tokens to ai_conversation_log fire-and-forget so budget enforcement counts them
+    const tokensUsed = result.usage?.totalTokens ?? 0;
+    if (tokensUsed > 0) {
+      supabase.from('ai_conversation_log').insert({
+        organization_id: context.organization.id,
+        tokens_used: tokensUsed,
+        model_used: aiConfig.model,
+        action_taken: 'briefing',
+        action_reason: `Meeting briefing for deal ${dealId}`,
+        ai_response: '',
+      }).then(({ error }) => {
+        if (error) console.error('[Briefing] Failed to log tokens (non-fatal):', error.message);
+      });
+    }
+
     return {
       ...briefing,
       generatedAt: new Date().toISOString(),

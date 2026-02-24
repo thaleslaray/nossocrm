@@ -127,6 +127,22 @@ Extraia Budget, Authority, Need e Timeline. Se não encontrar alguma informaçã
       return { success: false, error: 'Failed to generate extraction' };
     }
 
+    // Log tokens to ai_conversation_log fire-and-forget so budget enforcement counts them
+    const tokensUsed = result.usage?.totalTokens ?? 0;
+    if (tokensUsed > 0) {
+      supabase.from('ai_conversation_log').insert({
+        organization_id: organizationId,
+        conversation_id: conversationId,
+        tokens_used: tokensUsed,
+        model_used: aiConfig.model,
+        action_taken: 'bant_extraction',
+        action_reason: `BANT extraction for deal ${dealId}`,
+        ai_response: '',
+      }).then(({ error }) => {
+        if (error) console.error('[Extraction] Failed to log tokens (non-fatal):', error.message);
+      });
+    }
+
     const extraction = result.output;
 
     // 6. Merge with existing data (only update if higher confidence)

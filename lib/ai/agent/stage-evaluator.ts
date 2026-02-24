@@ -98,6 +98,8 @@ export interface EvaluationResult {
   pendingAdvanceId?: string;
   /** Sugestão formatada para UI (se requiresConfirmation) */
   suggestion?: StageAdvanceSuggestion;
+  /** Total de tokens consumidos nesta avaliação */
+  tokensUsed?: number;
 }
 
 /**
@@ -182,11 +184,28 @@ Avalie cada critério de avanço e decida se o lead deve avançar para o próxim
       maxRetries: 2,
     });
 
+    const tokensUsed = result.usage?.totalTokens ?? 0;
+
+    // Log tokens to ai_conversation_log fire-and-forget so budget enforcement counts them
+    if (tokensUsed > 0) {
+      supabase.from('ai_conversation_log').insert({
+        organization_id: organizationId,
+        conversation_id: params.conversationId ?? null,
+        tokens_used: tokensUsed,
+        model_used: aiConfig.model,
+        action_taken: 'stage_evaluation',
+        action_reason: 'Stage advancement evaluation',
+        ai_response: '',
+      }).then(({ error }) => {
+        if (error) console.error('[StageEvaluator] Failed to log tokens (non-fatal):', error.message);
+      });
+    }
+
     const evaluation = result.output;
 
     if (!evaluation) {
       console.warn('[StageEvaluator] AI returned no structured output');
-      return { success: false, error: 'AI não retornou avaliação estruturada' };
+      return { success: false, error: 'AI não retornou avaliação estruturada', tokensUsed };
     }
 
     console.log('[StageEvaluator] Evaluation result:', {
@@ -200,7 +219,7 @@ Avalie cada critério de avanço e decida se o lead deve avançar para o próxim
 
     if (!nextStageResult.nextStageId) {
       console.log('[StageEvaluator] No next stage available');
-      return { success: true, evaluation, advanced: false };
+      return { success: true, evaluation, advanced: false, tokensUsed };
     }
 
     // Usar HITL config para decidir — valores vêm do banco via agent.service
@@ -220,7 +239,7 @@ Avalie cada critério de avanço e decida se o lead deve avançar para o próxim
 
     // Caso 1: Não sugere avanço (confidence < 0.70 ou AI disse para não avançar)
     if (hitlDecision.skipSuggestion) {
-      return { success: true, evaluation, advanced: false };
+      return { success: true, evaluation, advanced: false, tokensUsed };
     }
 
     // Caso 2: Avanço automático (confidence >= hitlThreshold)
@@ -239,6 +258,7 @@ Avalie cada critério de avanço e decida se o lead deve avançar para o próxim
           success: false,
           evaluation,
           error: `Falha ao avançar deal: ${updateError.message}`,
+          tokensUsed,
         };
       }
 
@@ -258,6 +278,7 @@ Avalie cada critério de avanço e decida se o lead deve avançar para o próxim
         evaluation,
         advanced: true,
         newStageId: nextStageResult.nextStageId,
+        tokensUsed,
       };
     }
 
@@ -296,6 +317,7 @@ Avalie cada critério de avanço e decida se o lead deve avançar para o próxim
           success: false,
           evaluation,
           error: 'Falha ao criar solicitação de aprovação',
+          tokensUsed,
         };
       }
 
@@ -308,11 +330,12 @@ Avalie cada critério de avanço e decida se o lead deve avançar para o próxim
         requiresConfirmation: true,
         pendingAdvanceId: pendingResult.id,
         suggestion,
+        tokensUsed,
       };
     }
 
     // Fallback (não deveria chegar aqui)
-    return { success: true, evaluation, advanced: false };
+    return { success: true, evaluation, advanced: false, tokensUsed };
   } catch (error) {
     console.error('[StageEvaluator] Evaluation error:', error);
     return {
