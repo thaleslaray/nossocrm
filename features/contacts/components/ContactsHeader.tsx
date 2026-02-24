@@ -48,6 +48,9 @@ export const ContactsHeader: React.FC<ContactsHeaderProps> = ({
   openCreateModal,
   openImportExportModal,
 }) => {
+  const selectClassName =
+    'pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white backdrop-blur-sm appearance-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark] [&>option]:bg-white dark:[&>option]:bg-slate-900 [&>option]:text-slate-900 dark:[&>option]:text-white';
+
   return (
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <div>
@@ -68,7 +71,7 @@ export const ContactsHeader: React.FC<ContactsHeaderProps> = ({
               setStatusFilter(e.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE' | 'CHURNED' | 'RISK')
             }
             aria-label="Filtrar por status"
-            className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white backdrop-blur-sm appearance-none cursor-pointer"
+            className={selectClassName}
           >
             <option value="ALL">Todos os Status</option>
             <option value="ACTIVE">Ativos</option>
