@@ -342,7 +342,9 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
   };
 
   const selectClassName =
-    'w-full appearance-none px-4 py-2.5 pr-10 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent [&>option]:bg-white dark:[&>option]:bg-slate-900 [&>option]:text-slate-900 dark:[&>option]:text-white';
+    'w-full appearance-none px-4 py-2.5 pr-10 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent [color-scheme:light] dark:[color-scheme:dark] [&>option]:bg-white dark:[&>option]:bg-slate-900 [&>option]:text-slate-900 dark:[&>option]:text-white';
+  const compactSelectClassName =
+    'w-full pl-3 pr-10 py-2 text-sm rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all appearance-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark] [&>option]:bg-white dark:[&>option]:bg-slate-900 [&>option]:text-slate-900 dark:[&>option]:text-white';
 
   return (
     <>
@@ -515,7 +517,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                 <select
                   value={defaultProductId}
                   onChange={(e) => setDefaultProductId(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className={selectClassName}
                 >
                   <option value="">Nenhum</option>
                   {products
@@ -539,7 +541,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                 <select
                   value={nextBoardId}
                   onChange={(e) => setNextBoardId(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className={selectClassName}
                 >
                   <option value="">Nenhum (Finalizar aqui)</option>
                   {validNextBoards.map(board => (
@@ -570,7 +572,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                         setWonStageId(e.target.value);
                       }
                     }}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className={selectClassName}
                   >
                     <option value="">Automático (pelo ciclo)</option>
                     <option value="archive">Arquivar (Manter na etapa)</option>
@@ -597,7 +599,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                         setLostStageId(e.target.value);
                       }
                     }}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className={selectClassName}
                   >
                     <option value="">Automático</option>
                     <option value="archive">Arquivar (Manter na etapa)</option>
@@ -735,7 +737,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                           <select
                             value={stage.linkedLifecycleStage || ''}
                             onChange={(e) => handleUpdateStage(stage.id, { linkedLifecycleStage: e.target.value || undefined })}
-                            className={`w-full pl-3 pr-10 py-2 text-sm rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all appearance-none cursor-pointer
+                            className={`${compactSelectClassName}
                             ${stage.linkedLifecycleStage ? 'font-semibold text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700' : ''}
                           `}
                           >
