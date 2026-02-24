@@ -52,6 +52,15 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
   editingActivity,
   deals,
 }) => {
+  const fieldBaseClassName =
+    'w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500';
+  const nativePickerClassName =
+    '[color-scheme:light] dark:[color-scheme:dark] dark:[&::-webkit-calendar-picker-indicator]:invert dark:[&::-webkit-calendar-picker-indicator]:brightness-200';
+  const selectClassName =
+    `${fieldBaseClassName} ${nativePickerClassName} appearance-none cursor-pointer [&>option]:bg-white dark:[&>option]:bg-slate-900 [&>option]:text-slate-900 dark:[&>option]:text-white`;
+  const dateInputClassName = `${fieldBaseClassName} ${nativePickerClassName}`;
+  const timeInputClassName = `${fieldBaseClassName} ${nativePickerClassName}`;
+
   React.useEffect(() => {
     if (!isOpen) return;
     const handleEscape = (event: KeyboardEvent) => {
@@ -103,7 +112,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo</label>
               <select
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                className={selectClassName}
                 value={formData.type}
                 onChange={e =>
                   setFormData({ ...formData, type: e.target.value as Activity['type'] })
@@ -121,7 +130,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
               </label>
               <select
                 required={!editingActivity}
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                className={selectClassName}
                 value={formData.dealId}
                 onChange={e => setFormData({ ...formData, dealId: e.target.value })}
               >
@@ -141,7 +150,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
               <input
                 required
                 type="date"
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                className={dateInputClassName}
                 value={formData.date}
                 onChange={e => setFormData({ ...formData, date: e.target.value })}
               />
@@ -151,7 +160,7 @@ export const ActivityFormModal: React.FC<ActivityFormModalProps> = ({
               <input
                 required
                 type="time"
-                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500"
+                className={timeInputClassName}
                 value={formData.time}
                 onChange={e => setFormData({ ...formData, time: e.target.value })}
               />
