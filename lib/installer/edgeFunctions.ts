@@ -398,6 +398,7 @@ export async function createSupabaseProject(params: {
   name: string;
   dbPass: string;
   regionSmartGroup?: 'americas' | 'emea' | 'apac';
+  regionCode?: string;
 }): Promise<
   | { ok: true; projectRef: string; projectName: string; response: unknown }
   | { ok: false; error: string; status?: number; response?: unknown }
@@ -406,9 +407,11 @@ export async function createSupabaseProject(params: {
     name: params.name,
     organization_slug: params.organizationSlug,
     db_pass: params.dbPass,
-    region_selection: params.regionSmartGroup
-      ? { type: 'smartGroup', code: params.regionSmartGroup }
-      : undefined,
+    region_selection: params.regionCode
+      ? { type: 'region', code: params.regionCode }
+      : params.regionSmartGroup
+        ? { type: 'smartGroup', code: params.regionSmartGroup }
+        : undefined,
   };
 
   const res = await supabaseManagementFetch('/v1/projects', params.accessToken, {
@@ -930,4 +933,3 @@ export async function deployAllSupabaseEdgeFunctions(params: {
   await Promise.all(workers);
   return results.filter(Boolean);
 }
-
