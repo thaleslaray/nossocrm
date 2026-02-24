@@ -63,6 +63,11 @@ export const ApiKeysSection: React.FC = () => {
   const dealsUrl = useMemo(() => '/api/public/v1/deals', []);
   const activitiesUrl = useMemo(() => '/api/public/v1/activities', []);
 
+  const settingsSelectClassName =
+    "w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white [color-scheme:light] dark:[color-scheme:dark] [&>option]:bg-white dark:[&>option]:bg-slate-900 [&>option]:text-slate-900 dark:[&>option]:text-white";
+  const settingsSelectFocusedClassName =
+    `${settingsSelectClassName} focus:ring-2 focus:ring-primary-500 focus:border-transparent`;
+
   const copy = async (label: string, value: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -509,7 +514,7 @@ export const ApiKeysSection: React.FC = () => {
           <select
             value={action}
             onChange={(e) => setAction(e.target.value as any)}
-            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className={settingsSelectFocusedClassName}
           >
             <option value="create_lead">Criar/Atualizar Lead (Contato)</option>
             <option value="create_deal">Criar Negócio (Deal)</option>
@@ -620,7 +625,7 @@ export const ApiKeysSection: React.FC = () => {
                 <select
                   value={selectedBoardId}
                   onChange={(e) => setSelectedBoardId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white"
+                  className={settingsSelectClassName}
                 >
                   <option value="">Selecione…</option>
                   {boardsFromContext.map((b) => (
@@ -691,7 +696,7 @@ export const ApiKeysSection: React.FC = () => {
                   <select
                     value={selectedToStageId}
                     onChange={(e) => setSelectedToStageId(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white"
+                    className={settingsSelectClassName}
                   >
                     <option value="">Selecione…</option>
                     {stagesForBoard.map((s) => (
@@ -712,7 +717,7 @@ export const ApiKeysSection: React.FC = () => {
                 <select
                   value={activityType}
                   onChange={(e) => setActivityType(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white"
+                  className={settingsSelectClassName}
                 >
                   <option value="NOTE">Nota</option>
                   <option value="TASK">Tarefa</option>

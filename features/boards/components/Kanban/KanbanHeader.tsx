@@ -71,6 +71,9 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
     statusFilter, setStatusFilter,
     onNewDeal
 }) => {
+    const filterSelectClassName =
+        'pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white backdrop-blur-sm appearance-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark] [&>option]:bg-white dark:[&>option]:bg-slate-900 [&>option]:text-slate-900 dark:[&>option]:text-white';
+
     return (
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div className="flex items-center gap-4 w-full sm:w-auto flex-wrap">
@@ -178,7 +181,7 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value as any)}
                         aria-label="Filtrar por status"
-                        className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white backdrop-blur-sm appearance-none cursor-pointer"
+                        className={filterSelectClassName}
                     >
                         <option value="open">Em Aberto</option>
                         <option value="won">Ganhos</option>
@@ -198,7 +201,7 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
                         value={ownerFilter}
                         onChange={(e) => setOwnerFilter(e.target.value as 'all' | 'mine')}
                         aria-label="Filtrar negócios por proprietário"
-                        className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-white/5 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white backdrop-blur-sm appearance-none cursor-pointer"
+                        className={filterSelectClassName}
                     >
                         <option value="all">Todos os Donos</option>
                         <option value="mine">Meus Negócios</option>
