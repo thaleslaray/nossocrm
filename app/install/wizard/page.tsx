@@ -42,6 +42,8 @@ type PreflightOrg = {
   activeProjects: SupabaseProjectOption[];
 };
 
+const DEFAULT_SUPABASE_REGION = 'sa-east-1';
+
 // Constants & Helpers
 const STORAGE_TOKEN = 'crm_install_token';
 const STORAGE_PROJECT = 'crm_install_project';
@@ -111,7 +113,7 @@ function isSupabaseFreeGlobalLimitError(message: string) {
 function buildDbUrl(projectRef: string, dbPassword: string, region?: string) {
   // Usa o pooler regional do Supabase que é mais confiável que db.xxx.supabase.co
   // O user precisa incluir o projectRef: postgres.projectRef
-  const regionSlug = region || 'us-east-1';
+  const regionSlug = region || DEFAULT_SUPABASE_REGION;
   const poolerHost = `aws-0-${regionSlug}.pooler.supabase.com`;
   return `postgresql://postgres.${projectRef}:${encodeURIComponent(dbPassword)}@${poolerHost}:6543/postgres?sslmode=require`;
 }
@@ -635,7 +637,7 @@ export default function InstallWizardPage() {
             organizationSlug: orgSlug,
             name: projectName,
             dbPass: supabaseCreateDbPass,
-            regionSmartGroup: 'americas',
+            regionCode: DEFAULT_SUPABASE_REGION,
           }),
         });
 
@@ -672,7 +674,7 @@ export default function InstallWizardPage() {
 
       setSupabaseProjectRef(ref);
       setSupabaseUrl(url || `https://${ref}.supabase.co`);
-      setSupabaseDbUrl(buildDbUrl(ref, supabaseCreateDbPass, 'us-east-1'));
+      setSupabaseDbUrl(buildDbUrl(ref, supabaseCreateDbPass, DEFAULT_SUPABASE_REGION));
 
       setSupabaseProvisioning(true);
       setSupabaseProvisioningStatus('COMING_UP');

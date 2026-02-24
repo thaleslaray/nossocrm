@@ -17,6 +17,7 @@ const Schema = z
     name: z.string().min(2).max(64),
     dbPass: z.string().min(12),
     regionSmartGroup: z.enum(['americas', 'emea', 'apac']).optional(),
+    regionCode: z.string().min(2).optional(),
   })
   .strict();
 
@@ -44,6 +45,7 @@ export async function POST(req: Request) {
     name: parsed.data.name.trim(),
     dbPass: parsed.data.dbPass,
     regionSmartGroup: parsed.data.regionSmartGroup,
+    regionCode: parsed.data.regionCode,
   });
 
   if (!created.ok) {
@@ -88,4 +90,3 @@ export async function POST(req: Request) {
     supabaseUrl: `https://${created.projectRef}.supabase.co`,
   });
 }
-
