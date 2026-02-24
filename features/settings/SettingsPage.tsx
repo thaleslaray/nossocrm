@@ -38,6 +38,9 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({ hash, isAdmin }) => {
   }, [hash]);
 
 
+  const settingsSelectClassName =
+    "w-full max-w-xs px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-slate-900 dark:text-white transition-all [color-scheme:light] dark:[color-scheme:dark] [&>option]:bg-white dark:[&>option]:bg-slate-900 [&>option]:text-slate-900 dark:[&>option]:text-white";
+
   return (
     <div className="pb-10">
       {/* General Settings */}
@@ -51,7 +54,7 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({ hash, isAdmin }) => {
             aria-label="Selecionar página inicial"
             value={controller.defaultRoute}
             onChange={(e) => controller.setDefaultRoute(e.target.value)}
-            className="w-full max-w-xs px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-slate-900 dark:text-white transition-all"
+            className={settingsSelectClassName}
           >
             <option value="/dashboard">Dashboard</option>
             <option value="/inbox-list">Inbox (Lista)</option>
