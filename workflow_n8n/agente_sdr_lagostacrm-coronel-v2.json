@@ -258,7 +258,7 @@
           "conditions": [
             {
               "id": "incoming-msg-check",
-              "leftValue": "={{ (() => {\n  const body = $('Webhook').item.json.body || {};\n  const msg = body.messages?.[0] || {};\n  const raw = body.message_type ?? msg.message_type ?? '';\n\n  // Chatwoot pode enviar string (incoming/outgoing) ou numero (0/1)\n  if (raw === 'incoming' || raw === 0 || raw === '0') return 'incoming';\n  if (raw === 'outgoing' || raw === 1 || raw === '1') return 'outgoing';\n\n  return raw.toString().toLowerCase();\n})() }}",
+              "leftValue": "={{ (() => {\n  const body = $('Webhook').item.json.body || {};\n  const messages = Array.isArray(body.messages) ? body.messages : [];\n  const currentMessageId = body.message?.id || body.message_id || '';\n  const msgById = currentMessageId\n    ? messages.find(m => String(m?.id ?? '') === String(currentMessageId))\n    : null;\n  const incomingMsg = messages.find(m => {\n    const type = m?.message_type;\n    return type === 0 || type === '0' || type === 'incoming';\n  });\n  const msg = body.message || msgById || incomingMsg || messages[0] || {};\n  const raw = body.message_type ?? msg.message_type ?? '';\n\n  // Chatwoot pode enviar string (incoming/outgoing) ou numero (0/1)\n  if (raw === 'incoming' || raw === 0 || raw === '0') return 'incoming';\n  if (raw === 'outgoing' || raw === 1 || raw === '1') return 'outgoing';\n\n  return raw ? raw.toString().toLowerCase() : '';\n})() }}",
               "rightValue": "incoming",
               "operator": {
                 "type": "string",
@@ -267,7 +267,7 @@
             },
             {
               "id": "130cc493-a17a-4cc1-955b-816799583076",
-              "leftValue": "={{ (() => { const body = $('Webhook').item.json.body || {}; const msg = body.messages?.[0] || {}; const meta = body.meta || {}; return (body.sender?.identifier || body.conversation?.meta?.sender?.identifier || msg.sender?.identifier || meta.sender?.identifier || '').toString(); })() }}",
+              "leftValue": "={{ (() => {\n  const body = $('Webhook').item.json.body || {};\n  const messages = Array.isArray(body.messages) ? body.messages : [];\n  const currentMessageId = body.message?.id || body.message_id || '';\n  const msgById = currentMessageId\n    ? messages.find(m => String(m?.id ?? '') === String(currentMessageId))\n    : null;\n  const msg = body.message || msgById || messages[0] || {};\n  const meta = body.meta || {};\n\n  const identifier = body.sender?.identifier\n    || body.conversation?.meta?.sender?.identifier\n    || msg.sender?.identifier\n    || meta.sender?.identifier\n    || body.conversation?.contact_inbox?.source_id\n    || body.contact_inbox?.source_id\n    || '';\n\n  return identifier.toString();\n})() }}",
               "rightValue": "@g.us",
               "operator": {
                 "type": "string",
@@ -276,7 +276,7 @@
             },
             {
               "id": "d794ecce-59f0-4db6-a518-194d4d1e6820",
-              "leftValue": "={{ (() => { const body = $('Webhook').item.json.body || {}; return body.conversation?.meta?.assignee?.id || body.meta?.assignee?.id || ''; })() }}",
+              "leftValue": "={{ (() => {\n  const body = $('Webhook').item.json.body || {};\n\n  const channelRaw = [\n    body.channel,\n    body.inbox?.channel_type,\n    body.conversation?.channel,\n    body.conversation?.meta?.channel,\n    body.inbox?.name\n  ]\n    .filter(Boolean)\n    .join(' ')\n    .toLowerCase();\n\n  const phone = (body.sender?.phone_number\n    || body.conversation?.meta?.sender?.phone_number\n    || body.messages?.[0]?.sender?.phone_number\n    || body.meta?.sender?.phone_number\n    || '')\n    .toString()\n    .trim();\n\n  const identifier = (body.sender?.identifier\n    || body.conversation?.meta?.sender?.identifier\n    || body.messages?.[0]?.sender?.identifier\n    || body.meta?.sender?.identifier\n    || body.conversation?.contact_inbox?.source_id\n    || body.contact_inbox?.source_id\n    || '')\n    .toString()\n    .trim();\n\n  const isInstagram = channelRaw.includes('instagram')\n    || channelRaw.includes('facebook')\n    || (identifier && !phone);\n\n  // Em DM do Instagram o Chatwoot pode manter assignee padrao;\n  // ainda assim deve passar para o bot.\n  if (isInstagram) return '';\n\n  return body.assignee_id || body.conversation?.meta?.assignee?.id || body.meta?.assignee?.id || '';\n})() }}",
               "rightValue": "",
               "operator": {
                 "type": "string",

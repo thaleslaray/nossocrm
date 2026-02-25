@@ -175,15 +175,57 @@ curl -X POST "https://seu-crm/api/public/v1/deals/move-stage-by-identity" \
 | Arquivo | Descrição |
 |---------|-----------|
 | `agente_sdr_lagostacrm.json` | Workflow para importar no N8N |
+| `deals_followup_sentimento_25dias.json` | Workflow diário para mover deals por análise de sentimento após 25 dias sem mensagem |
 | `README.md` | Esta documentação |
 | `exemplos_payloads.md` | Exemplos de requisições API |
+
+---
+
+## Workflow de Follow-up por Sentimento (25 dias)
+
+Arquivo: `deals_followup_sentimento_25dias.json`
+
+### Objetivo
+
+Rodar diariamente e avaliar conversas antigas para movimentar deals automaticamente:
+- Se o resumo indicar **sentimento positivo** e **cliente ganho** → move para **Follow-up**
+- Se o resumo indicar conversa **não positiva** e **sem contexto para nova conversa** → move para **Finalizado**
+- Se o deal já estiver em **Finalizado** → não move
+
+### Fonte do resumo
+
+- O workflow usa o campo **`ai_summary`** (Resumo da Conversa) já salvo no deal.
+- Não busca novamente o histórico de mensagens no Chatwoot para fazer a classificação.
+
+### Regra de tempo
+
+- O workflow só analisa deals com **25 dias ou mais** desde o `last_message_at` vinculado ao deal.
+- O `last_message_at` é usado apenas como gatilho de tempo; a classificação usa somente o `ai_summary`.
+
+### Nós de configuração
+
+Edite o nó `Configuracoes`:
+
+| Variável | Valor |
+|----------|-------|
+| `CRM-Host` | `https://seu-lagostacrm.vercel.app` |
+| `CRM-BoardKey` | `gestao-de-clientes-agencia-multisservicos` |
+| `DiasSemMensagem` | `25` |
+| `StageFollowUpLabel` | `Follow-up` |
+| `StageFinalizadoLabel` | `Finalizado` |
+| `ORG-ID` | UUID da organização (usado no header `X-Organization-Id` do endpoint `/api/chatwoot/conversation-links`) |
+
+### Credenciais necessárias
+
+- `NossoCRM` (Header Auth com `X-Api-Key: ncrm_...`)
+- `OpenAi account` (credencial OpenAI para classificação)
 
 ---
 
 ## Importando no N8N
 
 1. **Workflows → Import from File**
-2. Selecione `agente_sdr_lagostacrm.json`
+2. Selecione `agente_sdr_lagostacrm.json` (atendimento) e/ou `deals_followup_sentimento_25dias.json` (follow-up automático)
 3. Configure as credenciais (todos marcados `CONFIGURE_AQUI`)
-4. Edite `Fluxo_Variaveis` com suas URLs
+4. Edite `Fluxo_Variaveis` e `Configuracoes` com suas URLs e labels de estágio
 5. Ative o workflow

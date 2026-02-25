@@ -225,7 +225,7 @@
             },
             {
               "id": "d794ecce-59f0-4db6-a518-194d4d1e6820",
-              "leftValue": "={{ $('Webhook').item.json.body.meta.assignee.id }}",
+              "leftValue": "={{ (() => {\n  const body = $('Webhook').item.json.body || {};\n\n  const channelRaw = [\n    body.channel,\n    body.inbox?.channel_type,\n    body.conversation?.channel,\n    body.conversation?.meta?.channel,\n    body.inbox?.name\n  ]\n    .filter(Boolean)\n    .join(' ')\n    .toLowerCase();\n\n  const phone = (body.sender?.phone_number\n    || body.conversation?.meta?.sender?.phone_number\n    || body.messages?.[0]?.sender?.phone_number\n    || body.meta?.sender?.phone_number\n    || '')\n    .toString()\n    .trim();\n\n  const identifier = (body.sender?.identifier\n    || body.conversation?.meta?.sender?.identifier\n    || body.messages?.[0]?.sender?.identifier\n    || body.meta?.sender?.identifier\n    || body.conversation?.contact_inbox?.source_id\n    || body.contact_inbox?.source_id\n    || '')\n    .toString()\n    .trim();\n\n  const isInstagram = channelRaw.includes('instagram')\n    || channelRaw.includes('facebook')\n    || (identifier && !phone);\n\n  if (isInstagram) return '';\n\n  return body.assignee_id || body.conversation?.meta?.assignee?.id || body.meta?.assignee?.id || '';\n})() }}",
               "rightValue": "",
               "operator": {
                 "type": "string",

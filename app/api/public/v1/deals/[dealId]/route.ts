@@ -27,7 +27,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ dealId: str
   const sb = createStaticAdminClient();
   const { data, error } = await sb
     .from('deals')
-    .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at')
+    .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at,ai_summary')
     .eq('organization_id', auth.organizationId)
     .is('deleted_at', null)
     .eq('id', dealId)
@@ -68,7 +68,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ dealId: s
     .update(updates)
     .eq('organization_id', auth.organizationId)
     .eq('id', dealId)
-    .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at')
+    .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at,ai_summary')
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message, code: 'DB_ERROR' }, { status: 500 });
@@ -76,4 +76,3 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ dealId: s
 
   return NextResponse.json({ data });
 }
-

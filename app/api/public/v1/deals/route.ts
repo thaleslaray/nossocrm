@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
   let query = sb
     .from('deals')
-    .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at', { count: 'exact' })
+    .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at,ai_summary', { count: 'exact' })
     .eq('organization_id', auth.organizationId)
     .is('deleted_at', null)
     .order('updated_at', { ascending: false });
@@ -91,6 +91,7 @@ export async function GET(request: Request) {
       is_lost: !!d.is_lost,
       loss_reason: d.loss_reason ?? null,
       closed_at: d.closed_at ?? null,
+      ai_summary: d.ai_summary ?? null,
       created_at: d.created_at,
       updated_at: d.updated_at,
     })),
@@ -196,7 +197,7 @@ export async function POST(request: Request) {
   // This prevents race conditions from creating duplicate deals
   const existingDeal = await sb
     .from('deals')
-    .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at')
+    .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at,ai_summary')
     .eq('organization_id', auth.organizationId)
     .eq('board_id', boardId)
     .eq('contact_id', contactId)
@@ -233,10 +234,9 @@ export async function POST(request: Request) {
   const { data, error } = await sb
     .from('deals')
     .insert(insertPayload)
-    .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at')
+    .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at,ai_summary')
     .single();
   if (error) return NextResponse.json({ error: error.message, code: 'DB_ERROR' }, { status: 500 });
 
   return NextResponse.json({ data, action: 'created' }, { status: 201 });
 }
-

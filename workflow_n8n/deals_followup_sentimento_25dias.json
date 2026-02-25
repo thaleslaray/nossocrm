@@ -1,0 +1,587 @@
+{
+  "name": "[LAGOSTA CRM] Follow-up por Sentimento (25 dias)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "db5bd917-c536-4d3b-9374-ef7093f02f0e",
+      "name": "Trigger_Diario",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -176,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-crm-host",
+              "name": "CRM-Host",
+              "value": "https://coronelpicanhacrm.vercel.app",
+              "type": "string"
+            },
+            {
+              "id": "cfg-board-key",
+              "name": "CRM-BoardKey",
+              "value": "suporte-ao-cliente-restaurante",
+              "type": "string"
+            },
+            {
+              "id": "cfg-days",
+              "name": "DiasSemMensagem",
+              "value": 25,
+              "type": "number"
+            },
+            {
+              "id": "cfg-follow-label",
+              "name": "StageFollowUpLabel",
+              "value": "Follow-up",
+              "type": "string"
+            },
+            {
+              "id": "cfg-final-label",
+              "name": "StageFinalizadoLabel",
+              "value": "Finalizado",
+              "type": "string"
+            },
+            {
+              "id": "cfg-org-id",
+              "name": "ORG-ID",
+              "value": "5f8d9c08-fb66-4fc9-be53-180d3ab35d0f",
+              "type": "string"
+            },
+            {
+              "id": "cfg-ignore-days",
+              "name": "IgnorarRegraDias",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "cfg-date-strategy",
+              "name": "EstrategiaDataMensagem",
+              "value": "fallback_updated_at",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "733ead95-fafa-4f3d-97d4-c28287133fa7",
+      "name": "Configuracoes",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        48,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Configuracoes').item.json['CRM-Host'] + '/api/public/v1/boards/' + encodeURIComponent($('Configuracoes').item.json['CRM-BoardKey']) + '/stages' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "2d93932e-ec72-42da-a966-fd3ba60cb99d",
+      "name": "Buscar_Etapas_Board",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        288,
+        -48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "RhZY4FZWk3Pstr72",
+          "name": "Coronel CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Configuracoes').item.json['CRM-Host'] + '/api/chatwoot/conversation-links' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Organization-Id",
+              "value": "={{ $('Configuracoes').item.json['ORG-ID'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a6741077-9d01-46a7-b8f8-33ea0861e9db",
+      "name": "Buscar_Conversation_Links",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        528,
+        -48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "RhZY4FZWk3Pstr72",
+          "name": "Coronel CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Configuracoes').first().json;\nconst responseLinks = $input.first().json;\nconst stagesResponse = $('Buscar_Etapas_Board').first().json;\n\nconst links = Array.isArray(responseLinks?.data) ? responseLinks.data : [];\nconst stages = Array.isArray(stagesResponse?.data) ? stagesResponse.data : [];\n\nconst normalize = (value) => String(value || '')\n  .normalize('NFD')\n  .replace(/[\\u0300-\\u036f]/g, '')\n  .toLowerCase()\n  .trim();\n\nconst followUpConfigured = String(cfg.StageFollowUpLabel || 'Follow-up');\nconst finalizadoConfigured = String(cfg.StageFinalizadoLabel || 'Finalizado');\nconst dateStrategy = String(cfg.EstrategiaDataMensagem || 'fallback_updated_at');\n\nconst followUpStage = stages.find((s) => {\n  const label = normalize(s.label);\n  return label === normalize(followUpConfigured)\n    || label === 'follow-up'\n    || label === 'follow up'\n    || label === 'followup'\n    || label.includes('follow');\n});\n\nconst finalizadoStage = stages.find((s) => {\n  const label = normalize(s.label);\n  return label === normalize(finalizadoConfigured) || label.startsWith('finaliz');\n});\n\nif (!followUpStage) {\n  throw new Error('Etapa de Follow-up nao encontrada no board. Ajuste StageFollowUpLabel em Configuracoes.');\n}\n\nif (!finalizadoStage) {\n  throw new Error('Etapa Finalizado nao encontrada no board. Ajuste StageFinalizadoLabel em Configuracoes.');\n}\n\nconst stageLabelById = {};\nfor (const stage of stages) {\n  if (stage?.id) stageLabelById[stage.id] = stage.label || '';\n}\n\nconst nowMs = Date.now();\nconst waitDays = Number(cfg.DiasSemMensagem || 25);\nconst ignoreDaysRule = Boolean(cfg.IgnorarRegraDias);\nconst cutoffMs = nowMs - (waitDays * 24 * 60 * 60 * 1000);\n\nconst parseDate = (raw, field) => {\n  if (!raw) return null;\n  const ms = Date.parse(raw);\n  if (!Number.isFinite(ms)) return null;\n  return {\n    sourceDateMs: ms,\n    sourceDateAt: new Date(ms).toISOString(),\n    sourceDateField: field,\n  };\n};\n\nconst getDateCandidate = (link) => {\n  const lastMessage = parseDate(link.lastMessageAt || link.last_message_at || null, 'lastMessageAt');\n  if (lastMessage) return lastMessage;\n\n  // Estrategias de fallback (somente se configurado explicitamente)\n  if (dateStrategy === 'fallback_updated_at') {\n    const updated = parseDate(link.updatedAt || link.updated_at || null, 'updatedAt');\n    if (updated) return updated;\n  }\n\n  if (dateStrategy === 'fallback_created_at') {\n    const created = parseDate(link.createdAt || link.created_at || null, 'createdAt');\n    if (created) return created;\n  }\n\n  return null;\n};\n\nconst latestByDeal = new Map();\nlet linksWithLastMessageAt = 0;\n\nfor (const link of links) {\n  const dealId = link.dealId || link.deal_id || null;\n  if (!dealId) continue;\n\n  if (link.lastMessageAt || link.last_message_at) linksWithLastMessageAt += 1;\n\n  const candidateDate = getDateCandidate(link);\n  if (!candidateDate) continue;\n\n  const existing = latestByDeal.get(dealId);\n  if (!existing || candidateDate.sourceDateMs > existing.sourceDateMs) {\n    latestByDeal.set(dealId, {\n      dealId,\n      sourceDateMs: candidateDate.sourceDateMs,\n      sourceDateAt: candidateDate.sourceDateAt,\n      sourceDateField: candidateDate.sourceDateField,\n      diasSemMensagem: Math.floor((nowMs - candidateDate.sourceDateMs) / (24 * 60 * 60 * 1000)),\n      status: link.status || 'unknown',\n      contactId: link.contactId || link.contact_id || '',\n      lastMessagePreview: String(link.lastMessagePreview || link.last_message_preview || '').trim(),\n    });\n  }\n}\n\nif (dateStrategy === 'strict_last_message' && links.length > 0 && linksWithLastMessageAt === 0) {\n  throw new Error('Nenhum conversation-link possui lastMessageAt. Altere EstrategiaDataMensagem para fallback_updated_at ou preencha last_message_at na origem.');\n}\n\nconst output = [];\nfor (const candidate of latestByDeal.values()) {\n  if (!ignoreDaysRule && candidate.sourceDateMs > cutoffMs) continue;\n\n  output.push({\n    json: {\n      ...candidate,\n      lastMessageAt: candidate.sourceDateAt,\n      followUpLabel: followUpStage.label,\n      finalizadoLabel: finalizadoStage.label,\n      stageLabelById,\n      waitDays,\n      ignoreDaysRule,\n      dateStrategy,\n    }\n  });\n}\n\nreturn output;"
+      },
+      "id": "fa226cde-7ad5-4bb2-b6af-d4eda1f22072",
+      "name": "Preparar_Candidatos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Configuracoes').item.json['CRM-Host'] + '/api/public/v1/deals/' + $json.dealId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "ead919ae-2d4a-4238-b00c-65aa163b430e",
+      "name": "Buscar_Deal_Atual",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        -48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "RhZY4FZWk3Pstr72",
+          "name": "Coronel CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const candidates = $('Preparar_Candidatos').all();\n\nconst asText = (value) => {\n  if (value === null || value === undefined) return '';\n  return String(value).trim();\n};\n\nconst summaryFields = [\n  ['ai_summary', (deal) => deal?.ai_summary],\n  ['aiSummary', (deal) => deal?.aiSummary],\n  ['summary', (deal) => deal?.summary],\n  ['resumo', (deal) => deal?.resumo],\n  ['resumo_conversa', (deal) => deal?.resumo_conversa],\n  ['conversation_summary', (deal) => deal?.conversation_summary],\n  ['conversationSummary', (deal) => deal?.conversationSummary],\n  ['metadata.ai_summary', (deal) => deal?.metadata?.ai_summary],\n  ['metadata.aiSummary', (deal) => deal?.metadata?.aiSummary],\n];\n\nconst output = [];\n\nfor (let index = 0; index < items.length; index += 1) {\n  const candidate = candidates[index]?.json || {};\n  const response = items[index]?.json || {};\n\n  const responseData = response?.data;\n  const deal = (\n    responseData && typeof responseData === 'object' && !Array.isArray(responseData)\n      ? responseData\n      : response && typeof response === 'object' && !Array.isArray(response)\n        ? response\n        : null\n  ) || {};\n\n  let resumoConversa = '';\n  let summarySource = 'none';\n\n  for (const [fieldName, getter] of summaryFields) {\n    const value = asText(getter(deal));\n    if (!value) continue;\n    resumoConversa = value;\n    summarySource = fieldName;\n    break;\n  }\n\n  const selectedStageId = asText(deal.stage_id || deal.stageId);\n\n  output.push({\n    json: {\n      dealId: candidate.dealId || asText(deal.id),\n      dealTitle: asText(deal.title),\n      currentStageId: selectedStageId,\n      currentStageLabel: asText(candidate.stageLabelById?.[selectedStageId]),\n      resumoConversa,\n      followUpLabel: candidate.followUpLabel || '',\n      finalizadoLabel: candidate.finalizadoLabel || '',\n      diasSemMensagem: candidate.diasSemMensagem || 0,\n      lastMessageAt: candidate.lastMessageAt || '',\n      contactId: candidate.contactId || '',\n      summarySource,\n      summaryLength: resumoConversa.length,\n      apiDealId: asText(deal.id),\n    }\n  });\n}\n\nreturn output;"
+      },
+      "id": "ef33b346-10e4-4793-868c-5c34153ad5b2",
+      "name": "Enriquecer_Deal_Contexto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const normalize = (value) => String(value || '')\n  .normalize('NFD')\n  .replace(/[\u0300-\u036f]/g, '')\n  .toLowerCase()\n  .trim();\n\nconst output = [];\n\nfor (const item of items) {\n  const stageNorm = normalize(item.json.currentStageLabel);\n  if (stageNorm.startsWith('nova intera')) continue;\n\n  const resumo = String(item.json.resumoConversa || '').trim();\n  if (!resumo) continue;\n\n  output.push({\n    json: {\n      ...item.json,\n      resumoConversa: resumo,\n      semResumoCRM: false,\n    }\n  });\n}\n\nif (items.length > 0 && output.length === 0) {\n  const sample = items.slice(0, 5).map((item) => ({\n    dealId: item.json.dealId,\n    apiDealId: item.json.apiDealId || '',\n    currentStageLabel: item.json.currentStageLabel || '',\n    summarySource: item.json.summarySource || 'none',\n    summaryLength: item.json.summaryLength || 0,\n  }));\n\n  throw new Error('Nenhum deal com resumo apos filtros. Amostra: ' + JSON.stringify(sample));\n}\n\nreturn output;"
+      },
+      "id": "0409da46-317c-4ae5-a7d9-5e90eb9f11a0",
+      "name": "Filtrar_Com_Resumo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Resumo da conversa do deal:\n{{ $json.resumoConversa }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Voce e um analista comercial de CRM. Leia o resumo da conversa e devolva JSON valido com:\n- sentimento: positivo, neutro ou negativo\n- cliente_ganho: true somente se o resumo indicar claramente fechamento/ganho\n- sem_contexto_nova_conversa: true quando o resumo indicar conversa encerrada, fria ou sem brecha para retomar\n- justificativa: 1 frase objetiva justificando a classificacao\n\nRegras:\n1) Nao invente fatos\n2) Se houver duvida, use neutro\n3) cliente_ganho so pode ser true com evidencia explicita"
+            }
+          ]
+        }
+      },
+      "id": "f5a60f37-a2c1-40f8-9b6b-5c5b568d20b7",
+      "name": "Analisar_Sentimento_Resumo",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        1808,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "id": "a4aff6b8-30e4-4c39-97d7-25cbd883df48",
+      "name": "LLM_Sentimento",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1808,
+        336
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "L8prowczBuToXAV1",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"sentimento\": {\n      \"type\": \"string\",\n      \"enum\": [\"positivo\", \"neutro\", \"negativo\"]\n    },\n    \"cliente_ganho\": {\n      \"type\": \"boolean\"\n    },\n    \"sem_contexto_nova_conversa\": {\n      \"type\": \"boolean\"\n    },\n    \"justificativa\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\"sentimento\", \"cliente_ganho\", \"sem_contexto_nova_conversa\", \"justificativa\"]\n}"
+      },
+      "id": "c3baa183-23f4-4a99-a51f-3a3b2ce4a83c",
+      "name": "Output Parser Sentimento",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        2048,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "c8b52783-56a6-4355-93cd-a1ba3dc0f0f2",
+      "name": "Auto-fixing Parser Sentimento",
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [
+        1936,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ana-deal-id",
+              "name": "dealId",
+              "value": "={{ $('Filtrar_Com_Resumo').item.json.dealId }}",
+              "type": "string"
+            },
+            {
+              "id": "ana-deal-title",
+              "name": "dealTitle",
+              "value": "={{ $('Filtrar_Com_Resumo').item.json.dealTitle }}",
+              "type": "string"
+            },
+            {
+              "id": "ana-current-stage",
+              "name": "currentStageLabel",
+              "value": "={{ $('Filtrar_Com_Resumo').item.json.currentStageLabel }}",
+              "type": "string"
+            },
+            {
+              "id": "ana-follow",
+              "name": "followUpLabel",
+              "value": "={{ $('Filtrar_Com_Resumo').item.json.followUpLabel }}",
+              "type": "string"
+            },
+            {
+              "id": "ana-final",
+              "name": "finalizadoLabel",
+              "value": "={{ $('Filtrar_Com_Resumo').item.json.finalizadoLabel }}",
+              "type": "string"
+            },
+            {
+              "id": "ana-resumo",
+              "name": "resumoConversa",
+              "value": "={{ $('Filtrar_Com_Resumo').item.json.resumoConversa }}",
+              "type": "string"
+            },
+            {
+              "id": "ana-dias-sem-msg",
+              "name": "diasSemMensagem",
+              "value": "={{ $('Filtrar_Com_Resumo').item.json.diasSemMensagem }}",
+              "type": "number"
+            },
+            {
+              "id": "ana-last-msg",
+              "name": "lastMessageAt",
+              "value": "={{ $('Filtrar_Com_Resumo').item.json.lastMessageAt }}",
+              "type": "string"
+            },
+            {
+              "id": "ana-result",
+              "name": "analysis",
+              "value": "={{ $json.output }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cd934ea6-38ad-472f-8040-aad79fe4afcf",
+      "name": "Contexto_Analise",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2128,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const normalize = (value) => String(value || '')\n  .normalize('NFD')\n  .replace(/[\\u0300-\\u036f]/g, '')\n  .toLowerCase()\n  .trim();\n\nreturn items.map((item) => {\n  const data = item.json;\n  const analysis = data.analysis || {};\n\n  const sentiment = normalize(analysis.sentimento);\n  const isPositive = sentiment === 'positivo';\n  const clienteGanho = Boolean(analysis.cliente_ganho);\n  const semContexto = Boolean(analysis.sem_contexto_nova_conversa);\n\n  const currentStageNorm = normalize(data.currentStageLabel);\n  const followNorm = normalize(data.followUpLabel);\n\n  let action = 'none';\n  let targetStageLabel = '';\n  let decisionReason = 'Regra nao atendida';\n\n  if (currentStageNorm.startsWith('finaliz')) {\n    decisionReason = 'Deal ja esta em Finalizado';\n  } else if (isPositive && clienteGanho) {\n    if (currentStageNorm === followNorm) {\n      decisionReason = 'Deal ja esta em Follow-up';\n    } else {\n      action = 'move';\n      targetStageLabel = data.followUpLabel;\n      decisionReason = 'Sentimento positivo com indicacao de cliente ganho';\n    }\n  } else if (!isPositive && semContexto) {\n    action = 'move';\n    targetStageLabel = data.finalizadoLabel;\n    decisionReason = 'Conversa nao positiva e sem contexto para retomar';\n  }\n\n  return {\n    json: {\n      ...data,\n      action,\n      targetStageLabel,\n      decisionReason\n    }\n  };\n});"
+      },
+      "id": "dfbdea13-af27-4569-918a-27b18d48db41",
+      "name": "Decidir_Movimentacao",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.filter((item) => item.json.action === 'move' && item.json.targetStageLabel);"
+      },
+      "id": "63ff695c-a3b6-4f94-abbf-d7926ac74e7c",
+      "name": "Filtrar_Acoes_Movimento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2576,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Configuracoes').item.json['CRM-Host'] + '/api/public/v1/deals/' + $json.dealId + '/move-stage' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to_stage_label\": \"{{ $json.targetStageLabel }}\"\n}",
+        "options": {}
+      },
+      "id": "0363d0fd-de40-4e20-b6d9-198c99493b84",
+      "name": "Mover_Deal_Kanban",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2832,
+        -48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "RhZY4FZWk3Pstr72",
+          "name": "Coronel CRM"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger_Diario": {
+      "main": [
+        [
+          {
+            "node": "Configuracoes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuracoes": {
+      "main": [
+        [
+          {
+            "node": "Buscar_Etapas_Board",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar_Etapas_Board": {
+      "main": [
+        [
+          {
+            "node": "Buscar_Conversation_Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar_Conversation_Links": {
+      "main": [
+        [
+          {
+            "node": "Preparar_Candidatos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar_Candidatos": {
+      "main": [
+        [
+          {
+            "node": "Buscar_Deal_Atual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar_Deal_Atual": {
+      "main": [
+        [
+          {
+            "node": "Enriquecer_Deal_Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enriquecer_Deal_Contexto": {
+      "main": [
+        [
+          {
+            "node": "Filtrar_Com_Resumo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar_Com_Resumo": {
+      "main": [
+        [
+          {
+            "node": "Analisar_Sentimento_Resumo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM_Sentimento": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Auto-fixing Parser Sentimento",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Analisar_Sentimento_Resumo",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output Parser Sentimento": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Auto-fixing Parser Sentimento",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-fixing Parser Sentimento": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Analisar_Sentimento_Resumo",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisar_Sentimento_Resumo": {
+      "main": [
+        [
+          {
+            "node": "Contexto_Analise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contexto_Analise": {
+      "main": [
+        [
+          {
+            "node": "Decidir_Movimentacao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir_Movimentacao": {
+      "main": [
+        [
+          {
+            "node": "Filtrar_Acoes_Movimento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar_Acoes_Movimento": {
+      "main": [
+        [
+          {
+            "node": "Mover_Deal_Kanban",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "4ea16a7b-f7a4-44f7-80fe-722bb2c584de",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "10986e5e32934c504eba26b60fe49769b1881b842f28fb7d6e459fd86d731a16"
+  },
+  "id": "y5rEYj8HX10OI8Mh",
+  "tags": []
+}
