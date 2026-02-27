@@ -1,0 +1,579 @@
+{
+  "name": "[Coronel Picanha] Envio Mensagem Encerramento",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Envio de Mensagem de Encerramento\n\nDispara quando deal e movido para Follow-up.\nEnvia mensagem de encerramento e move para Finalizado.\n\n### Fluxo:\n1. Webhook recebe evento deal.stage_changed para Follow-up\n2. Busca atividade de encerramento com mensagem\n3. Busca conversation link (Chatwoot)\n4. Envia mensagem via Chatwoot (WhatsApp ou Instagram)\n5. Move para Finalizado\n6. Marca atividade como concluida",
+        "height": 300,
+        "width": 380,
+        "color": 4
+      },
+      "id": "sticky-intro",
+      "name": "Sticky Note Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [160, 80]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "followup-envio-mensagem",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 480],
+      "id": "webhook-followup",
+      "name": "Webhook_FollowUp",
+      "webhookId": "followup-envio-mensagem"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "deal-id",
+              "name": "deal_id",
+              "type": "string",
+              "value": "={{ $json.body?.deal?.id || $json.deal?.id || '' }}"
+            },
+            {
+              "id": "deal-title",
+              "name": "deal_title",
+              "type": "string",
+              "value": "={{ $json.body?.deal?.title || $json.deal?.title || '' }}"
+            },
+            {
+              "id": "to-stage-label",
+              "name": "to_stage_label",
+              "type": "string",
+              "value": "={{ $json.body?.deal?.to_stage_label || $json.deal?.to_stage_label || '' }}"
+            },
+            {
+              "id": "contact-id",
+              "name": "contact_id",
+              "type": "string",
+              "value": "={{ $json.body?.contact?.id || $json.contact?.id || '' }}"
+            },
+            {
+              "id": "org-id",
+              "name": "organization_id",
+              "type": "string",
+              "value": "={{ $json.body?.organization_id || '5f8d9c08-fb66-4fc9-be53-180d3ab35d0f' }}"
+            },
+            {
+              "id": "crm-host",
+              "name": "CRM_Host",
+              "type": "string",
+              "value": "https://coronelpicanhacrm.vercel.app"
+            },
+            {
+              "id": "cw-host",
+              "name": "CW_Host",
+              "type": "string",
+              "value": "https://chatwoot-coronel.lagostacriativa.com.br"
+            },
+            {
+              "id": "cw-account",
+              "name": "CW_Account",
+              "type": "string",
+              "value": "1"
+            },
+            {
+              "id": "stage-finalizado",
+              "name": "StageFinalizado",
+              "type": "string",
+              "value": "Finalizado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extrair-dados",
+      "name": "Extrair_Dados",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [464, 480]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "is-followup",
+              "leftValue": "={{ $json.to_stage_label.toLowerCase() }}",
+              "rightValue": "follow-up",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "has-deal-id",
+              "leftValue": "={{ $json.deal_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "is-followup-stage",
+      "name": "E_FollowUp?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.1,
+      "position": [688, 480]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'ignored', reason: 'not_followup_stage', to_stage: $('Extrair_Dados').item.json.to_stage_label } }}",
+        "options": {}
+      },
+      "id": "respond-ignored",
+      "name": "Respond_Ignored",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [912, 640]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Extrair_Dados').item.json.CRM_Host }}/api/public/v1/activities",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "deal_id",
+              "value": "={{ $('Extrair_Dados').item.json.deal_id }}"
+            },
+            {
+              "name": "type",
+              "value": "task"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "buscar-atividades",
+      "name": "Buscar_Atividades",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [912, 320],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "RhZY4FZWk3Pstr72",
+          "name": "Coronel CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst activities = response?.data || [];\n\n// Busca atividade de encerramento pendente\nconst encerramento = activities.find(act => {\n  const title = (act.title || '').toLowerCase();\n  const isEncerramento = title.includes('encerramento') || title.includes('18h');\n  const isPending = !act.completed_at && act.status !== 'completed';\n  return isEncerramento && isPending;\n});\n\nif (!encerramento) {\n  // Se nao encontrou atividade especifica, usa mensagem padrao\n  return [{ json: {\n    found: false,\n    activity_id: null,\n    mensagem: 'Oi! Como nao tivemos retorno, vou finalizar nosso atendimento por aqui. Mas fique tranquilo(a), se precisar de qualquer coisa e so chamar que estaremos a disposicao! Ate mais! 👋'\n  }}];\n}\n\n// Extrai mensagem da descricao\nconst description = encerramento.description || '';\nlet mensagem = '';\n\nconst msgMatch = description.match(/Mensagem de encerramento[:\\s]*([\\s\\S]*?)(?=\\n\\nUltima mensagem|$)/i);\nif (msgMatch && msgMatch[1]) {\n  mensagem = msgMatch[1].trim();\n}\n\nif (!mensagem) {\n  mensagem = 'Oi! Como nao tivemos retorno, vou finalizar nosso atendimento por aqui. Mas fique tranquilo(a), se precisar de qualquer coisa e so chamar que estaremos a disposicao! Ate mais! 👋';\n}\n\nreturn [{ json: {\n  found: true,\n  activity_id: encerramento.id,\n  activity_title: encerramento.title,\n  mensagem\n}}];"
+      },
+      "id": "extrair-mensagem",
+      "name": "Extrair_Mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1136, 320]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Extrair_Dados').item.json.CRM_Host }}/api/chatwoot/conversation-links",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "deal_id",
+              "value": "={{ $('Extrair_Dados').item.json.deal_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "buscar-conversation",
+      "name": "Buscar_Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 320],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "RhZY4FZWk3Pstr72",
+          "name": "Coronel CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst mensagemData = $('Extrair_Mensagem').first().json;\nconst links = response?.data || [];\n\nif (!links.length) {\n  return [{ json: {\n    found: false,\n    error: 'Nenhum conversation link encontrado',\n    mensagem: mensagemData.mensagem,\n    activity_id: mensagemData.activity_id\n  }}];\n}\n\nconst link = links[0];\n\nreturn [{ json: {\n  found: true,\n  conversation_id: link.chatwootConversationId || link.chatwoot_conversation_id,\n  mensagem: mensagemData.mensagem,\n  activity_id: mensagemData.activity_id\n}}];"
+      },
+      "id": "preparar-envio",
+      "name": "Preparar_Envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1584, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "has-conversation",
+              "leftValue": "={{ $json.found }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "tem-conversation",
+      "name": "Tem_Conversation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.1,
+      "position": [1808, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'error', reason: 'no_conversation', deal_id: $('Extrair_Dados').item.json.deal_id } }}",
+        "options": {
+          "responseCode": 404
+        }
+      },
+      "id": "respond-no-conversation",
+      "name": "Respond_No_Conversation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2032, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Extrair_Dados').item.json.CW_Host }}/api/v1/accounts/{{ $('Extrair_Dados').item.json.CW_Account }}/conversations/{{ $json.conversation_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"content\": {{ JSON.stringify($json.mensagem) }},\n  \"message_type\": \"outgoing\",\n  \"private\": false\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "enviar-mensagem",
+      "name": "Enviar_Mensagem_Chatwoot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2032, 160],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1uvzB18SDD4GzDDt",
+          "name": "ChatWoot Coronel"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "message-sent",
+              "leftValue": "={{ $json.id || $json.message_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "mensagem-enviada",
+      "name": "Mensagem_Enviada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.1,
+      "position": [2256, 160]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'error', reason: 'send_failed', error: $json.error || $json.message || 'Unknown' } }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "respond-send-failed",
+      "name": "Respond_Send_Failed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2480, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Extrair_Dados').item.json.CRM_Host }}/api/public/v1/deals/{{ $('Extrair_Dados').item.json.deal_id }}/move-stage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to_stage_label\": \"{{ $('Extrair_Dados').item.json.StageFinalizado }}\"\n}",
+        "options": {}
+      },
+      "id": "mover-finalizado",
+      "name": "Mover_Finalizado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2480, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "RhZY4FZWk3Pstr72",
+          "name": "Coronel CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Extrair_Dados').item.json.CRM_Host }}/api/public/v1/activities/{{ $('Preparar_Envio').item.json.activity_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"completed_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "marcar-concluida",
+      "name": "Marcar_Atividade_Concluida",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2704, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "RhZY4FZWk3Pstr72",
+          "name": "Coronel CRM"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  status: 'success',\n  deal_id: $('Extrair_Dados').item.json.deal_id,\n  deal_title: $('Extrair_Dados').item.json.deal_title,\n  message_sent: true,\n  moved_to: $('Extrair_Dados').item.json.StageFinalizado,\n  conversation_id: $('Preparar_Envio').item.json.conversation_id\n} }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond_Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2928, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook_FollowUp": {
+      "main": [
+        [
+          {
+            "node": "Extrair_Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair_Dados": {
+      "main": [
+        [
+          {
+            "node": "E_FollowUp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "E_FollowUp?": {
+      "main": [
+        [
+          {
+            "node": "Buscar_Atividades",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond_Ignored",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar_Atividades": {
+      "main": [
+        [
+          {
+            "node": "Extrair_Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair_Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Buscar_Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar_Conversation": {
+      "main": [
+        [
+          {
+            "node": "Preparar_Envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar_Envio": {
+      "main": [
+        [
+          {
+            "node": "Tem_Conversation?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem_Conversation?": {
+      "main": [
+        [
+          {
+            "node": "Enviar_Mensagem_Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond_No_Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar_Mensagem_Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "Mensagem_Enviada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem_Enviada?": {
+      "main": [
+        [
+          {
+            "node": "Mover_Finalizado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond_Send_Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mover_Finalizado": {
+      "main": [
+        [
+          {
+            "node": "Marcar_Atividade_Concluida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar_Atividade_Concluida": {
+      "main": [
+        [
+          {
+            "node": "Respond_Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "coronel-envio-encerramento-v2"
+  },
+  "tags": []
+}

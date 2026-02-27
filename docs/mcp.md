@@ -72,3 +72,68 @@ curl -sS -X POST 'https://<seu-dominio>/api/mcp' \
     }
   }'
 ```
+
+---
+
+## Instâncias Configuradas
+
+### Coronel Picanha CRM (Produção)
+
+| Configuração | Valor |
+|--------------|-------|
+| **Endpoint** | `https://coronelpicanhacrm.vercel.app/api/mcp` |
+| **API Key** | `ncrm_Yz1RyzuptiFLVIuL-x5wZQKzxo7cw4Ke` |
+| **Organization ID** | `5f8d9c08-fb66-4fc9-be53-180d3ab35d0f` |
+
+**Exemplo de uso (curl):**
+
+```bash
+# Listar tools disponíveis
+curl -sS -X POST 'https://coronelpicanhacrm.vercel.app/api/mcp' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer ncrm_Yz1RyzuptiFLVIuL-x5wZQKzxo7cw4Ke' \
+  -H 'MCP-Protocol-Version: 2025-11-25' \
+  --data-raw '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+
+# Buscar deals
+curl -sS -X POST 'https://coronelpicanhacrm.vercel.app/api/mcp' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer ncrm_Yz1RyzuptiFLVIuL-x5wZQKzxo7cw4Ke' \
+  -H 'MCP-Protocol-Version: 2025-11-25' \
+  --data-raw '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "crm.deals.search",
+      "arguments": { "limit": 10 }
+    }
+  }'
+```
+
+### Lagosta Criativa CRM (Desenvolvimento)
+
+| Configuração | Valor |
+|--------------|-------|
+| **Endpoint** | `https://lagostacrm.vercel.app/api/mcp` |
+| **API Key** | Ver `.env.local` |
+| **Organization ID** | `d156b55f-256f-4f40-a273-5f5da5a9e882` |
+
+---
+
+## Configuração no Claude Code
+
+Para usar o MCP do CRM no Claude Code, adicione ao arquivo `~/.claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "coronel-crm": {
+      "url": "https://coronelpicanhacrm.vercel.app/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ncrm_Yz1RyzuptiFLVIuL-x5wZQKzxo7cw4Ke"
+      }
+    }
+  }
+}
+```

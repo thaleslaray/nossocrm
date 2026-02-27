@@ -85,6 +85,28 @@ function getStringValue(value: unknown): string | null {
     return typeof value === 'string' && value.trim() ? value : null;
 }
 
+/**
+ * Converts Chatwoot timestamp to ISO string
+ * Handles both Unix timestamp (seconds) and ISO string formats
+ */
+function parseTimestamp(value: string | number | undefined | null): string | null {
+    if (!value) return null;
+
+    // If it's a number, treat as Unix timestamp (seconds)
+    if (typeof value === 'number') {
+        return new Date(value * 1000).toISOString();
+    }
+
+    // If it's a string that looks like a Unix timestamp (all digits)
+    if (typeof value === 'string' && /^\d+$/.test(value)) {
+        return new Date(parseInt(value, 10) * 1000).toISOString();
+    }
+
+    // Otherwise treat as ISO string or parseable date string
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 function inferMessagingSource(conversation: ChatwootConversation): MessagingSource {
     const additional = conversation.additional_attributes || {};
     const custom = conversation.custom_attributes || {};
@@ -144,15 +166,13 @@ export function adaptChatwootConversation(
         ai_enabled: false, // Default, not available from Chatwoot
         unread_count: conversation.unread_count,
         total_messages: conversation.messages?.length || 0,
-        last_message_at: conversation.last_activity_at
-            ? new Date(conversation.last_activity_at).toISOString()
-            : null,
+        last_message_at: parseTimestamp(conversation.last_activity_at),
         last_message_preview: lastMessage?.content?.substring(0, 100) || null,
         last_message_direction: lastMessage
             ? mapMessageDirection(lastMessage.message_type)
             : null,
         created_at: new Date(conversation.created_at * 1000).toISOString(),
-        updated_at: conversation.last_activity_at || new Date().toISOString(),
+        updated_at: parseTimestamp(conversation.last_activity_at) || new Date().toISOString(),
 
         // View extension fields
         contact_name: contact?.name || null,
