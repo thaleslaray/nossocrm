@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Copy, ExternalLink, Mail, MessageCircle, Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { Copy, ExternalLink, Mail, MessageCircle, Sparkles, Loader2, AlertCircle, Send } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { rewriteMessageDraft, type RewriteMessageDraftInput } from '@/lib/ai/actionsClient';
 import { isConsentError, isRateLimitError } from '@/lib/supabase/ai-proxy';
-import { toWhatsAppPhone } from '@/lib/phone';
+import { toWhatsAppPhone, normalizePhoneE164 } from '@/lib/phone';
 
 export type MessageChannel = 'WHATSAPP' | 'EMAIL';
 
@@ -12,6 +12,10 @@ export type MessageExecutedEvent = {
     /** Para EMAIL */
     subject?: string;
     message: string;
+    /** Para WHATSAPP via SmartZap: ID da mensagem enviada */
+    smartZapMessageId?: string;
+    /** Indica se foi enviado via SmartZap (true) ou apenas wa.me (false) */
+    sentViaSmartZap?: boolean;
 };
 
 interface MessageComposerModalProps {
@@ -190,6 +194,9 @@ export function MessageComposerModal({
     const [isRewriting, setIsRewriting] = useState(false);
     const [rewriteError, setRewriteError] = useState<string | null>(null);
     const [aiBadge, setAiBadge] = useState(false);
+    const [isSendingViaSmartZap, setIsSendingViaSmartZap] = useState(false);
+    const [smartZapSent, setSmartZapSent] = useState<{ messageId?: string } | null>(null);
+    const [smartZapError, setSmartZapError] = useState<string | null>(null);
 
     const phone = useMemo(() => formatPhoneForWhatsApp(contactPhone), [contactPhone]);
     const contactValue = useMemo(() => {
@@ -205,6 +212,9 @@ export function MessageComposerModal({
         setRewriteError(null);
         setIsRewriting(false);
         setAiBadge(false);
+        setSmartZapSent(null);
+        setSmartZapError(null);
+        setIsSendingViaSmartZap(false);
         setSubject(typeof initialSubject === 'string' ? initialSubject : '');
         const nextMsg = typeof initialMessage === 'string' ? initialMessage : '';
         setMessage(channel === 'WHATSAPP' ? formatForWhatsApp(nextMsg) : formatForEmail(nextMsg));
@@ -247,6 +257,44 @@ export function MessageComposerModal({
         if (formatted && formatted !== message) setMessage(formatted);
         window.open(buildMailtoUrl(contactEmail, subject, formatted), '_blank');
         onExecuted?.({ channel, subject, message: formatted });
+    };
+
+    /**
+     * Envia a mensagem diretamente via SmartZap (sem abrir o WhatsApp Web).
+     * A mensagem é armazenada no banco do CRM automaticamente.
+     */
+    const handleSendViaSmartZap = async () => {
+        if (isSendingViaSmartZap || !phone || !message.trim()) return;
+
+        setIsSendingViaSmartZap(true);
+        setSmartZapError(null);
+        setSmartZapSent(null);
+
+        const formatted = formatForWhatsApp(message);
+
+        try {
+            const e164 = normalizePhoneE164(contactPhone);
+            const response = await fetch('/api/whatsapp/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'text', to: e164 || phone, text: formatted }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                const errMsg = data?.error || 'Falha ao enviar via SmartZap';
+                setSmartZapError(errMsg);
+                return;
+            }
+
+            setSmartZapSent({ messageId: data.messageId });
+            onExecuted?.({ channel, message: formatted, smartZapMessageId: data.messageId, sentViaSmartZap: true });
+        } catch (err) {
+            setSmartZapError(err instanceof Error ? err.message : 'Erro de conexão com SmartZap');
+        } finally {
+            setIsSendingViaSmartZap(false);
+        }
     };
 
     const handleRewriteWithAI = async () => {
@@ -441,13 +489,30 @@ export function MessageComposerModal({
                     >
                         Cancelar
                     </button>
+                    {/* Envio direto via SmartZap (somente WhatsApp) */}
+                    {channel === 'WHATSAPP' && (
+                        <button
+                            type="button"
+                            onClick={handleSendViaSmartZap}
+                            disabled={isSendingViaSmartZap || !canOpen || !message.trim() || !!smartZapSent}
+                            className="px-4 py-2 rounded-lg text-sm font-semibold bg-green-600 hover:bg-green-700 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                            title="Enviar diretamente via SmartZap (armazena no CRM)"
+                        >
+                            {isSendingViaSmartZap ? (
+                                <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                                <Send size={16} />
+                            )}
+                            {smartZapSent ? 'Enviado!' : 'Enviar via SmartZap'}
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={handleOpen}
                         disabled={!canOpen}
                         className={
                             channel === 'WHATSAPP'
-                                ? 'px-4 py-2 rounded-lg text-sm font-semibold bg-green-500 hover:bg-green-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2'
+                                ? 'px-4 py-2 rounded-lg text-sm font-semibold bg-slate-500 hover:bg-slate-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2'
                                 : 'px-4 py-2 rounded-lg text-sm font-semibold bg-cyan-500 hover:bg-cyan-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2'
                         }
                     >
@@ -455,6 +520,31 @@ export function MessageComposerModal({
                         {channel === 'WHATSAPP' ? 'Abrir no WhatsApp' : 'Abrir no email'}
                     </button>
                 </div>
+
+                {/* Feedback SmartZap */}
+                {smartZapSent && (
+                    <div className="flex items-start gap-2 rounded-lg border border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-950/20 p-3">
+                        <Send size={16} className="text-green-600 dark:text-green-400 mt-0.5" />
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                            Mensagem enviada via SmartZap e salva no CRM.
+                            {smartZapSent.messageId && (
+                                <span className="ml-1 opacity-60 text-xs">ID: {smartZapSent.messageId}</span>
+                            )}
+                        </p>
+                    </div>
+                )}
+
+                {smartZapError && (
+                    <div className="flex items-start gap-2 rounded-lg border border-orange-200 dark:border-orange-500/20 bg-orange-50 dark:bg-orange-950/20 p-3">
+                        <AlertCircle size={16} className="text-orange-600 dark:text-orange-400 mt-0.5" />
+                        <div>
+                            <p className="text-sm text-orange-700 dark:text-orange-300">{smartZapError}</p>
+                            <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">
+                                Use "Abrir no WhatsApp" como alternativa.
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {rewriteError && (
                     <div className="flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-950/20 p-3">
