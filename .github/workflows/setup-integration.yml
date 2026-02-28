@@ -1,0 +1,222 @@
+name: 🔧 Setup SmartZap ↔ NossoCRM Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      smartzap_api_key:
+        description: 'SmartZap API Key (painel SmartZap → Settings → API Key)'
+        required: true
+        type: string
+
+env:
+  SUPABASE_PROJECT_REF: ofiefpwrbmjebjbbcdig
+  WEBHOOK_SECRET: 2b26c131355cc8141c917c296c3262f04dbd75c62c6bd8f0f5e695c23b673ce4
+  NOSSOCRM_VERCEL_PROJECT: nossocrm
+  SMARTZAP_VERCEL_PROJECT: smartzap
+
+jobs:
+  setup:
+    name: Configure Integration
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      - name: Install Supabase CLI
+        run: |
+          RELEASE=$(curl -s https://api.github.com/repos/supabase/cli/releases/latest | jq -r '.tag_name')
+          curl -L "https://github.com/supabase/cli/releases/download/${RELEASE}/supabase_linux_amd64.tar.gz" -o supabase.tar.gz
+          tar -xzf supabase.tar.gz
+          sudo mv supabase /usr/local/bin/
+          supabase --version
+
+      # -----------------------------------------------------------------------
+      - name: Get Supabase API keys
+        id: supa
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          KEYS=$(curl -sf "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/api-keys" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}")
+
+          echo "url=https://${SUPABASE_PROJECT_REF}.supabase.co"   >> "$GITHUB_OUTPUT"
+          echo "anon=$(echo "$KEYS" | jq -r '.[] | select(.name=="anon") | .api_key')"           >> "$GITHUB_OUTPUT"
+          echo "service=$(echo "$KEYS" | jq -r '.[] | select(.name=="service_role") | .api_key')" >> "$GITHUB_OUTPUT"
+          echo "✅ Supabase credentials obtained"
+
+      # -----------------------------------------------------------------------
+      - name: Run NossoCRM migration (whatsapp tables)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          supabase db push
+          echo "✅ Migration applied"
+
+      # -----------------------------------------------------------------------
+      - name: Get Vercel project URLs
+        id: vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          # NossoCRM
+          NOSSOCRM_DATA=$(curl -sf "https://api.vercel.com/v9/projects/${NOSSOCRM_VERCEL_PROJECT}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}")
+          NOSSOCRM_URL=$(echo "$NOSSOCRM_DATA" | jq -r '
+            (.alias // []) |
+            map(select(test("\\.vercel\\.app$"))) |
+            if length > 0 then .[0] else
+              (env.NOSSOCRM_VERCEL_PROJECT + ".vercel.app")
+            end
+          ')
+          NOSSOCRM_URL="https://${NOSSOCRM_URL}"
+
+          # SmartZap
+          SMARTZAP_DATA=$(curl -sf "https://api.vercel.com/v9/projects/${SMARTZAP_VERCEL_PROJECT}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}")
+          SMARTZAP_URL=$(echo "$SMARTZAP_DATA" | jq -r '
+            (.alias // []) |
+            map(select(test("\\.vercel\\.app$"))) |
+            if length > 0 then .[0] else
+              (env.SMARTZAP_VERCEL_PROJECT + ".vercel.app")
+            end
+          ')
+          SMARTZAP_URL="https://${SMARTZAP_URL}"
+
+          echo "nossocrm=${NOSSOCRM_URL}" >> "$GITHUB_OUTPUT"
+          echo "smartzap=${SMARTZAP_URL}"  >> "$GITHUB_OUTPUT"
+          echo "NossoCRM: ${NOSSOCRM_URL}"
+          echo "SmartZap:  ${SMARTZAP_URL}"
+
+      # -----------------------------------------------------------------------
+      - name: Set env vars — NossoCRM (Vercel)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SUPABASE_URL:    ${{ steps.supa.outputs.url }}
+          SUPABASE_ANON:   ${{ steps.supa.outputs.anon }}
+          SUPABASE_SVC:    ${{ steps.supa.outputs.service }}
+          SMARTZAP_URL:    ${{ steps.vercel.outputs.smartzap }}
+          NOSSOCRM_URL:    ${{ steps.vercel.outputs.nossocrm }}
+          SMARTZAP_API_KEY: ${{ github.event.inputs.smartzap_api_key }}
+        run: |
+          set_env() {
+            local KEY="$1" VALUE="$2"
+            local PROJECT_DATA
+            PROJECT_DATA=$(curl -sf "https://api.vercel.com/v9/projects/${NOSSOCRM_VERCEL_PROJECT}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}")
+            local PROJECT_ID
+            PROJECT_ID=$(echo "$PROJECT_DATA" | jq -r '.id')
+
+            # Remove existing (ignore error)
+            curl -s -X DELETE \
+              "https://api.vercel.com/v10/projects/${PROJECT_ID}/env?key=${KEY}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" > /dev/null || true
+
+            # Add new
+            curl -sf -X POST \
+              "https://api.vercel.com/v10/projects/${PROJECT_ID}/env" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"key\":\"${KEY}\",\"value\":\"${VALUE}\",\"type\":\"encrypted\",\"target\":[\"production\",\"preview\"]}"
+            echo "  ✓ ${KEY}"
+          }
+
+          echo "→ Configuring NossoCRM..."
+          set_env "NEXT_PUBLIC_SUPABASE_URL"              "$SUPABASE_URL"
+          set_env "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"  "$SUPABASE_ANON"
+          set_env "SUPABASE_SECRET_KEY"                   "$SUPABASE_SVC"
+          set_env "SMARTZAP_URL"                          "$SMARTZAP_URL"
+          set_env "SMARTZAP_API_KEY"                      "$SMARTZAP_API_KEY"
+          set_env "SMARTZAP_WEBHOOK_SECRET"               "$WEBHOOK_SECRET"
+          set_env "NEXT_PUBLIC_APP_URL"                   "$NOSSOCRM_URL"
+          echo "✅ NossoCRM env vars configured"
+
+      # -----------------------------------------------------------------------
+      - name: Set env vars — SmartZap (Vercel)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SUPABASE_URL:  ${{ steps.supa.outputs.url }}
+          SUPABASE_ANON: ${{ steps.supa.outputs.anon }}
+          SUPABASE_SVC:  ${{ steps.supa.outputs.service }}
+          NOSSOCRM_URL:  ${{ steps.vercel.outputs.nossocrm }}
+        run: |
+          set_env() {
+            local KEY="$1" VALUE="$2"
+            local PROJECT_DATA
+            PROJECT_DATA=$(curl -sf "https://api.vercel.com/v9/projects/${SMARTZAP_VERCEL_PROJECT}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}")
+            local PROJECT_ID
+            PROJECT_ID=$(echo "$PROJECT_DATA" | jq -r '.id')
+
+            curl -s -X DELETE \
+              "https://api.vercel.com/v10/projects/${PROJECT_ID}/env?key=${KEY}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" > /dev/null || true
+
+            curl -sf -X POST \
+              "https://api.vercel.com/v10/projects/${PROJECT_ID}/env" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"key\":\"${KEY}\",\"value\":\"${VALUE}\",\"type\":\"encrypted\",\"target\":[\"production\",\"preview\"]}"
+            echo "  ✓ ${KEY}"
+          }
+
+          echo "→ Configuring SmartZap..."
+          set_env "NEXT_PUBLIC_SUPABASE_URL"  "$SUPABASE_URL"
+          set_env "NEXT_PUBLIC_SUPABASE_ANON_KEY" "$SUPABASE_ANON"
+          set_env "SUPABASE_SERVICE_KEY"      "$SUPABASE_SVC"
+          set_env "CRM_WEBHOOK_URL"           "${NOSSOCRM_URL}/api/webhooks/smartzap"
+          set_env "CRM_WEBHOOK_SECRET"        "$WEBHOOK_SECRET"
+          echo "✅ SmartZap env vars configured"
+
+      # -----------------------------------------------------------------------
+      - name: Trigger redeploy — NossoCRM
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          # Get latest production deployment
+          DEPLOY=$(curl -sf "https://api.vercel.com/v6/deployments?projectId=${NOSSOCRM_VERCEL_PROJECT}&target=production&limit=1" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" | jq -r '.deployments[0].uid')
+          if [ -n "$DEPLOY" ] && [ "$DEPLOY" != "null" ]; then
+            curl -sf -X POST "https://api.vercel.com/v13/deployments?forceNew=1" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"deploymentId\":\"${DEPLOY}\"}" > /dev/null
+            echo "✅ NossoCRM redeploying..."
+          else
+            echo "⚠️  No existing deployment found — deploy via git push"
+          fi
+
+      # -----------------------------------------------------------------------
+      - name: Trigger redeploy — SmartZap
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          DEPLOY=$(curl -sf "https://api.vercel.com/v6/deployments?projectId=${SMARTZAP_VERCEL_PROJECT}&target=production&limit=1" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" | jq -r '.deployments[0].uid')
+          if [ -n "$DEPLOY" ] && [ "$DEPLOY" != "null" ]; then
+            curl -sf -X POST "https://api.vercel.com/v13/deployments?forceNew=1" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"deploymentId\":\"${DEPLOY}\"}" > /dev/null
+            echo "✅ SmartZap redeploying..."
+          else
+            echo "⚠️  No existing deployment found — deploy via git push"
+          fi
+
+      # -----------------------------------------------------------------------
+      - name: Summary
+        env:
+          NOSSOCRM_URL: ${{ steps.vercel.outputs.nossocrm }}
+          SMARTZAP_URL:  ${{ steps.vercel.outputs.smartzap }}
+        run: |
+          echo "## ✅ Integração configurada com sucesso!" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| App | URL |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----|-----|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| NossoCRM | ${NOSSOCRM_URL} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SmartZap | ${SMARTZAP_URL} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Webhook endpoint:** \`${NOSSOCRM_URL}/api/webhooks/smartzap\`" >> "$GITHUB_STEP_SUMMARY"
