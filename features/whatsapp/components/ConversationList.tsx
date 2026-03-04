@@ -1,7 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useWhatsAppConversations, useSyncChats } from '@/lib/query/whatsapp';
+import { createClient } from '@/lib/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/queryKeys';
 import type { WhatsAppConversation } from '@/types/whatsapp';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -32,6 +35,30 @@ export function ConversationList({ selectedId, onSelect, instanceId }: Conversat
     if (!instanceId || syncChats.isPending) return;
     syncChats.mutate(instanceId);
   };
+
+  // Supabase Realtime subscription for conversation updates
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel('conversations-realtime')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'whatsapp_conversations',
+      }, () => {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.whatsappConversations.all,
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-dark-card border-r border-slate-200 dark:border-white/10">

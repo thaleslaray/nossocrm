@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import * as zapi from '@/lib/zapi/client';
+import { getEvolutionCredentials } from '@/lib/evolution/helpers';
+import * as evolution from '@/lib/evolution/client';
 
 type Params = { params: Promise<{ id: string }> };
 
 /**
  * POST /api/whatsapp/instances/[id]/configure-webhooks
  *
- * Manually (re-)configure Z-API webhooks for an instance.
+ * Manually (re-)configure Evolution API webhooks for an instance.
  * Useful when NEXT_PUBLIC_APP_URL was missing at creation time
  * or when the deployment URL changed.
  */
@@ -51,16 +52,25 @@ export async function POST(_request: Request, { params }: Params) {
   // Strip trailing slash to prevent double-slash in webhook URL
   const appUrl = rawAppUrl.replace(/\/+$/, '');
 
-  const creds: zapi.ZApiCredentials = {
-    instanceId: instance.instance_id,
-    token: instance.instance_token,
-    clientToken: instance.client_token ?? undefined,
-  };
-
+  const creds = await getEvolutionCredentials(supabase, instance);
   const baseWebhookUrl = `${appUrl}/api/whatsapp/webhook/${instance.id}`;
 
   try {
-    await zapi.configureAllWebhooks(creds, baseWebhookUrl);
+    // Configure webhook
+    await evolution.setWebhook(creds, {
+      enabled: true,
+      url: baseWebhookUrl,
+      webhookByEvents: false,
+      webhookBase64: true,
+      events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE', 'QRCODE_UPDATED', 'SEND_MESSAGE'],
+    });
+
+    // Also enable WebSocket for real-time events
+    await evolution.setWebSocket(creds, {
+      enabled: true,
+      events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE', 'QRCODE_UPDATED', 'SEND_MESSAGE'],
+    }).catch(err => console.error('[configure-webhooks] WebSocket config failed:', err));
+
     return NextResponse.json({
       ok: true,
       webhookUrl: baseWebhookUrl,

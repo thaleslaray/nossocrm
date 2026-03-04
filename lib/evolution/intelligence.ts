@@ -58,7 +58,7 @@ const INTENT_PATTERNS: IntentPattern[] = [
     intent: 'think_about_it',
     patterns: [
       /(?:vou|preciso|deixa eu|deixa) (?:pensar|analisar|avaliar|refletir|ver com calma)/i,
-      /(?:me )?(?:dá|da) um tempo/i,
+      /(?:me )?(?:d\u00e1|da) um tempo/i,
       /(?:depois eu |eu )?(?:te )?(?:aviso|falo|respondo|digo)/i,
       /vou (?:dar uma |)(?:pensada|analisada|olhada)/i,
     ],
@@ -69,22 +69,22 @@ const INTENT_PATTERNS: IntentPattern[] = [
   {
     intent: 'budget_hold',
     patterns: [
-      /(?:tô|estou|to) sem (?:grana|dinheiro|verba|condição)/i,
-      /(?:não|nao) (?:tenho|tô com) (?:grana|dinheiro|condição)/i,
-      /(?:tá|está|ta) (?:caro|puxado|salgado|acima)/i,
-      /(?:quando eu |no mês que vem |mês que vem eu |quando )(?:receber|tiver|pagar)/i,
-      /(?:só|so) (?:no|dia|depois do) (?:pagamento|quinto|5|salário|próximo mês)/i,
+      /(?:t\u00f4|estou|to) sem (?:grana|dinheiro|verba|condi\u00e7\u00e3o)/i,
+      /(?:n\u00e3o|nao) (?:tenho|t\u00f4 com) (?:grana|dinheiro|condi\u00e7\u00e3o)/i,
+      /(?:t\u00e1|est\u00e1|ta) (?:caro|puxado|salgado|acima)/i,
+      /(?:quando eu |no m\u00eas que vem |m\u00eas que vem eu |quando )(?:receber|tiver|pagar)/i,
+      /(?:s\u00f3|so) (?:no|dia|depois do) (?:pagamento|quinto|5|sal\u00e1rio|pr\u00f3ximo m\u00eas)/i,
     ],
     follow_up_delay_minutes: 1440, // 24 hours
-    label: 'Objeção',
+    label: 'Obje\u00e7\u00e3o',
     score_delta: -10,
   },
   {
     intent: 'callback_request',
     patterns: [
-      /(?:me )?(?:liga|ligar|chama|chamar) (?:amanhã|depois|segunda|terça|quarta|quinta|sexta|sábado|domingo|na semana que vem|mais tarde)/i,
-      /(?:pode|podemos) (?:conversar|falar|tratar) (?:amanhã|depois|segunda|terça|quarta|quinta|sexta)/i,
-      /(?:só|so) (?:consigo|posso) (?:amanhã|depois|segunda|terça|quarta|quinta|sexta)/i,
+      /(?:me )?(?:liga|ligar|chama|chamar) (?:amanh\u00e3|depois|segunda|ter\u00e7a|quarta|quinta|sexta|s\u00e1bado|domingo|na semana que vem|mais tarde)/i,
+      /(?:pode|podemos) (?:conversar|falar|tratar) (?:amanh\u00e3|depois|segunda|ter\u00e7a|quarta|quinta|sexta)/i,
+      /(?:s\u00f3|so) (?:consigo|posso) (?:amanh\u00e3|depois|segunda|ter\u00e7a|quarta|quinta|sexta)/i,
     ],
     follow_up_delay_minutes: 120,
     label: 'Aguardando',
@@ -93,10 +93,10 @@ const INTENT_PATTERNS: IntentPattern[] = [
   {
     intent: 'price_inquiry',
     patterns: [
-      /(?:quanto|qual (?:o |é o )?(?:preço|valor|custo|investimento))/i,
-      /(?:preço|valor|custo)(?:\?|$)/i,
-      /(?:tabela|condição|condições) (?:de pagamento|especial|especiais)/i,
-      /(?:tem |faz |fazem )(?:desconto|promoção|oferta)/i,
+      /(?:quanto|qual (?:o |é o )?(?:pre\u00e7o|valor|custo|investimento))/i,
+      /(?:pre\u00e7o|valor|custo)(?:\?|$)/i,
+      /(?:tabela|condi\u00e7\u00e3o|condi\u00e7\u00f5es) (?:de pagamento|especial|especiais)/i,
+      /(?:tem |faz |fazem )(?:desconto|promo\u00e7\u00e3o|oferta)/i,
     ],
     follow_up_delay_minutes: 0, // no follow-up needed, it's answered inline
     label: 'Interessado',
@@ -105,8 +105,8 @@ const INTENT_PATTERNS: IntentPattern[] = [
   {
     intent: 'availability_check',
     patterns: [
-      /(?:tem |há |existe |ainda tem )(?:disponibilidade|vaga|disponível)/i,
-      /(?:quando|qual) (?:(?:é |seria )?a )?(?:data|horário|próxim)/i,
+      /(?:tem |h\u00e1 |existe |ainda tem )(?:disponibilidade|vaga|dispon\u00edvel)/i,
+      /(?:quando|qual) (?:(?:\u00e9 |seria )?a )?(?:data|hor\u00e1rio|pr\u00f3xim)/i,
       /(?:posso|consigo) (?:agendar|marcar|reservar)/i,
     ],
     follow_up_delay_minutes: 0,
@@ -117,10 +117,10 @@ const INTENT_PATTERNS: IntentPattern[] = [
     intent: 'ready_to_buy',
     patterns: [
       /(?:quero|vou|vamos) (?:fechar|comprar|contratar|assinar|reservar)/i,
-      /(?:como|onde) (?:faço|faz) (?:para|pra) (?:comprar|fechar|contratar|pagar)/i,
+      /(?:como|onde) (?:fa\u00e7o|faz) (?:para|pra) (?:comprar|fechar|contratar|pagar)/i,
       /(?:pode|podemos) (?:fechar|finalizar)/i,
       /(?:me )?(?:manda|envia) (?:o |a )?(?:contrato|proposta|boleto|pix|link)/i,
-      /(?:fechado|fechou|bora|vamos lá|tô dentro|to dentro|partiu)/i,
+      /(?:fechado|fechou|bora|vamos l\u00e1|t\u00f4 dentro|to dentro|partiu)/i,
     ],
     follow_up_delay_minutes: 0,
     label: 'Quente',
@@ -129,10 +129,10 @@ const INTENT_PATTERNS: IntentPattern[] = [
   {
     intent: 'not_interested',
     patterns: [
-      /(?:não|nao) (?:tenho|tô com|estou com) (?:interesse|interesse mais)/i,
-      /(?:não|nao) (?:quero|preciso) (?:mais|não|nada)/i,
-      /(?:obrigad[oa]|vlw|valeu),? (?:mas )?(?:não|nao)/i,
-      /(?:já |)(?:comprei|fechei|contratei) (?:com )?(?:outro|outra|outr[oa]s|em outro lugar)/i,
+      /(?:n\u00e3o|nao) (?:tenho|t\u00f4 com|estou com) (?:interesse|interesse mais)/i,
+      /(?:n\u00e3o|nao) (?:quero|preciso) (?:mais|n\u00e3o|nada)/i,
+      /(?:obrigad[oa]|vlw|valeu),? (?:mas )?(?:n\u00e3o|nao)/i,
+      /(?:j\u00e1 |)(?:comprei|fechei|contratei) (?:com )?(?:outro|outra|outr[oa]s|em outro lugar)/i,
     ],
     follow_up_delay_minutes: 0,
     label: 'Perdido',
@@ -141,8 +141,8 @@ const INTENT_PATTERNS: IntentPattern[] = [
   {
     intent: 'wants_human',
     patterns: [
-      /(?:quero|preciso|pode) (?:falar|conversar) com (?:um |uma )?(?:pessoa|humano|atendente|gerente|supervisor|responsável)/i,
-      /(?:isso|você) é (?:um )?(?:robô|bot|máquina|inteligência artificial|ia|robo)/i,
+      /(?:quero|preciso|pode) (?:falar|conversar) com (?:um |uma )?(?:pessoa|humano|atendente|gerente|supervisor|respons\u00e1vel)/i,
+      /(?:isso|voc\u00ea) \u00e9 (?:um )?(?:rob\u00f4|bot|m\u00e1quina|intelig\u00eancia artificial|ia|robo)/i,
       /(?:me )?(?:transfere|passa|encaminha) (?:para|pra) (?:um |uma )?(?:pessoa|atendente|humano)/i,
     ],
     follow_up_delay_minutes: 0,
@@ -180,18 +180,18 @@ export function detectIntentsLocal(message: string): DetectedIntent[] {
 // AI-POWERED INTELLIGENCE EXTRACTION
 // =============================================================================
 
-const INTELLIGENCE_PROMPT = `Você é um analisador de conversas de vendas por WhatsApp. Analise a ÚLTIMA MENSAGEM DO CLIENTE no contexto da conversa e extraia informações estruturadas.
+const INTELLIGENCE_PROMPT = `Voc\u00ea \u00e9 um analisador de conversas de vendas por WhatsApp. Analise a \u00daLTIMA MENSAGEM DO CLIENTE no contexto da conversa e extraia informa\u00e7\u00f5es estruturadas.
 
-MEMÓRIAS DO CONTATO (informações já conhecidas):
+MEM\u00d3RIAS DO CONTATO (informa\u00e7\u00f5es j\u00e1 conhecidas):
 {memories}
 
 CONVERSA RECENTE:
 {conversation}
 
-ÚLTIMA MENSAGEM DO CLIENTE:
+\u00daLTIMA MENSAGEM DO CLIENTE:
 "{message}"
 
-Responda APENAS com JSON válido (sem markdown, sem \`\`\`):
+Responda APENAS com JSON v\u00e1lido (sem markdown, sem \`\`\`):
 {
   "intents": [
     {
@@ -205,7 +205,7 @@ Responda APENAS com JSON válido (sem markdown, sem \`\`\`):
     {
       "memory_type": "fact|preference|objection|family|timeline|budget|interest|personal|interaction",
       "key": "chave descritiva curta (ex: spouse_name, budget_range, preferred_date)",
-      "value": "valor extraído",
+      "value": "valor extra\u00eddo",
       "context": "contexto adicional opcional",
       "confidence": 0.0-1.0
     }
@@ -215,24 +215,24 @@ Responda APENAS com JSON válido (sem markdown, sem \`\`\`):
   "buying_stage": "awareness|interest|consideration|decision|negotiation|closed_won|closed_lost" ou null,
   "suggested_labels": ["nome da label"],
   "should_pause": false,
-  "pause_reason": null ou "razão para pausar",
+  "pause_reason": null ou "raz\u00e3o para pausar",
   "follow_up": {
     "should_schedule": true/false,
     "delay_minutes": numero,
     "context_for_message": "contexto chave que o follow-up deve usar",
-    "urgency_hook": "gancho de urgência natural (ex: 'poucas vagas', 'preço especial até sexta')"
+    "urgency_hook": "gancho de urg\u00eancia natural (ex: 'poucas vagas', 'pre\u00e7o especial at\u00e9 sexta')"
   }
 }
 
 REGRAS:
-- Extraia TODAS as informações relevantes mencionadas (nomes, datas, valores, preferências)
-- Se o cliente mencionar nome de alguém (esposo, filha, etc), extraia como memória tipo "family"
+- Extraia TODAS as informa\u00e7\u00f5es relevantes mencionadas (nomes, datas, valores, prefer\u00eancias)
+- Se o cliente mencionar nome de algu\u00e9m (esposo, filha, etc), extraia como mem\u00f3ria tipo "family"
 - Se mencionar valores/budget, extraia como "budget"
-- Se mencionar preferências, extraia como "preference"
-- Para follow-ups: considere a hora do dia e o contexto. Se alguém diz "vou ver com meu esposo", 30-60 min é bom. Se diz "vou pensar", 1-2h é bom. Se diz "mês que vem", agende para semana que vem.
+- Se mencionar prefer\u00eancias, extraia como "preference"
+- Para follow-ups: considere a hora do dia e o contexto. Se algu\u00e9m diz "vou ver com meu esposo", 30-60 min \u00e9 bom. Se diz "vou pensar", 1-2h \u00e9 bom. Se diz "m\u00eas que vem", agende para semana que vem.
 - should_pause = true APENAS se o cliente pedir humano ou estiver muito insatisfeito
 - urgency_hook deve ser sutil e natural, nunca agressivo
-- Retorne arrays vazios se não houver nada a extrair`;
+- Retorne arrays vazios se n\u00e3o houver nada a extrair`;
 
 export async function analyzeWithAI(
   supabase: SupabaseClient,
@@ -261,7 +261,7 @@ export async function analyzeWithAI(
   // Format existing memories
   const memoriesText = existingMemories.length > 0
     ? existingMemories.map((m) => `- [${m.memory_type}] ${m.key}: ${m.value}`).join('\n')
-    : 'Nenhuma memória registrada ainda.';
+    : 'Nenhuma mem\u00f3ria registrada ainda.';
 
   const prompt = INTELLIGENCE_PROMPT
     .replace('{memories}', memoriesText)
@@ -415,26 +415,26 @@ function mergeIntents(local: DetectedIntent[], ai: DetectedIntent[]): DetectedIn
 // FOLLOW-UP MESSAGE GENERATOR
 // =============================================================================
 
-const FOLLOW_UP_PROMPT = `Você é um assistente de vendas enviando uma mensagem de follow-up no WhatsApp.
+const FOLLOW_UP_PROMPT = `Voc\u00ea \u00e9 um assistente de vendas enviando uma mensagem de follow-up no WhatsApp.
 
 CONTEXTO:
 - Nome do cliente: {customer_name}
 - O que ele disse antes: "{original_message}"
 - Intent detectado: {intent}
 - Contexto adicional: {context}
-- Gancho de urgência: {urgency_hook}
+- Gancho de urg\u00eancia: {urgency_hook}
 - Tom: {tone}
 
-MEMÓRIAS DO CONTATO:
+MEM\u00d3RIAS DO CONTATO:
 {memories}
 
-Gere UMA mensagem de follow-up curta (máximo 2 parágrafos) que:
+Gere UMA mensagem de follow-up curta (m\u00e1ximo 2 par\u00e1grafos) que:
 1. Retoma a conversa naturalmente referenciando o que foi discutido
-2. Usa o nome do cliente se disponível
-3. Inclui um gancho sutil de urgência se disponível
-4. NÃO usa markdown, NÃO usa emojis excessivos (máximo 1)
-5. Soa como uma pessoa real, não um bot
-6. É em português do Brasil
+2. Usa o nome do cliente se dispon\u00edvel
+3. Inclui um gancho sutil de urg\u00eancia se dispon\u00edvel
+4. N\u00c3O usa markdown, N\u00c3O usa emojis excessivos (m\u00e1ximo 1)
+5. Soa como uma pessoa real, n\u00e3o um bot
+6. \u00c9 em portugu\u00eas do Brasil
 
 Responda APENAS com o texto da mensagem, sem aspas.`;
 
@@ -461,12 +461,12 @@ export async function generateFollowUpMessage(
   else if (provider === 'anthropic') apiKey = orgSettings?.ai_anthropic_key;
 
   if (!apiKey) {
-    return `Olá${customerName ? ` ${customerName}` : ''}! Tudo bem? Gostaria de retomar nossa conversa. Posso ajudar com algo?`;
+    return `Ol\u00e1${customerName ? ` ${customerName}` : ''}! Tudo bem? Gostaria de retomar nossa conversa. Posso ajudar com algo?`;
   }
 
   const memoriesText = memories.length > 0
     ? memories.map((m) => `- [${m.memory_type}] ${m.key}: ${m.value}`).join('\n')
-    : 'Nenhuma memória registrada.';
+    : 'Nenhuma mem\u00f3ria registrada.';
 
   const context = followUp.context as Record<string, string>;
   const prompt = FOLLOW_UP_PROMPT
@@ -502,8 +502,8 @@ export async function generateFollowUpMessage(
       maxOutputTokens: 300,
     });
 
-    return result.text.trim() || `Olá${customerName ? ` ${customerName}` : ''}! Gostaria de retomar nossa conversa. Posso ajudar?`;
+    return result.text.trim() || `Ol\u00e1${customerName ? ` ${customerName}` : ''}! Gostaria de retomar nossa conversa. Posso ajudar?`;
   } catch {
-    return `Olá${customerName ? ` ${customerName}` : ''}! Tudo bem? Gostaria de saber se ainda posso ajudar com algo.`;
+    return `Ol\u00e1${customerName ? ` ${customerName}` : ''}! Tudo bem? Gostaria de saber se ainda posso ajudar com algo.`;
   }
 }

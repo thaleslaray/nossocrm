@@ -10,7 +10,7 @@
  * 1. Check if the customer already replied (auto-cancelled by trigger)
  * 2. Check quiet hours
  * 3. Generate a contextual follow-up message using AI + memory
- * 4. Send via Z-API
+ * 4. Send via Evolution API
  * 5. Re-activate AI on the conversation
  * 6. Log the action
  */
@@ -23,8 +23,8 @@ import {
   getMemories,
 } from '@/lib/supabase/whatsappIntelligence';
 import { getAIConfig, insertAILog, updateConversation, getConversation } from '@/lib/supabase/whatsapp';
-import { generateFollowUpMessage } from '@/lib/zapi/intelligence';
-import * as zapi from '@/lib/zapi/client';
+import { generateFollowUpMessage } from '@/lib/evolution/intelligence';
+import * as evolution from '@/lib/evolution/client';
 
 export interface ProcessResult {
   processed: number;
@@ -76,6 +76,19 @@ async function processOneFollowUp(
     .single();
 
   if (!instance || instance.status !== 'connected') {
+    await updateFollowUpStatus(supabase, followUp.id, 'failed');
+    result.failed++;
+    return;
+  }
+
+  // Get Evolution API URL from organization settings
+  const { data: orgSettings } = await supabase
+    .from('organization_settings')
+    .select('evolution_api_url')
+    .eq('organization_id', followUp.organization_id)
+    .single();
+
+  if (!orgSettings?.evolution_api_url) {
     await updateFollowUpStatus(supabase, followUp.id, 'failed');
     result.failed++;
     return;
@@ -135,16 +148,16 @@ async function processOneFollowUp(
     );
   }
 
-  // Send via Z-API
-  const creds: zapi.ZApiCredentials = {
-    instanceId: instance.instance_id,
-    token: instance.instance_token,
-    clientToken: instance.client_token ?? undefined,
+  // Send via Evolution API
+  const creds: evolution.EvolutionCredentials = {
+    baseUrl: orgSettings.evolution_api_url,
+    apiKey: instance.instance_token,
+    instanceName: instance.evolution_instance_name || instance.instance_id,
   };
 
-  const response = await zapi.sendText(creds, {
-    phone: conversation.phone,
-    message,
+  const response = await evolution.sendText(creds, {
+    number: conversation.phone,
+    text: message,
   });
 
   // Persist message
@@ -153,7 +166,7 @@ async function processOneFollowUp(
     .insert({
       conversation_id: followUp.conversation_id,
       organization_id: followUp.organization_id,
-      zapi_message_id: response.zapiMessageId || response.messageId || response.id || undefined,
+      evolution_message_id: response.key?.id || undefined,
       from_me: true,
       message_type: 'text',
       text_body: message,

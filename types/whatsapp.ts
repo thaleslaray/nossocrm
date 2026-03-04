@@ -1,5 +1,5 @@
 /**
- * @fileoverview WhatsApp / Z-API type definitions for FullHouse CRM.
+ * @fileoverview WhatsApp / Evolution API type definitions for FullHouse CRM.
  */
 
 // =============================================================================
@@ -11,9 +11,10 @@ export type WhatsAppInstanceStatus = 'disconnected' | 'connecting' | 'connected'
 export interface WhatsAppInstance {
   id: string;
   organization_id: string;
-  instance_id: string;     // Z-API instance ID
-  instance_token: string;  // Z-API instance token
-  client_token?: string;   // Z-API client token (optional)
+  instance_id: string;     // Evolution API instance ID
+  instance_token: string;  // Evolution API instance apikey
+  client_token?: string;   // Deprecated (not used by Evolution API)
+  evolution_instance_name?: string; // Evolution API instance name (used in URL paths)
   name: string;
   phone?: string;
   status: WhatsAppInstanceStatus;
@@ -25,9 +26,6 @@ export interface WhatsAppInstance {
 }
 
 export interface WhatsAppInstanceCreate {
-  instance_id: string;
-  instance_token: string;
-  client_token?: string;
   name: string;
 }
 
@@ -91,7 +89,7 @@ export interface WhatsAppMessage {
   id: string;
   conversation_id: string;
   organization_id: string;
-  zapi_message_id?: string;
+  evolution_message_id?: string;
   from_me: boolean;
   sender_name?: string;
   message_type: MessageType;
@@ -188,118 +186,112 @@ export interface WhatsAppAIConfigUpdate {
 }
 
 // =============================================================================
-// Z-API WEBHOOK PAYLOADS
+// EVOLUTION API WEBHOOK PAYLOADS
 // =============================================================================
 
-export interface ZApiWebhookBase {
-  instanceId: string;
-  phone: string;
-  connectedPhone?: string;
-  isGroup: boolean;
-  messageId: string;
-  momment: number;        // Unix timestamp (ms)
-  status: string;
-  chatName?: string;
-  senderName?: string;
-  senderPhoto?: string;
+export interface EvolutionWebhookKey {
+  remoteJid: string;
   fromMe: boolean;
+  id: string;
 }
 
-export interface ZApiTextMessage extends ZApiWebhookBase {
-  type: 'ReceivedCallback';
-  text: { message: string };
-}
-
-export interface ZApiImageMessage extends ZApiWebhookBase {
-  type: 'ReceivedCallback';
-  image: {
-    imageUrl: string;
-    thumbnailUrl?: string;
-    caption?: string;
-    mimeType: string;
+export interface EvolutionMessageUpsert {
+  event: 'messages.upsert';
+  instance: string;
+  data: {
+    key: EvolutionWebhookKey;
+    pushName?: string;
+    message: {
+      conversation?: string;
+      extendedTextMessage?: { text: string };
+      imageMessage?: {
+        url?: string;
+        directPath?: string;
+        mimetype: string;
+        caption?: string;
+        jpegThumbnail?: string;
+      };
+      videoMessage?: {
+        url?: string;
+        directPath?: string;
+        mimetype: string;
+        caption?: string;
+      };
+      audioMessage?: {
+        url?: string;
+        directPath?: string;
+        mimetype: string;
+        ptt?: boolean;
+      };
+      documentMessage?: {
+        url?: string;
+        directPath?: string;
+        mimetype: string;
+        title?: string;
+        fileName?: string;
+      };
+      stickerMessage?: {
+        url?: string;
+        directPath?: string;
+        mimetype: string;
+      };
+      locationMessage?: {
+        degreesLatitude: number;
+        degreesLongitude: number;
+        name?: string;
+        address?: string;
+      };
+      reactionMessage?: {
+        key: EvolutionWebhookKey;
+        text: string;
+      };
+      contactMessage?: Record<string, unknown>;
+      listResponseMessage?: Record<string, unknown>;
+      buttonsResponseMessage?: Record<string, unknown>;
+    };
+    messageTimestamp: number;
+    messageType?: string;
   };
 }
 
-export interface ZApiVideoMessage extends ZApiWebhookBase {
-  type: 'ReceivedCallback';
-  video: {
-    videoUrl: string;
-    caption?: string;
-    mimeType: string;
+export interface EvolutionMessageUpdate {
+  event: 'messages.update';
+  instance: string;
+  data: {
+    key: EvolutionWebhookKey;
+    update: {
+      status: 'PENDING' | 'SERVER_ACK' | 'DELIVERY_ACK' | 'READ' | 'PLAYED';
+    };
+  }[];
+}
+
+export interface EvolutionConnectionUpdate {
+  event: 'connection.update';
+  instance: string;
+  data: {
+    state: 'open' | 'close' | 'connecting';
+    statusReason?: number;
   };
 }
 
-export interface ZApiAudioMessage extends ZApiWebhookBase {
-  type: 'ReceivedCallback';
-  audio: {
-    audioUrl: string;
-    mimeType: string;
+export interface EvolutionQRCodeUpdate {
+  event: 'qrcode.updated';
+  instance: string;
+  data: {
+    qrcode: {
+      pairingCode?: string;
+      code?: string;
+      base64?: string;
+      count?: number;
+    };
   };
 }
 
-export interface ZApiDocumentMessage extends ZApiWebhookBase {
-  type: 'ReceivedCallback';
-  document: {
-    documentUrl: string;
-    mimeType: string;
-    title?: string;
-    fileName?: string;
-  };
-}
-
-export interface ZApiStickerMessage extends ZApiWebhookBase {
-  type: 'ReceivedCallback';
-  sticker: {
-    stickerUrl: string;
-    mimeType: string;
-  };
-}
-
-export interface ZApiLocationMessage extends ZApiWebhookBase {
-  type: 'ReceivedCallback';
-  location: {
-    latitude: number;
-    longitude: number;
-    name?: string;
-    address?: string;
-  };
-}
-
-export interface ZApiReactionMessage extends ZApiWebhookBase {
-  type: 'ReceivedCallback';
-  reaction: {
-    value: string;
-    reactionBy: string;
-    referenceMessageId: string;
-  };
-}
-
-export type ZApiIncomingMessage =
-  | ZApiTextMessage
-  | ZApiImageMessage
-  | ZApiVideoMessage
-  | ZApiAudioMessage
-  | ZApiDocumentMessage
-  | ZApiStickerMessage
-  | ZApiLocationMessage
-  | ZApiReactionMessage;
-
-// Message status webhook
-export interface ZApiMessageStatus {
-  instanceId: string;
-  messageId: string;
-  phone: string;
-  status: 'SENT' | 'RECEIVED' | 'READ' | 'PLAYED' | 'DELETED';
-  momment: number;
-}
-
-// Connection webhook
-export interface ZApiConnectionEvent {
-  instanceId: string;
-  connected: boolean;
-  phone?: string;
-  smartphoneConnected?: boolean;
-}
+export type EvolutionWebhookPayload =
+  | EvolutionMessageUpsert
+  | EvolutionMessageUpdate
+  | EvolutionConnectionUpdate
+  | EvolutionQRCodeUpdate;
 
 // =============================================================================
 // AI AGENT LOG

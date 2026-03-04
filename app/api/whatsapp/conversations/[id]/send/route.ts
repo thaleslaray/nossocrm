@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getConversation, getInstance, insertMessage, updateConversation, insertAILog } from '@/lib/supabase/whatsapp';
-import * as zapi from '@/lib/zapi/client';
+import { getEvolutionCredentials } from '@/lib/evolution/helpers';
+import * as evolution from '@/lib/evolution/client';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -32,25 +33,21 @@ export async function POST(request: Request, { params }: Params) {
 
   const { text, quotedMessageId } = parsed.data;
 
-  // Send via Z-API
-  const creds: zapi.ZApiCredentials = {
-    instanceId: instance.instance_id,
-    token: instance.instance_token,
-    clientToken: instance.client_token ?? undefined,
+  // Send via Evolution API
+  const creds = await getEvolutionCredentials(supabase, instance);
+
+  const evoPayload: evolution.SendTextPayload = {
+    number: conversation.phone,
+    text,
+    ...(quotedMessageId ? { quoted: { key: { id: quotedMessageId } } } : {}),
   };
 
-  const zapiPayload: zapi.SendTextPayload = {
-    phone: conversation.phone,
-    message: text,
-    ...(quotedMessageId ? { messageId: quotedMessageId } : {}),
-  };
-
-  let zapiResponse: zapi.SendMessageResponse;
+  let evoResponse: evolution.SendMessageResponse;
   try {
-    zapiResponse = await zapi.sendText(creds, zapiPayload);
+    evoResponse = await evolution.sendText(creds, evoPayload);
   } catch (err) {
     return NextResponse.json(
-      { error: 'Falha ao enviar mensagem via Z-API.' },
+      { error: 'Falha ao enviar mensagem via Evolution API.' },
       { status: 502 },
     );
   }
@@ -59,7 +56,7 @@ export async function POST(request: Request, { params }: Params) {
   const message = await insertMessage(supabase, {
     conversation_id: id,
     organization_id: conversation.organization_id,
-    zapi_message_id: zapiResponse.zapiMessageId || zapiResponse.messageId || zapiResponse.id || undefined,
+    evolution_message_id: evoResponse.key?.id || undefined,
     from_me: true,
     message_type: 'text',
     text_body: text,

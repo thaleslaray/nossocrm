@@ -7,7 +7,6 @@ import {
   useDeleteWhatsAppInstance,
   useWhatsAppQRCode,
   useWhatsAppInstance,
-  useConfigureWebhooks,
 } from '@/lib/query/whatsapp';
 import type { WhatsAppInstance } from '@/types/whatsapp';
 import {
@@ -22,7 +21,6 @@ import {
   X,
   Check,
   Loader2,
-  Link,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -119,21 +117,13 @@ function QRCodePanel({ instanceId, onClose }: { instanceId: string; onClose: () 
 
 function AddInstanceModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
-  const [instanceId, setInstanceId] = useState('');
-  const [instanceToken, setInstanceToken] = useState('');
-  const [clientToken, setClientToken] = useState('');
 
   const createMutation = useCreateWhatsAppInstance();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createMutation.mutate(
-      {
-        name: name || 'WhatsApp Principal',
-        instance_id: instanceId,
-        instance_token: instanceToken,
-        client_token: clientToken || undefined,
-      },
+      { name: name || 'WhatsApp Principal' },
       { onSuccess: () => onClose() },
     );
   };
@@ -162,53 +152,8 @@ function AddInstanceModal({ onClose }: { onClose: () => void }) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Instance ID <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={instanceId}
-              onChange={(e) => setInstanceId(e.target.value)}
-              placeholder="Cole o Instance ID do Z-API"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-bg text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Instance Token <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="password"
-              required
-              value={instanceToken}
-              onChange={(e) => setInstanceToken(e.target.value)}
-              placeholder="Cole o Token do Z-API"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-bg text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Client Token <span className="text-slate-400">(opcional)</span>
-            </label>
-            <input
-              type="password"
-              value={clientToken}
-              onChange={(e) => setClientToken(e.target.value)}
-              placeholder="Token de segurança da conta (opcional)"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-bg text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
-
           <p className="text-xs text-slate-400">
-            Obtenha suas credenciais em{' '}
-            <a href="https://app.z-api.io" target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline">
-              app.z-api.io
-            </a>{' '}
-            &gt; Suas Instâncias.
+            O sistema cria e configura a instância automaticamente na Evolution API.
           </p>
 
           {createMutation.error && (
@@ -229,7 +174,7 @@ function AddInstanceModal({ onClose }: { onClose: () => void }) {
               className="flex-1 py-2 rounded-xl bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {createMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Conectar
+              Criar Instância
             </button>
           </div>
         </form>
@@ -251,8 +196,6 @@ function InstanceCard({
   onConnect: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const configureWebhooksMutation = useConfigureWebhooks();
-
   const statusConfig = {
     connected: { color: 'text-green-500 bg-green-500/10', icon: Wifi, label: 'Conectado' },
     disconnected: { color: 'text-slate-400 bg-slate-100 dark:bg-white/5', icon: WifiOff, label: 'Desconectado' },
@@ -297,13 +240,6 @@ function InstanceCard({
         )}
       </div>
 
-      {configureWebhooksMutation.isSuccess && (
-        <p className="text-xs text-green-500 mb-2">Webhooks configurados!</p>
-      )}
-      {configureWebhooksMutation.isError && (
-        <p className="text-xs text-red-500 mb-2">{configureWebhooksMutation.error.message}</p>
-      )}
-
       <div className="flex gap-2">
         {instance.status !== 'connected' && (
           <button
@@ -323,18 +259,6 @@ function InstanceCard({
             Reconectar
           </button>
         )}
-        <button
-          onClick={() => configureWebhooksMutation.mutate(instance.id)}
-          disabled={configureWebhooksMutation.isPending}
-          title="Configurar webhooks (necessário para receber mensagens)"
-          className="p-2 rounded-xl border border-slate-200 dark:border-white/10 text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors disabled:opacity-50"
-        >
-          {configureWebhooksMutation.isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Link className="w-4 h-4" />
-          )}
-        </button>
         <button
           onClick={() => onDelete(instance.id)}
           className="p-2 rounded-xl border border-red-200 dark:border-red-500/20 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
@@ -362,7 +286,7 @@ export function WhatsAppSetup() {
         <div>
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Instâncias WhatsApp</h3>
           <p className="text-sm text-slate-500 mt-1">
-            Conecte suas contas WhatsApp via Z-API para receber e enviar mensagens.
+            Conecte suas contas WhatsApp para receber e enviar mensagens.
           </p>
         </div>
         <button
@@ -383,7 +307,7 @@ export function WhatsAppSetup() {
           <MessageSquare className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
           <h4 className="font-semibold text-slate-900 dark:text-white mb-1">Nenhuma instância configurada</h4>
           <p className="text-sm text-slate-500 mb-4">
-            Crie uma instância Z-API e conecte seu WhatsApp para começar.
+            Crie uma instância e conecte seu WhatsApp para começar.
           </p>
           <button
             onClick={() => setShowAddModal(true)}

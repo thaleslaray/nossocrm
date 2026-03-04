@@ -267,13 +267,13 @@ export async function insertMessage(
 
 export async function updateMessageStatus(
   supabase: SupabaseClient,
-  zapiMessageId: string,
+  evolutionMessageId: string,
   status: string,
 ): Promise<void> {
   const { error } = await supabase
     .from('whatsapp_messages')
     .update({ status })
-    .eq('zapi_message_id', zapiMessageId);
+    .eq('evolution_message_id', evolutionMessageId);
 
   if (error) throw error;
 }

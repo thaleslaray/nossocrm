@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { getInstances, createInstance } from '@/lib/supabase/whatsapp';
-import * as zapi from '@/lib/zapi/client';
+import { getInstances } from '@/lib/supabase/whatsapp';
+import { getEvolutionGlobalConfig, generateInstanceName } from '@/lib/evolution/helpers';
+import * as evolution from '@/lib/evolution/client';
 
 const CreateInstanceSchema = z.object({
-  instanceId: z.string().min(1),
-  instanceToken: z.string().min(1),
-  clientToken: z.string().optional(),
   name: z.string().min(1).max(100),
 });
 
@@ -68,45 +66,109 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { instanceId, instanceToken, clientToken, name } = parsed.data;
+  const { name } = parsed.data;
 
-  // Verify Z-API credentials are valid
-  const creds: zapi.ZApiCredentials = {
-    instanceId,
-    token: instanceToken,
-    clientToken,
-  };
-
+  // Get Evolution API global config (URL + global API key)
+  let baseUrl: string;
+  let globalApiKey: string;
   try {
-    await zapi.getInstanceStatus(creds);
-  } catch {
+    ({ baseUrl, globalApiKey } = await getEvolutionGlobalConfig(supabase, profile.organization_id));
+  } catch (err) {
     return NextResponse.json(
-      { error: 'Credenciais Z-API inválidas. Verifique o Instance ID e Token.' },
+      { error: err instanceof Error ? err.message : 'Evolution API não configurada.' },
       { status: 400 },
     );
   }
 
-  const instance = await createInstance(supabase, profile.organization_id, {
-    instance_id: instanceId,
-    instance_token: instanceToken,
-    client_token: clientToken,
-    name,
-  });
+  // Generate a unique instance name for Evolution API
+  const instanceName = generateInstanceName(profile.organization_id, name);
 
-  // Configure Z-API webhooks to point to our app
+  // Insert DB record first with placeholder values
+  const { data: dbInstance, error: dbError } = await supabase
+    .from('whatsapp_instances')
+    .insert({
+      organization_id: profile.organization_id,
+      name,
+      instance_id: instanceName,
+      instance_token: 'pending',
+      evolution_instance_name: instanceName,
+      status: 'disconnected',
+    })
+    .select()
+    .single();
+
+  if (dbError || !dbInstance) {
+    return NextResponse.json(
+      { error: dbError?.message || 'Falha ao criar registro no banco de dados.' },
+      { status: 500 },
+    );
+  }
+
+  // Build webhook URL
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
-  if (appUrl) {
-    const baseWebhookUrl = `${appUrl}/api/whatsapp/webhook/${instance.id}`;
-    try {
-      await zapi.configureAllWebhooks(creds, baseWebhookUrl);
-      console.log(`[whatsapp] Webhooks configured for instance ${instance.id}: ${baseWebhookUrl}`);
-    } catch (webhookErr) {
-      console.error('[whatsapp] Failed to configure webhooks:', webhookErr);
-      // Don't fail the instance creation – user can retry via the configure-webhooks endpoint
-    }
-  } else {
+  const webhookUrl = appUrl ? `${appUrl.replace(/\/+$/, '')}/api/whatsapp/webhook/${dbInstance.id}` : undefined;
+
+  // Create instance on Evolution API
+  let evoResult: evolution.CreateInstanceResponse;
+  try {
+    evoResult = await evolution.createInstance(baseUrl, globalApiKey, {
+      instanceName,
+      integration: 'WHATSAPP-BAILEYS',
+      qrcode: false,
+      rejectCall: true,
+      msgCall: 'Não posso atender ligações no momento. Por favor, envie uma mensagem.',
+      groupsIgnore: true,
+      alwaysOnline: true,
+      readMessages: true,
+      readStatus: true,
+      syncFullHistory: true,
+      ...(webhookUrl ? {
+        webhook: {
+          url: webhookUrl,
+          webhookByEvents: false,
+          webhookBase64: true,
+          events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE', 'QRCODE_UPDATED', 'SEND_MESSAGE'],
+        },
+      } : {}),
+    });
+  } catch (err) {
+    // Evolution API creation failed — clean up the DB record
+    console.error('[whatsapp] Failed to create Evolution API instance:', err);
+    await supabase.from('whatsapp_instances').delete().eq('id', dbInstance.id);
+    return NextResponse.json(
+      { error: 'Falha ao criar instância na Evolution API.' },
+      { status: 502 },
+    );
+  }
+
+  // Update DB record with real credentials from Evolution API
+  const { data: updatedInstance } = await supabase
+    .from('whatsapp_instances')
+    .update({
+      instance_id: evoResult.instance.instanceId,
+      instance_token: evoResult.hash.apikey,
+      webhook_url: webhookUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', dbInstance.id)
+    .select()
+    .single();
+
+  // Configure WebSocket for real-time events
+  const instanceCreds: evolution.EvolutionCredentials = {
+    baseUrl,
+    apiKey: evoResult.hash.apikey,
+    instanceName,
+  };
+
+  await evolution.setWebSocket(instanceCreds, {
+    enabled: true,
+    events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE', 'QRCODE_UPDATED', 'SEND_MESSAGE'],
+  }).catch(err => console.error('[whatsapp] Failed to configure WebSocket:', err));
+
+  if (!webhookUrl) {
     console.warn('[whatsapp] NEXT_PUBLIC_APP_URL not set – webhooks not configured. Set it in your environment variables.');
   }
 
-  return NextResponse.json({ data: instance }, { status: 201 });
+  return NextResponse.json({ data: updatedInstance ?? dbInstance }, { status: 201 });
 }

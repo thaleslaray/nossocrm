@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getInstance, updateInstance, deleteInstance } from '@/lib/supabase/whatsapp';
-import * as zapi from '@/lib/zapi/client';
+import { getEvolutionCredentials, getEvolutionGlobalConfig } from '@/lib/evolution/helpers';
+import * as evolution from '@/lib/evolution/client';
 
 type Params = { params: Promise<{ id: string }> };
 
-/** Get a WhatsApp instance details + live status from Z-API */
+/** Get a WhatsApp instance details + live status from Evolution API */
 export async function GET(_request: Request, { params }: Params) {
   const { id } = await params;
   const supabase = await createClient();
@@ -15,23 +16,21 @@ export async function GET(_request: Request, { params }: Params) {
   const instance = await getInstance(supabase, id);
   if (!instance) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Check live status from Z-API
-  let liveStatus: Awaited<ReturnType<typeof zapi.getInstanceStatus>> | null = null;
+  // Check live status from Evolution API
+  let liveStatus: evolution.ConnectionState | null = null;
   try {
-    liveStatus = await zapi.getInstanceStatus({
-      instanceId: instance.instance_id,
-      token: instance.instance_token,
-      clientToken: instance.client_token ?? undefined,
-    });
+    const creds = await getEvolutionCredentials(supabase, instance);
+    liveStatus = await evolution.getConnectionState(creds);
 
     // Sync status if different
-    const newStatus = liveStatus.connected ? 'connected' : 'disconnected';
+    const state = liveStatus?.instance?.state;
+    const newStatus = state === 'open' ? 'connected' : 'disconnected';
     if (newStatus !== instance.status) {
       await updateInstance(supabase, id, { status: newStatus });
       instance.status = newStatus as typeof instance.status;
     }
   } catch {
-    // Z-API may be unreachable; return stored status
+    // Evolution API may be unreachable; return stored status
   }
 
   return NextResponse.json({
@@ -42,7 +41,7 @@ export async function GET(_request: Request, { params }: Params) {
   });
 }
 
-/** Update instance (name, credentials) */
+/** Update instance (name, settings) */
 export async function PATCH(request: Request, { params }: Params) {
   const { id } = await params;
   const supabase = await createClient();
@@ -60,7 +59,7 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const allowedFields = ['name', 'instance_id', 'instance_token', 'client_token', 'ai_enabled'];
+  const allowedFields = ['name', 'instance_id', 'instance_token', 'ai_enabled'];
   const updates: Record<string, unknown> = {};
 
   for (const key of allowedFields) {
@@ -80,7 +79,7 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('organization_id, role')
     .eq('id', user.id)
     .single();
 
@@ -88,17 +87,15 @@ export async function DELETE(_request: Request, { params }: Params) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 
-  // Disconnect from Z-API before deleting
+  // Delete from Evolution API before removing from DB
   const instance = await getInstance(supabase, id);
   if (instance) {
     try {
-      await zapi.disconnectInstance({
-        instanceId: instance.instance_id,
-        token: instance.instance_token,
-        clientToken: instance.client_token ?? undefined,
-      });
+      const instanceName = instance.evolution_instance_name || instance.instance_id;
+      const { baseUrl, globalApiKey } = await getEvolutionGlobalConfig(supabase, instance.organization_id);
+      await evolution.deleteEvolutionInstance(baseUrl, globalApiKey, instanceName);
     } catch {
-      // Best effort
+      // Best effort — continue with DB deletion even if Evolution API call fails
     }
   }
 

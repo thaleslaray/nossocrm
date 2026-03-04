@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getInstance } from '@/lib/supabase/whatsapp';
-import * as zapi from '@/lib/zapi/client';
+import { getEvolutionCredentials } from '@/lib/evolution/helpers';
+import * as evolution from '@/lib/evolution/client';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -16,16 +17,18 @@ export async function GET(_request: Request, { params }: Params) {
   if (!instance) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   try {
-    const qr = await zapi.getQrCode({
-      instanceId: instance.instance_id,
-      token: instance.instance_token,
-      clientToken: instance.client_token ?? undefined,
-    });
+    const creds = await getEvolutionCredentials(supabase, instance);
+    const result = await evolution.connectInstance(creds);
 
-    return NextResponse.json({ data: qr });
+    return NextResponse.json({
+      data: {
+        value: result.base64 || result.code || '',
+        connected: false,
+      },
+    });
   } catch (err) {
     return NextResponse.json(
-      { error: 'Não foi possível obter o QR Code. Verifique se a instância está ativa no Z-API.' },
+      { error: 'Não foi possível obter o QR Code. Verifique se a instância está ativa na Evolution API.' },
       { status: 502 },
     );
   }

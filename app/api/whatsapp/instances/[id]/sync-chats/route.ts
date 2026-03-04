@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createStaticAdminClient } from '@/lib/supabase/server';
-import * as zapi from '@/lib/zapi/client';
+import { getEvolutionCredentials } from '@/lib/evolution/helpers';
+import * as evolution from '@/lib/evolution/client';
 
 type Params = { params: Promise<{ id: string }> };
 
 /**
  * POST /api/whatsapp/instances/[id]/sync-chats
  *
- * Fetches existing chats from Z-API and imports them as conversations
+ * Fetches existing chats from Evolution API and imports them as conversations
  * with their message history. Useful when the webhook missed messages
  * or when the instance was connected before webhooks were configured.
  */
@@ -41,17 +42,13 @@ export async function POST(_request: Request, { params }: Params) {
     return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
   }
 
-  const creds: zapi.ZApiCredentials = {
-    instanceId: instance.instance_id,
-    token: instance.instance_token,
-    clientToken: instance.client_token ?? undefined,
-  };
+  const creds = await getEvolutionCredentials(supabase, instance);
 
   try {
-    // Fetch chats from Z-API
-    const chats = await zapi.getChats(creds);
+    // Fetch chats from Evolution API
+    const chats = await evolution.findChats(creds);
     if (!chats || !Array.isArray(chats)) {
-      return NextResponse.json({ data: { synced: 0, messages: 0 }, message: 'Nenhum chat encontrado na Z-API.' });
+      return NextResponse.json({ data: { synced: 0, messages: 0 }, message: 'Nenhum chat encontrado na Evolution API.' });
     }
 
     // Use admin client for writing (bypass RLS)
@@ -60,13 +57,22 @@ export async function POST(_request: Request, { params }: Params) {
     let totalMessages = 0;
 
     for (const chat of chats) {
-      // Skip groups for now
-      if (chat.isGroup) continue;
-      // Skip if no phone
-      if (!chat.phone) continue;
+      const chatObj = chat as Record<string, unknown>;
 
-      // Clean phone number (remove @c.us suffix if present)
-      const phone = chat.phone.replace(/@.*$/, '');
+      // Extract JID from the chat object
+      const jid = (chatObj.id as string) || '';
+
+      // Skip groups (group JIDs end with @g.us)
+      if (jid.endsWith('@g.us')) continue;
+      // Skip if not a valid user JID
+      if (!jid.endsWith('@s.whatsapp.net')) continue;
+
+      // Clean phone number: strip @s.whatsapp.net suffix
+      const phone = jid.replace(/@s\.whatsapp\.net$/, '');
+      if (!phone) continue;
+
+      // Extract contact name from chat object
+      const contactName = (chatObj.name as string) || (chatObj.pushName as string) || undefined;
 
       // Check if conversation already exists
       const { data: existing } = await adminSupabase
@@ -79,7 +85,7 @@ export async function POST(_request: Request, { params }: Params) {
       if (existing) {
         // Even for existing conversations, sync messages that might be missing
         const msgCount = await syncMessagesForConversation(
-          adminSupabase, creds, existing.id, profile.organization_id, phone,
+          adminSupabase, creds, existing.id, profile.organization_id, jid,
         );
         totalMessages += msgCount;
         if (msgCount > 0) synced++; // Count as synced if new messages were imported
@@ -93,12 +99,10 @@ export async function POST(_request: Request, { params }: Params) {
           instance_id: instance.id,
           organization_id: profile.organization_id,
           phone,
-          contact_name: chat.name || undefined,
+          contact_name: contactName,
           is_group: false,
-          unread_count: chat.unreadMessages || 0,
-          last_message_at: chat.lastMessageTimestamp
-            ? new Date(chat.lastMessageTimestamp * 1000).toISOString()
-            : new Date().toISOString(),
+          unread_count: 0,
+          last_message_at: new Date().toISOString(),
         })
         .select('id')
         .single();
@@ -110,7 +114,7 @@ export async function POST(_request: Request, { params }: Params) {
 
       // Fetch and import messages for this conversation
       const msgCount = await syncMessagesForConversation(
-        adminSupabase, creds, newConv.id, profile.organization_id, phone,
+        adminSupabase, creds, newConv.id, profile.organization_id, jid,
       );
       totalMessages += msgCount;
       synced++;
@@ -135,49 +139,70 @@ export async function POST(_request: Request, { params }: Params) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Fetch messages from Z-API for a chat and import them into the DB. */
+/** Fetch messages from Evolution API for a chat and import them into the DB. */
 async function syncMessagesForConversation(
   supabase: ReturnType<typeof createStaticAdminClient>,
-  creds: zapi.ZApiCredentials,
+  creds: evolution.EvolutionCredentials,
   conversationId: string,
   organizationId: string,
-  phone: string,
+  remoteJid: string,
 ): Promise<number> {
-  let messages: zapi.ZApiChatMessage[];
+  let rawMessages: unknown[];
   try {
-    messages = await zapi.getChatMessages(creds, phone);
+    rawMessages = await evolution.findMessages(creds, remoteJid);
   } catch (err) {
-    console.error('[sync-chats] Error fetching messages for phone:', phone, err);
+    console.error('[sync-chats] Error fetching messages for JID:', remoteJid, err);
     return 0;
   }
 
-  if (!messages || !Array.isArray(messages) || messages.length === 0) return 0;
+  if (!rawMessages || !Array.isArray(rawMessages) || rawMessages.length === 0) return 0;
+
+  const messages = rawMessages as Array<Record<string, unknown>>;
 
   // Get existing message IDs to avoid duplicates
   const { data: existingMsgs } = await supabase
     .from('whatsapp_messages')
-    .select('zapi_message_id')
+    .select('evolution_message_id')
     .eq('conversation_id', conversationId)
-    .not('zapi_message_id', 'is', null);
+    .not('evolution_message_id', 'is', null);
 
-  const existingIds = new Set((existingMsgs ?? []).map((m) => m.zapi_message_id));
+  const existingIds = new Set((existingMsgs ?? []).map((m) => m.evolution_message_id));
 
-  // Filter out already-imported messages
-  const newMessages = messages.filter((m) => m.messageId && !existingIds.has(m.messageId));
+  // Filter out already-imported messages and extract message IDs
+  const newMessages = messages.filter((m) => {
+    const key = m.key as Record<string, unknown> | undefined;
+    const msgId = key?.id as string | undefined;
+    return msgId && !existingIds.has(msgId);
+  });
+
   if (newMessages.length === 0) return 0;
 
   // Sort by timestamp ascending
-  newMessages.sort((a, b) => (a.momment || 0) - (b.momment || 0));
+  newMessages.sort((a, b) => {
+    const tsA = Number(a.messageTimestamp) || 0;
+    const tsB = Number(b.messageTimestamp) || 0;
+    return tsA - tsB;
+  });
 
   // Build insert rows
   const rows = newMessages.map((m) => {
-    const { messageType, textBody, mediaUrl, mediaMimeType, mediaFilename, mediaCaption, latitude, longitude } = extractZApiMessageContent(m);
+    const key = m.key as Record<string, unknown> | undefined;
+    const messageId = key?.id as string | undefined;
+    const fromMe = (key?.fromMe as boolean) ?? false;
+    const senderName = (m.pushName as string) || undefined;
+    const rawTimestamp = Number(m.messageTimestamp) || 0;
+    // Evolution API timestamps may be in seconds — convert to milliseconds if needed
+    const timestampMs = rawTimestamp > 1e12 ? rawTimestamp : rawTimestamp * 1000;
+    const whatsappTimestamp = rawTimestamp ? new Date(timestampMs).toISOString() : new Date().toISOString();
+
+    const { messageType, textBody, mediaUrl, mediaMimeType, mediaFilename, mediaCaption, latitude, longitude } = extractEvolutionMessageContent(m);
+
     return {
       conversation_id: conversationId,
       organization_id: organizationId,
-      zapi_message_id: m.messageId,
-      from_me: m.fromMe ?? false,
-      sender_name: m.senderName || m.chatName || undefined,
+      evolution_message_id: messageId,
+      from_me: fromMe,
+      sender_name: senderName,
       message_type: messageType,
       text_body: textBody,
       media_url: mediaUrl,
@@ -186,8 +211,8 @@ async function syncMessagesForConversation(
       media_caption: mediaCaption,
       latitude,
       longitude,
-      status: m.fromMe ? 'sent' : 'received',
-      whatsapp_timestamp: m.momment ? new Date(m.momment).toISOString() : new Date().toISOString(),
+      status: fromMe ? 'sent' : 'received',
+      whatsapp_timestamp: whatsappTimestamp,
     };
   });
 
@@ -217,8 +242,21 @@ async function syncMessagesForConversation(
   return rows.length;
 }
 
-/** Extract content from a Z-API chat message (similar to webhook's extractMessageContent). */
-function extractZApiMessageContent(msg: zapi.ZApiChatMessage): {
+/**
+ * Extract content from an Evolution API message object.
+ *
+ * Evolution API message structure:
+ *   message.message.conversation → text
+ *   message.message.extendedTextMessage.text → text (with link preview etc.)
+ *   message.message.imageMessage → image
+ *   message.message.videoMessage → video
+ *   message.message.audioMessage → audio
+ *   message.message.documentMessage → document
+ *   message.message.stickerMessage → sticker
+ *   message.message.locationMessage → location
+ *   message.message.reactionMessage → reaction
+ */
+function extractEvolutionMessageContent(msg: Record<string, unknown>): {
   messageType: string;
   textBody?: string;
   mediaUrl?: string;
@@ -228,29 +266,91 @@ function extractZApiMessageContent(msg: zapi.ZApiChatMessage): {
   latitude?: number;
   longitude?: number;
 } {
-  if (msg.text?.message) {
-    return { messageType: 'text', textBody: msg.text.message };
+  const messageObj = msg.message as Record<string, unknown> | undefined;
+  if (!messageObj) {
+    return { messageType: 'text', textBody: '[Mensagem não suportada]' };
   }
-  if (msg.image) {
-    return { messageType: 'image', mediaUrl: msg.image.imageUrl, mediaMimeType: msg.image.mimeType, mediaCaption: msg.image.caption };
+
+  // Plain text conversation
+  if (typeof messageObj.conversation === 'string') {
+    return { messageType: 'text', textBody: messageObj.conversation };
   }
-  if (msg.video) {
-    return { messageType: 'video', mediaUrl: msg.video.videoUrl, mediaMimeType: msg.video.mimeType, mediaCaption: msg.video.caption };
+
+  // Extended text message (with link previews, mentions, etc.)
+  const extendedText = messageObj.extendedTextMessage as Record<string, unknown> | undefined;
+  if (extendedText?.text) {
+    return { messageType: 'text', textBody: extendedText.text as string };
   }
-  if (msg.audio) {
-    return { messageType: 'audio', mediaUrl: msg.audio.audioUrl, mediaMimeType: msg.audio.mimeType };
+
+  // Image message
+  const imageMsg = messageObj.imageMessage as Record<string, unknown> | undefined;
+  if (imageMsg) {
+    return {
+      messageType: 'image',
+      mediaUrl: imageMsg.url as string | undefined,
+      mediaMimeType: imageMsg.mimetype as string | undefined,
+      mediaCaption: imageMsg.caption as string | undefined,
+    };
   }
-  if (msg.document) {
-    return { messageType: 'document', mediaUrl: msg.document.documentUrl, mediaMimeType: msg.document.mimeType, mediaFilename: msg.document.fileName || msg.document.title };
+
+  // Video message
+  const videoMsg = messageObj.videoMessage as Record<string, unknown> | undefined;
+  if (videoMsg) {
+    return {
+      messageType: 'video',
+      mediaUrl: videoMsg.url as string | undefined,
+      mediaMimeType: videoMsg.mimetype as string | undefined,
+      mediaCaption: videoMsg.caption as string | undefined,
+    };
   }
-  if (msg.sticker) {
-    return { messageType: 'sticker', mediaUrl: msg.sticker.stickerUrl, mediaMimeType: msg.sticker.mimeType };
+
+  // Audio message
+  const audioMsg = messageObj.audioMessage as Record<string, unknown> | undefined;
+  if (audioMsg) {
+    return {
+      messageType: 'audio',
+      mediaUrl: audioMsg.url as string | undefined,
+      mediaMimeType: audioMsg.mimetype as string | undefined,
+    };
   }
-  if (msg.location) {
-    return { messageType: 'location', latitude: msg.location.latitude, longitude: msg.location.longitude };
+
+  // Document message
+  const documentMsg = messageObj.documentMessage as Record<string, unknown> | undefined;
+  if (documentMsg) {
+    return {
+      messageType: 'document',
+      mediaUrl: documentMsg.url as string | undefined,
+      mediaMimeType: documentMsg.mimetype as string | undefined,
+      mediaFilename: (documentMsg.fileName as string | undefined) || (documentMsg.title as string | undefined),
+      mediaCaption: documentMsg.caption as string | undefined,
+    };
   }
-  if (msg.reaction) {
-    return { messageType: 'reaction', textBody: msg.reaction.value };
+
+  // Sticker message
+  const stickerMsg = messageObj.stickerMessage as Record<string, unknown> | undefined;
+  if (stickerMsg) {
+    return {
+      messageType: 'sticker',
+      mediaUrl: stickerMsg.url as string | undefined,
+      mediaMimeType: stickerMsg.mimetype as string | undefined,
+    };
   }
+
+  // Location message
+  const locationMsg = messageObj.locationMessage as Record<string, unknown> | undefined;
+  if (locationMsg) {
+    return {
+      messageType: 'location',
+      latitude: locationMsg.degreesLatitude as number | undefined,
+      longitude: locationMsg.degreesLongitude as number | undefined,
+    };
+  }
+
+  // Reaction message
+  const reactionMsg = messageObj.reactionMessage as Record<string, unknown> | undefined;
+  if (reactionMsg) {
+    return { messageType: 'reaction', textBody: reactionMsg.text as string | undefined };
+  }
+
   return { messageType: 'text', textBody: '[Mensagem não suportada]' };
 }

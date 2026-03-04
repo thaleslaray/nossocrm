@@ -56,12 +56,7 @@ export function useCreateWhatsAppInstance() {
       fetchJson<WhatsAppInstance>('/api/whatsapp/instances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instanceId: input.instance_id,
-          instanceToken: input.instance_token,
-          clientToken: input.client_token,
-          name: input.name,
-        }),
+        body: JSON.stringify({ name: input.name }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.whatsappInstances.all });
@@ -148,7 +143,6 @@ export function useWhatsAppConversations(options?: {
     queryKey: queryKeys.whatsappConversations.list(options ?? {}),
     queryFn: () => fetchJson<WhatsAppConversation[]>(`/api/whatsapp/conversations${qs ? `?${qs}` : ''}`),
     staleTime: 30 * 1000,
-    refetchInterval: 15_000, // Poll for new conversations
   });
 }
 
@@ -162,7 +156,6 @@ export function useWhatsAppMessages(conversationId: string | undefined) {
     queryFn: () => fetchJson<WhatsAppMessage[]>(`/api/whatsapp/conversations/${conversationId}/messages`),
     enabled: !!conversationId,
     staleTime: 10 * 1000,
-    refetchInterval: 5_000, // Poll for new messages
   });
 }
 
@@ -268,7 +261,6 @@ export function useConversationIntelligence(conversationId: string | undefined) 
     queryFn: () => fetchJson<ConversationIntelligenceData>(`/api/whatsapp/conversations/${conversationId}/intelligence`),
     enabled: !!conversationId,
     staleTime: 30 * 1000,
-    refetchInterval: 15_000,
   });
 }
 

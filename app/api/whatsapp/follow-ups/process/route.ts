@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createStaticAdminClient } from '@/lib/supabase/server';
-import { processFollowUps } from '@/lib/zapi/followUpProcessor';
+import { processFollowUps } from '@/lib/evolution/followUpProcessor';
 
 /**
  * POST /api/whatsapp/follow-ups/process

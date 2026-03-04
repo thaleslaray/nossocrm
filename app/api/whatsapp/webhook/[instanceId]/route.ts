@@ -7,22 +7,27 @@ import {
   updateInstance,
   updateConversation,
 } from '@/lib/supabase/whatsapp';
-import * as zapi from '@/lib/zapi/client';
-import type { ZApiIncomingMessage, ZApiMessageStatus, ZApiConnectionEvent } from '@/types/whatsapp';
-import { processIncomingMessage } from '@/lib/zapi/aiAgent';
+import * as evolution from '@/lib/evolution/client';
+import { getEvolutionCredentials } from '@/lib/evolution/helpers';
+import { processIncomingMessage } from '@/lib/evolution/aiAgent';
+import type {
+  EvolutionMessageUpsert,
+  EvolutionMessageUpdate,
+  EvolutionConnectionUpdate,
+  EvolutionWebhookPayload,
+} from '@/types/whatsapp';
 
 type Params = { params: Promise<{ instanceId: string }> };
 
 /**
- * Z-API Webhook receiver.
+ * Evolution API Webhook receiver.
  *
- * Routes:
- *   POST /api/whatsapp/webhook/{instanceId}/message-received
- *   POST /api/whatsapp/webhook/{instanceId}/message-status
- *   POST /api/whatsapp/webhook/{instanceId}/connection
+ * Route:
+ *   POST /api/whatsapp/webhook/{instanceId}
  *
  * The instanceId in the URL is our internal UUID (whatsapp_instances.id).
- * Z-API is configured to POST to these endpoints.
+ * Evolution API is configured to POST all events to this single endpoint.
+ * The `event` field in the JSON body determines the type of webhook.
  */
 export async function POST(request: Request, { params }: Params) {
   const { instanceId } = await params;
@@ -48,31 +53,57 @@ export async function POST(request: Request, { params }: Params) {
   }
 
   try {
-    // Detect webhook type from payload
-    // 1. Connection events
-    if ('connected' in body || body.type === 'ConnectedCallback' || body.type === 'DisconnectedCallback') {
-      console.log('[whatsapp-webhook] Connection event:', instanceId, body.type || 'connection');
-      await handleConnectionEvent(supabase, instance, body);
-    }
-    // 2. Incoming messages (check BEFORE status to avoid misclassifying incoming
-    //    messages that carry status="RECEIVED" alongside content fields)
-    else if (body.phone && (body.text || body.image || body.audio || body.video || body.document || body.sticker || body.location || body.reaction)) {
-      console.log('[whatsapp-webhook] Incoming message from:', body.phone, 'fromMe:', body.fromMe);
-      await handleIncomingMessage(supabase, instance, body as ZApiIncomingMessage);
-    }
-    // 3. Message status update (has status + messageId but no content fields)
-    else if (body.messageId && body.status && ['SENT', 'RECEIVED', 'READ', 'PLAYED', 'DELETED'].includes(body.status)) {
-      await handleMessageStatus(supabase, body as ZApiMessageStatus);
-    }
-    // 4. Unknown payload — log so we can debug
-    else {
-      console.warn('[whatsapp-webhook] Unrecognized payload:', instanceId, 'type:', body.type, 'keys:', Object.keys(body).join(','));
+    const event = (body as EvolutionWebhookPayload).event;
+
+    switch (event) {
+      case 'messages.upsert': {
+        const payload = body as EvolutionMessageUpsert;
+        console.log(
+          '[whatsapp-webhook] messages.upsert from:',
+          payload.data.key.remoteJid,
+          'fromMe:',
+          payload.data.key.fromMe,
+        );
+        await handleMessageUpsert(supabase, instance, payload);
+        break;
+      }
+
+      case 'messages.update': {
+        const payload = body as EvolutionMessageUpdate;
+        console.log('[whatsapp-webhook] messages.update for instance:', instanceId);
+        await handleMessageUpdate(supabase, payload);
+        break;
+      }
+
+      case 'connection.update': {
+        const payload = body as EvolutionConnectionUpdate;
+        console.log('[whatsapp-webhook] connection.update:', instanceId, 'state:', payload.data.state);
+        await handleConnectionUpdate(supabase, instance, payload);
+        break;
+      }
+
+      case 'qrcode.updated': {
+        // QR code updates are handled by the frontend polling; no action needed here.
+        console.log('[whatsapp-webhook] qrcode.updated for instance:', instanceId);
+        break;
+      }
+
+      default: {
+        console.warn(
+          '[whatsapp-webhook] Unrecognized event:',
+          event,
+          'instance:',
+          instanceId,
+          'keys:',
+          Object.keys(body).join(','),
+        );
+      }
     }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[whatsapp-webhook] Error processing webhook:', instanceId, err);
-    return NextResponse.json({ ok: true }); // Return 200 to prevent Z-API retries
+    return NextResponse.json({ ok: true }); // Return 200 to prevent Evolution API retries
   }
 }
 
@@ -82,45 +113,58 @@ export async function GET() {
 }
 
 // ---------------------------------------------------------------------------
-// Handler: Incoming message
+// Handler: Incoming message (messages.upsert)
 // ---------------------------------------------------------------------------
 
-async function handleIncomingMessage(
+async function handleMessageUpsert(
   supabase: ReturnType<typeof createStaticAdminClient>,
   instance: Record<string, unknown>,
-  payload: ZApiIncomingMessage,
+  payload: EvolutionMessageUpsert,
 ) {
+  const { key, pushName, message, messageTimestamp } = payload.data;
+
   // Skip messages sent by ourselves
-  if (payload.fromMe) return;
-  // Skip group messages for now
-  if (payload.isGroup) return;
-  // Skip status reply messages
-  if ('isStatusReply' in payload && (payload as Record<string, unknown>).isStatusReply) return;
+  if (key.fromMe) return;
+
+  // Skip group messages (group JIDs end with @g.us)
+  if (key.remoteJid.endsWith('@g.us')) return;
+
+  // Skip status broadcast messages
+  if (key.remoteJid === 'status@broadcast') return;
 
   const organizationId = instance.organization_id as string;
   const instanceDbId = instance.id as string;
+
+  // Extract phone number from remoteJid (strip @s.whatsapp.net or @g.us suffix)
+  const phone = key.remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@g\.us$/, '');
 
   // Get or create conversation
   const conversation = await getOrCreateConversation(
     supabase,
     organizationId,
     instanceDbId,
-    payload.phone,
-    payload.chatName || payload.senderName,
-    payload.senderPhoto,
+    phone,
+    pushName,
+    undefined, // contactPhoto — not provided by Evolution API in message payloads
     false,
   );
 
   // Determine message type and content
-  const { messageType, textBody, mediaUrl, mediaMimeType, mediaFilename, mediaCaption, latitude, longitude } = extractMessageContent(payload);
+  const { messageType, textBody, mediaUrl, mediaMimeType, mediaFilename, mediaCaption, latitude, longitude } =
+    extractMessageContent(message);
+
+  // Convert timestamp from seconds to ISO string
+  const whatsappTimestamp = messageTimestamp
+    ? new Date(messageTimestamp * 1000).toISOString()
+    : new Date().toISOString();
 
   // Persist message
-  const message = await insertMessage(supabase, {
+  const insertedMessage = await insertMessage(supabase, {
     conversation_id: conversation.id,
     organization_id: organizationId,
-    zapi_message_id: payload.messageId,
+    evolution_message_id: key.id,
     from_me: false,
-    sender_name: payload.senderName || payload.chatName,
+    sender_name: pushName,
     message_type: messageType,
     text_body: textBody,
     media_url: mediaUrl,
@@ -130,14 +174,14 @@ async function handleIncomingMessage(
     latitude,
     longitude,
     status: 'received',
-    whatsapp_timestamp: payload.momment ? new Date(payload.momment).toISOString() : new Date().toISOString(),
+    whatsapp_timestamp: whatsappTimestamp,
   } as Parameters<typeof insertMessage>[1]);
 
   // Update conversation metadata so the list reflects the new message
   const previewText = textBody || mediaCaption || (messageType !== 'text' ? `[${messageType}]` : '');
   await updateConversation(supabase, conversation.id, {
     last_message_text: previewText.slice(0, 255),
-    last_message_at: payload.momment ? new Date(payload.momment).toISOString() : new Date().toISOString(),
+    last_message_at: whatsappTimestamp,
     last_message_from_me: false,
     unread_count: (conversation.unread_count ?? 0) + 1,
     status: 'open',
@@ -146,18 +190,25 @@ async function handleIncomingMessage(
   // Check if AI agent should process this message
   const aiEnabled = instance.ai_enabled as boolean;
   if (aiEnabled && conversation.ai_active) {
+    // Fetch organization settings for evolution_api_url
+    const { data: orgSettings } = await supabase
+      .from('organization_settings')
+      .select('evolution_api_url')
+      .eq('organization_id', organizationId)
+      .single();
+
     // Process in background (don't block the webhook response)
     processIncomingMessage({
       supabase,
       conversation,
       instance: {
         id: instanceDbId,
-        instance_id: instance.instance_id as string,
+        evolution_instance_name: (instance.evolution_instance_name as string) || (instance.instance_id as string),
         instance_token: instance.instance_token as string,
-        client_token: (instance.client_token as string) ?? undefined,
         organization_id: organizationId,
+        evolution_api_url: orgSettings?.evolution_api_url || '',
       },
-      incomingMessage: message,
+      incomingMessage: insertedMessage,
     }).catch((err) => {
       console.error('[whatsapp-ai-agent] Error processing message:', err);
     });
@@ -165,58 +216,90 @@ async function handleIncomingMessage(
 }
 
 // ---------------------------------------------------------------------------
-// Handler: Message status change
+// Handler: Message status change (messages.update)
 // ---------------------------------------------------------------------------
 
-async function handleMessageStatus(
+async function handleMessageUpdate(
   supabase: ReturnType<typeof createStaticAdminClient>,
-  payload: ZApiMessageStatus,
+  payload: EvolutionMessageUpdate,
 ) {
   const statusMap: Record<string, string> = {
-    SENT: 'sent',
-    RECEIVED: 'received',
+    PENDING: 'pending',
+    SERVER_ACK: 'sent',
+    DELIVERY_ACK: 'received',
     READ: 'read',
     PLAYED: 'read',
-    DELETED: 'deleted',
   };
 
-  const newStatus = statusMap[payload.status];
-  if (newStatus && payload.messageId) {
-    await updateMessageStatus(supabase, payload.messageId, newStatus);
+  // Evolution API sends an array of status updates
+  for (const item of payload.data) {
+    const newStatus = statusMap[item.update.status];
+    if (newStatus && item.key.id) {
+      await updateMessageStatus(supabase, item.key.id, newStatus);
+    }
   }
 }
 
 // ---------------------------------------------------------------------------
-// Handler: Connection event
+// Handler: Connection state change (connection.update)
 // ---------------------------------------------------------------------------
 
-async function handleConnectionEvent(
+async function handleConnectionUpdate(
   supabase: ReturnType<typeof createStaticAdminClient>,
   instance: Record<string, unknown>,
-  payload: ZApiConnectionEvent,
+  payload: EvolutionConnectionUpdate,
 ) {
-  const isConnected = payload.connected ?? false;
+  const { state } = payload.data;
+
+  const statusMap: Record<string, string> = {
+    open: 'connected',
+    close: 'disconnected',
+    connecting: 'connecting',
+  };
+
+  const newStatus = statusMap[state] || 'disconnected';
+
   await updateInstance(supabase, instance.id as string, {
-    status: isConnected ? 'connected' : 'disconnected',
-    phone: payload.phone ?? (instance.phone as string),
-    ...(isConnected ? { connected_at: new Date().toISOString() } : {}),
+    status: newStatus,
+    ...(state === 'open' ? { connected_at: new Date().toISOString() } : {}),
   } as Parameters<typeof updateInstance>[2]);
 
   // Re-configure webhooks on connection to ensure they point to the current app URL
-  if (isConnected) {
-    const rawAppUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+  if (state === 'open') {
+    const rawAppUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+
     if (rawAppUrl) {
       const appUrl = rawAppUrl.replace(/\/+$/, '');
-      const creds: zapi.ZApiCredentials = {
-        instanceId: instance.instance_id as string,
-        token: instance.instance_token as string,
-        clientToken: (instance.client_token as string) ?? undefined,
-      };
-      const baseWebhookUrl = `${appUrl}/api/whatsapp/webhook/${instance.id as string}`;
-      console.log('[whatsapp-webhook] Configuring webhooks to:', baseWebhookUrl);
-      zapi.configureAllWebhooks(creds, baseWebhookUrl).catch((err) => {
-        console.error('[whatsapp-webhook] Failed to re-configure webhooks on connect:', err);
-      });
+      const webhookUrl = `${appUrl}/api/whatsapp/webhook/${instance.id as string}`;
+      console.log('[whatsapp-webhook] Configuring Evolution webhook to:', webhookUrl);
+
+      try {
+        const creds = await getEvolutionCredentials(supabase, {
+          instance_token: instance.instance_token as string,
+          evolution_instance_name: instance.evolution_instance_name as string | undefined,
+          instance_id: instance.instance_id as string,
+          organization_id: instance.organization_id as string,
+        });
+
+        evolution.setWebhook(creds, {
+          enabled: true,
+          url: webhookUrl,
+          webhookByEvents: false,
+          webhookBase64: false,
+          events: [
+            'messages.upsert',
+            'messages.update',
+            'connection.update',
+            'qrcode.updated',
+          ],
+        }).catch((err) => {
+          console.error('[whatsapp-webhook] Failed to re-configure webhook on connect:', err);
+        });
+      } catch (err) {
+        console.error('[whatsapp-webhook] Failed to get Evolution credentials for webhook config:', err);
+      }
     }
   }
 }
@@ -225,7 +308,7 @@ async function handleConnectionEvent(
 // Helpers
 // ---------------------------------------------------------------------------
 
-function extractMessageContent(payload: ZApiIncomingMessage): {
+function extractMessageContent(message: EvolutionMessageUpsert['data']['message']): {
   messageType: string;
   textBody?: string;
   mediaUrl?: string;
@@ -235,60 +318,94 @@ function extractMessageContent(payload: ZApiIncomingMessage): {
   latitude?: number;
   longitude?: number;
 } {
-  if ('text' in payload && payload.text) {
-    return { messageType: 'text', textBody: payload.text.message };
+  // Text messages: "conversation" (simple text) or "extendedTextMessage" (text with link preview)
+  if (message.conversation) {
+    return { messageType: 'text', textBody: message.conversation };
   }
-  if ('image' in payload && payload.image) {
+  if (message.extendedTextMessage?.text) {
+    return { messageType: 'text', textBody: message.extendedTextMessage.text };
+  }
+
+  // Image message
+  if (message.imageMessage) {
     return {
       messageType: 'image',
-      mediaUrl: payload.image.imageUrl,
-      mediaMimeType: payload.image.mimeType,
-      mediaCaption: payload.image.caption,
-    };
-  }
-  if ('video' in payload && payload.video) {
-    return {
-      messageType: 'video',
-      mediaUrl: payload.video.videoUrl,
-      mediaMimeType: payload.video.mimeType,
-      mediaCaption: payload.video.caption,
-    };
-  }
-  if ('audio' in payload && payload.audio) {
-    return {
-      messageType: 'audio',
-      mediaUrl: payload.audio.audioUrl,
-      mediaMimeType: payload.audio.mimeType,
-    };
-  }
-  if ('document' in payload && payload.document) {
-    return {
-      messageType: 'document',
-      mediaUrl: payload.document.documentUrl,
-      mediaMimeType: payload.document.mimeType,
-      mediaFilename: payload.document.fileName || payload.document.title,
-    };
-  }
-  if ('sticker' in payload && payload.sticker) {
-    return {
-      messageType: 'sticker',
-      mediaUrl: payload.sticker.stickerUrl,
-      mediaMimeType: payload.sticker.mimeType,
-    };
-  }
-  if ('location' in payload && payload.location) {
-    return {
-      messageType: 'location',
-      latitude: payload.location.latitude,
-      longitude: payload.location.longitude,
-    };
-  }
-  if ('reaction' in payload && payload.reaction) {
-    return {
-      messageType: 'reaction',
-      textBody: payload.reaction.value,
+      mediaUrl: message.imageMessage.url || message.imageMessage.directPath,
+      mediaMimeType: message.imageMessage.mimetype,
+      mediaCaption: message.imageMessage.caption,
     };
   }
 
+  // Video message
+  if (message.videoMessage) {
+    return {
+      messageType: 'video',
+      mediaUrl: message.videoMessage.url || message.videoMessage.directPath,
+      mediaMimeType: message.videoMessage.mimetype,
+      mediaCaption: message.videoMessage.caption,
+    };
+  }
+
+  // Audio message (voice notes have ptt=true)
+  if (message.audioMessage) {
+    return {
+      messageType: 'audio',
+      mediaUrl: message.audioMessage.url || message.audioMessage.directPath,
+      mediaMimeType: message.audioMessage.mimetype,
+    };
+  }
+
+  // Document message
+  if (message.documentMessage) {
+    return {
+      messageType: 'document',
+      mediaUrl: message.documentMessage.url || message.documentMessage.directPath,
+      mediaMimeType: message.documentMessage.mimetype,
+      mediaFilename: message.documentMessage.fileName || message.documentMessage.title,
+    };
+  }
+
+  // Sticker message
+  if (message.stickerMessage) {
+    return {
+      messageType: 'sticker',
+      mediaUrl: message.stickerMessage.url || message.stickerMessage.directPath,
+      mediaMimeType: message.stickerMessage.mimetype,
+    };
+  }
+
+  // Location message
+  if (message.locationMessage) {
+    return {
+      messageType: 'location',
+      latitude: message.locationMessage.degreesLatitude,
+      longitude: message.locationMessage.degreesLongitude,
+    };
+  }
+
+  // Reaction message
+  if (message.reactionMessage) {
+    return {
+      messageType: 'reaction',
+      textBody: message.reactionMessage.text,
+    };
+  }
+
+  // Contact message
+  if (message.contactMessage) {
+    return { messageType: 'contact' };
+  }
+
+  // List response message
+  if (message.listResponseMessage) {
+    return { messageType: 'list_response' };
+  }
+
+  // Buttons response message
+  if (message.buttonsResponseMessage) {
+    return { messageType: 'button_response' };
+  }
+
+  // Fallback for unsupported message types
   return { messageType: 'text', textBody: '[Mensagem não suportada]' };
 }

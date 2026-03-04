@@ -6,6 +6,9 @@ import {
   useSendWhatsAppMessage,
   useWhatsAppAIControl,
 } from '@/lib/query/whatsapp';
+import { createClient } from '@/lib/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/queryKeys';
 import type { WhatsAppConversation, WhatsAppMessage } from '@/types/whatsapp';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -47,6 +50,41 @@ export function MessageThread({ conversation, onToggleIntelligence, showIntellig
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Supabase Realtime subscription for live message updates
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel(`messages:${conversation.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'whatsapp_messages',
+        filter: `conversation_id=eq.${conversation.id}`,
+      }, () => {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.whatsappMessages.byConversation(conversation.id),
+        });
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'whatsapp_messages',
+        filter: `conversation_id=eq.${conversation.id}`,
+      }, () => {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.whatsappMessages.byConversation(conversation.id),
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conversation.id, queryClient]);
 
   const handleSend = () => {
     const trimmed = text.trim();

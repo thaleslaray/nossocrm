@@ -13,7 +13,7 @@
  * 8. Smart-pause if needed (customer wants human, negative sentiment)
  * 9. Build context from conversation history + CRM data + MEMORIES
  * 10. Generate AI response via configured provider
- * 11. Send response back via Z-API
+ * 11. Send response back via Evolution API
  * 12. Auto-create CRM contacts/deals if configured
  * 13. Generate conversation summary periodically
  */
@@ -37,18 +37,18 @@ import {
   countActiveFollowUps,
   insertSummary,
 } from '@/lib/supabase/whatsappIntelligence';
-import { analyzeMessage } from '@/lib/zapi/intelligence';
-import * as zapi from '@/lib/zapi/client';
+import { analyzeMessage } from '@/lib/evolution/intelligence';
+import * as evolution from '@/lib/evolution/client';
 
 interface AIAgentContext {
   supabase: SupabaseClient;
   conversation: WhatsAppConversation;
   instance: {
     id: string;
-    instance_id: string;
+    evolution_instance_name: string;
     instance_token: string;
-    client_token?: string;
     organization_id: string;
+    evolution_api_url: string;
   };
   incomingMessage: WhatsAppMessage;
 }
@@ -119,10 +119,10 @@ async function buildCRMContext(
       .limit(5);
 
     if (deals && deals.length > 0) {
-      parts.push('\nNEGÓCIOS ABERTOS:');
+      parts.push('\nNEGOCIOS ABERTOS:');
       for (const deal of deals) {
         const stage = (deal.board_stages as { label?: string } | null)?.label ?? 'N/A';
-        parts.push(`- ${deal.title} | R$ ${deal.value ?? 0} | Estágio: ${stage} | Prioridade: ${deal.priority ?? 'N/A'}`);
+        parts.push(`- ${deal.title} | R$ ${deal.value ?? 0} | Estagio: ${stage} | Prioridade: ${deal.priority ?? 'N/A'}`);
       }
     }
   }
@@ -133,7 +133,7 @@ async function buildCRMContext(
 function buildMemoryContext(memories: ChatMemory[]): string {
   if (memories.length === 0) return '';
 
-  const parts = ['\nMEMÓRIAS DO CONTATO (use estas informações na conversa):'];
+  const parts = ['\nMEMORIAS DO CONTATO (use estas informacoes na conversa):'];
 
   const grouped = new Map<string, ChatMemory[]>();
   for (const mem of memories) {
@@ -143,15 +143,15 @@ function buildMemoryContext(memories: ChatMemory[]): string {
   }
 
   const typeLabels: Record<string, string> = {
-    family: 'Família',
-    preference: 'Preferências',
-    budget: 'Orçamento',
+    family: 'Familia',
+    preference: 'Preferencias',
+    budget: 'Orcamento',
     interest: 'Interesses',
     timeline: 'Prazos/Datas',
-    objection: 'Objeções levantadas',
+    objection: 'Objecoes levantadas',
     personal: 'Info pessoal',
     fact: 'Fatos',
-    interaction: 'Estilo de comunicação',
+    interaction: 'Estilo de comunicacao',
   };
 
   for (const [type, mems] of grouped.entries()) {
@@ -198,7 +198,7 @@ async function generateAIResponse(
   else if (provider === 'anthropic') apiKey = orgSettings?.ai_anthropic_key || userSettings?.ai_anthropic_key;
 
   if (!apiKey) {
-    return config.transfer_message || 'Um atendente humano irá continuar o atendimento.';
+    return config.transfer_message || 'Um atendente humano ira continuar o atendimento.';
   }
 
   const systemPrompt = [
@@ -211,12 +211,12 @@ async function generateAIResponse(
     'REGRAS:',
     '- Responda APENAS em texto simples (sem markdown, sem HTML)',
     '- Seja conciso: mensagens de WhatsApp devem ser curtas',
-    '- Máximo de 3 parágrafos curtos por resposta',
-    '- Se não souber a resposta, informe que irá encaminhar para um atendente',
-    '- Nunca invente informações sobre produtos ou preços',
-    '- USE AS MEMÓRIAS DO CONTATO para personalizar a conversa',
-    '- Se o cliente mencionou o nome de alguém (esposo, filha, etc), use o nome na conversa',
-    '- Seja natural e humano, não robótico',
+    '- Maximo de 3 paragrafos curtos por resposta',
+    '- Se nao souber a resposta, informe que ira encaminhar para um atendente',
+    '- Nunca invente informacoes sobre produtos ou precos',
+    '- USE AS MEMORIAS DO CONTATO para personalizar a conversa',
+    '- Se o cliente mencionou o nome de alguem (esposo, filha, etc), use o nome na conversa',
+    '- Seja natural e humano, nao robotico',
     crmContext ? `\nCONTEXTO CRM:\n${crmContext}` : '',
     memoryContext || '',
   ].filter(Boolean).join('\n');
@@ -258,7 +258,7 @@ async function generateAIResponse(
     maxOutputTokens: 500,
   });
 
-  return result.text || config.transfer_message || 'Desculpe, não consegui processar sua mensagem.';
+  return result.text || config.transfer_message || 'Desculpe, nao consegui processar sua mensagem.';
 }
 
 // =============================================================================
@@ -687,22 +687,22 @@ async function sendAIReply(
   conversation: WhatsAppConversation,
   text: string,
 ): Promise<WhatsAppMessage | null> {
-  const creds: zapi.ZApiCredentials = {
-    instanceId: instance.instance_id,
-    token: instance.instance_token,
-    clientToken: instance.client_token,
+  const creds: evolution.EvolutionCredentials = {
+    baseUrl: instance.evolution_api_url,
+    apiKey: instance.instance_token,
+    instanceName: instance.evolution_instance_name,
   };
 
   try {
-    const response = await zapi.sendText(creds, {
-      phone: conversation.phone,
-      message: text,
+    const response = await evolution.sendText(creds, {
+      number: conversation.phone,
+      text,
     });
 
     const msg = await insertMessage(supabase, {
       conversation_id: conversation.id,
       organization_id: instance.organization_id,
-      zapi_message_id: response.zapiMessageId || response.messageId || response.id || undefined,
+      evolution_message_id: response.key?.id || undefined,
       from_me: true,
       message_type: 'text',
       text_body: text,
@@ -751,9 +751,9 @@ async function generateAndSaveSummary(
 
   if (!apiKey) return;
 
-  const prompt = `Resuma esta conversa de WhatsApp em 2-3 frases. Identifique pontos-chave e próximas ações recomendadas.
+  const prompt = `Resuma esta conversa de WhatsApp em 2-3 frases. Identifique pontos-chave e proximas acoes recomendadas.
 
-MEMÓRIAS:
+MEMORIAS:
 ${memories.map((m) => `- ${m.key}: ${m.value}`).join('\n')}
 
 CONVERSA:
@@ -791,7 +791,7 @@ Responda em JSON:
     await insertSummary(supabase, {
       conversation_id: conversation.id,
       organization_id: organizationId,
-      summary: parsed.summary || 'Sem resumo disponível.',
+      summary: parsed.summary || 'Sem resumo disponivel.',
       key_points: parsed.key_points || [],
       next_actions: parsed.next_actions || [],
       customer_sentiment: parsed.sentiment || 'neutral',
