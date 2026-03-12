@@ -54,8 +54,11 @@ testsprite_tests/tmp/
 # vercel
 .vercel
 
-# supabase local temp artifacts
+# supabase local development artifacts
 supabase/.temp/
+supabase/.branches/
+supabase/snippets/
+.supabase/
 
 # typescript
 *.tsbuildinfo
