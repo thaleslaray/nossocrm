@@ -83,9 +83,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ contactId
   }
 
   const updates: any = {};
-  if (parsed.data.name !== undefined) updates.name = normalizeText(parsed.data.name);
-  if (parsed.data.email !== undefined) updates.email = normalizeEmail(parsed.data.email);
-  if (parsed.data.phone !== undefined) updates.phone = normalizePhone(parsed.data.phone);
+  if (parsed.data.name !== undefined && parsed.data.name.trim()) updates.name = normalizeText(parsed.data.name);
+  if (parsed.data.email !== undefined && parsed.data.email.trim()) updates.email = normalizeEmail(parsed.data.email);
+  if (parsed.data.phone !== undefined && parsed.data.phone.trim()) updates.phone = normalizePhone(parsed.data.phone);
   if (parsed.data.role !== undefined) updates.role = normalizeText(parsed.data.role);
   if (parsed.data.company_name !== undefined) updates.company_name = normalizeText(parsed.data.company_name);
   if (parsed.data.avatar !== undefined) updates.avatar = normalizeText(parsed.data.avatar);
