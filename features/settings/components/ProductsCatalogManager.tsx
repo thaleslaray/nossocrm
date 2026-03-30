@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image as ImageIcon,
   Package,
@@ -14,8 +14,12 @@ import {
   Eye,
   EyeOff,
   GripVertical,
+  Upload,
+  Loader2,
+  Camera,
 } from 'lucide-react';
 import { productsService } from '@/lib/supabase';
+import { productImagesService } from '@/lib/supabase/productImages';
 import type { Product } from '@/types';
 
 function formatBRL(v: number) {
@@ -32,6 +36,141 @@ const labelClass = 'block text-xs font-semibold text-slate-600 dark:text-slate-3
 const labelSmClass = 'block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1';
 const btnIcon =
   'px-2 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10';
+
+/** Inline image upload component for product editing */
+function ProductImageUpload({
+  productId,
+  currentUrl,
+  onUploaded,
+  onRemoved,
+  disabled,
+}: {
+  productId: string;
+  currentUrl: string;
+  onUploaded: (url: string) => void;
+  onRemoved: () => void;
+  disabled?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Imagem muito grande. Máximo 5MB.');
+      return;
+    }
+    setUploading(true);
+    const { url, error } = await productImagesService.upload(productId, file);
+    setUploading(false);
+    if (error) {
+      alert(`Erro no upload: ${error.message}`);
+      return;
+    }
+    if (url) onUploaded(url);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {currentUrl ? (
+        <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200 dark:border-white/10">
+          <img src={currentUrl} alt="" className="w-full h-full object-cover" />
+          <button
+            type="button"
+            onClick={onRemoved}
+            className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
+          >
+            <X className="h-3 w-3 text-white" />
+          </button>
+        </div>
+      ) : null}
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={disabled || uploading}
+        className={`${inputClass} flex items-center gap-2 cursor-pointer text-slate-500 dark:text-slate-400 hover:border-primary-400 transition-colors ${uploading ? 'opacity-50' : ''}`}
+      >
+        {uploading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Upload className="h-4 w-4" />
+        )}
+        {uploading ? 'Enviando…' : currentUrl ? 'Trocar foto' : 'Enviar foto'}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/avif"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+          e.target.value = '';
+        }}
+      />
+    </div>
+  );
+}
+
+/** Clickable thumbnail that allows quick image upload from the product list */
+function ThumbnailUpload({ product, onUploaded }: { product: Product; onUploaded: (url: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Imagem muito grande. Máximo 5MB.');
+      return;
+    }
+    setUploading(true);
+    const { url, error } = await productImagesService.upload(product.id, file);
+    setUploading(false);
+    if (error) {
+      alert(`Erro no upload: ${error.message}`);
+      return;
+    }
+    if (url) onUploaded(url);
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-slate-200 dark:bg-white/10 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-primary-400 transition-all group relative"
+        title="Clique para enviar foto"
+      >
+        {uploading ? (
+          <Loader2 className="h-5 w-5 text-primary-500 animate-spin" />
+        ) : product.imageUrl ? (
+          <>
+            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <Camera className="h-4 w-4 text-white" />
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col items-center gap-0.5">
+            <Camera className="h-4 w-4 text-slate-400 dark:text-slate-500 group-hover:text-primary-500 transition-colors" />
+            <span className="text-[8px] text-slate-400 group-hover:text-primary-500">Foto</span>
+          </div>
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/avif"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+          e.target.value = '';
+        }}
+      />
+    </>
+  );
+}
 
 /**
  * Componente React `ProductsCatalogManager`.
@@ -333,13 +472,27 @@ export const ProductsCatalogManager: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
             <div className="lg:col-span-4">
-              <label className={labelClass}>URL da Imagem (opcional)</label>
-              <input
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://…"
-                className={inputClass}
-              />
+              <label className={labelClass}>Imagem (opcional)</label>
+              <div className="flex items-center gap-2">
+                {imageUrl ? (
+                  <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200 dark:border-white/10">
+                    <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setImageUrl('')}
+                      className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3 text-white" />
+                    </button>
+                  </div>
+                ) : null}
+                <input
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="URL ou use o upload ao editar"
+                  className={inputClass}
+                />
+              </div>
             </div>
             <div className="lg:col-span-4">
               <label className={labelClass}>Tags (separadas por vírgula)</label>
@@ -432,19 +585,16 @@ export const ProductsCatalogManager: React.FC = () => {
                         : 'border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-white/3'
                     }`}
                   >
-                    {/* Thumbnail */}
+                    {/* Thumbnail with quick upload */}
                     {!isEditing && (
-                      <div className="shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-slate-200 dark:bg-white/10 flex items-center justify-center">
-                        {p.imageUrl ? (
-                          <img
-                            src={p.imageUrl}
-                            alt={p.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <ImageIcon className="h-5 w-5 text-slate-400 dark:text-slate-500" />
-                        )}
-                      </div>
+                      <ThumbnailUpload
+                        product={p}
+                        onUploaded={async (url) => {
+                          await productsService.update(p.id, { imageUrl: url });
+                          await load();
+                          notify();
+                        }}
+                      />
                     )}
 
                     {/* Content */}
@@ -475,8 +625,14 @@ export const ProductsCatalogManager: React.FC = () => {
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
                             <div className="sm:col-span-4">
-                              <label className={labelSmClass}>URL da Imagem</label>
-                              <input value={editImageUrl} onChange={(e) => setEditImageUrl(e.target.value)} placeholder="https://…" className={inputClass} />
+                              <label className={labelSmClass}>Imagem</label>
+                              <ProductImageUpload
+                                productId={editingId!}
+                                currentUrl={editImageUrl}
+                                onUploaded={(url) => setEditImageUrl(url)}
+                                onRemoved={() => setEditImageUrl('')}
+                                disabled={loading}
+                              />
                             </div>
                             <div className="sm:col-span-4">
                               <label className={labelSmClass}>Tags (separadas por vírgula)</label>
