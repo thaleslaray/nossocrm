@@ -253,15 +253,7 @@ export async function moveStageByIdentity(opts: {
   if (updateError) return { ok: false as const, status: 500, body: { error: updateError.message, code: 'DB_ERROR' } };
   if (!updated) return { ok: false as const, status: 404, body: { error: 'Deal not found', code: 'NOT_FOUND' } };
 
-  // Fire stage notification webhook (non-blocking)
-  fireStageNotification({
-    stage_name: opts.target.to_stage_label || '',
-    contact_name: phone || email || '',
-    contact_phone: phone || '',
-    deal_id: dealId,
-    deal_value: String((updated as any).value || 0),
-    ai_summary: opts.aiSummary || '',
-  }).catch(() => {});
+  // Stage notification is handled by Supabase trigger (trg_notify_stage_change)
 
   return { ok: true as const, status: 200, body: { data: updated, action: 'moved' } };
 }
