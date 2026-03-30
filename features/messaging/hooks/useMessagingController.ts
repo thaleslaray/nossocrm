@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useConversations, useUpdateConversation } from './useConversations';
 import { useMessages, useSendMessage, useAddChatwootMessageToCache } from './useMessages';
 import { useMessagingRealtime } from './useMessagingRealtime';
@@ -44,6 +45,7 @@ export function useMessagingController() {
     } = useMessages({ conversationId: selectedConversationId });
 
     // Mutations
+    const queryClient = useQueryClient();
     const updateConversation = useUpdateConversation();
     const sendMessageMutation = useSendMessage();
     const uploadAttachmentMutation = useUploadAttachment();
@@ -139,11 +141,36 @@ export function useMessagingController() {
     );
 
     const handleToggleAI = useCallback(async () => {
-        if (!selectedConversation) return;
-        // Note: ai_enabled is a CRM-specific concept, not directly supported by Chatwoot
-        // This would need to be handled via custom_attributes or a local setting
-        console.warn('AI toggle not yet implemented for Chatwoot integration');
-    }, [selectedConversation]);
+        if (!selectedConversation || !selectedConversationId) return;
+
+        const numericId = parseInt(selectedConversationId, 10);
+        if (isNaN(numericId)) return;
+
+        try {
+            // Fetch current labels
+            const getRes = await fetch(`/api/chatwoot/conversations/${numericId}/labels`);
+            if (!getRes.ok) throw new Error('Failed to fetch labels');
+            const { labels: currentLabels } = await getRes.json() as { labels: string[] };
+
+            const hasLabel = currentLabels.includes('atendimento-humano');
+            const newLabels = hasLabel
+                ? currentLabels.filter((l: string) => l !== 'atendimento-humano')
+                : [...currentLabels, 'atendimento-humano'];
+
+            // Update labels
+            const postRes = await fetch(`/api/chatwoot/conversations/${numericId}/labels`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ labels: newLabels }),
+            });
+            if (!postRes.ok) throw new Error('Failed to update labels');
+
+            // Refresh conversations to reflect new ai_enabled state
+            queryClient.invalidateQueries({ queryKey: ['chatwoot'] });
+        } catch (error) {
+            console.error('Error toggling AI:', error);
+        }
+    }, [selectedConversation, selectedConversationId, queryClient]);
 
     const handleFilterChange = useCallback((newFilters: Partial<ConversationFilters>) => {
         setFilters((prev) => ({ ...prev, ...newFilters }));

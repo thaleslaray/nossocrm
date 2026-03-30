@@ -163,7 +163,7 @@ export function adaptChatwootConversation(
         group_name: null,
         status: mapConversationStatus(conversation.status),
         assigned_to: conversation.assignee?.id?.toString() || null,
-        ai_enabled: false, // Default, not available from Chatwoot
+        ai_enabled: !conversation.labels?.includes('atendimento-humano'),
         unread_count: conversation.unread_count,
         total_messages: conversation.messages?.length || 0,
         last_message_at: parseTimestamp(conversation.last_activity_at),
