@@ -40,7 +40,13 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // 3. Criar client com credenciais da org
+        // 3. Buscar config da org (inclui inbox_id)
+        const { getChannelConfig } = await import('@/lib/chatwoot/config');
+        const channelConfig = await getChannelConfig(supabase, profile.organization_id);
+        if (!channelConfig) {
+            throw new Error('No active Chatwoot configuration found for organization');
+        }
+
         const chatwoot = await createChatwootClientForOrg(
             supabase,
             profile.organization_id
@@ -58,6 +64,9 @@ export async function GET(request: NextRequest) {
         const inboxId = searchParams.get('inbox_id');
         if (inboxId) {
             filters.inbox_id = parseInt(inboxId, 10);
+        } else if (channelConfig.chatwootInboxId) {
+            // Auto-filter by org's configured inbox
+            filters.inbox_id = channelConfig.chatwootInboxId;
         }
 
         const page = searchParams.get('page');
