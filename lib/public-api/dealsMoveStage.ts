@@ -3,6 +3,37 @@ import { normalizeEmail, normalizePhone } from '@/lib/public-api/sanitize';
 import { resolveBoardId } from '@/lib/public-api/resolve';
 import { sanitizeUUID } from '@/lib/supabase/utils';
 
+const STAGE_NOTIFICATION_WEBHOOK = process.env.STAGE_NOTIFICATION_WEBHOOK_URL || '';
+
+async function fireStageNotification(payload: {
+  stage_name: string;
+  contact_name: string;
+  contact_phone: string;
+  deal_id: string;
+  deal_value: string;
+  ai_summary: string;
+}) {
+  if (!STAGE_NOTIFICATION_WEBHOOK) return;
+  try {
+    // Enrich with contact name from DB
+    const sb = createStaticAdminClient();
+    if (payload.contact_phone) {
+      const { data } = await sb
+        .from('contacts')
+        .select('name, phone')
+        .eq('phone', payload.contact_phone)
+        .limit(1)
+        .maybeSingle();
+      if (data?.name) payload.contact_name = data.name;
+    }
+    await fetch(STAGE_NOTIFICATION_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch { /* non-blocking */ }
+}
+
 export type MoveStageTarget =
   | { to_stage_id: string }
   | { to_stage_label: string }
@@ -221,6 +252,17 @@ export async function moveStageByIdentity(opts: {
     .maybeSingle();
   if (updateError) return { ok: false as const, status: 500, body: { error: updateError.message, code: 'DB_ERROR' } };
   if (!updated) return { ok: false as const, status: 404, body: { error: 'Deal not found', code: 'NOT_FOUND' } };
+
+  // Fire stage notification webhook (non-blocking)
+  fireStageNotification({
+    stage_name: opts.target.to_stage_label || '',
+    contact_name: phone || email || '',
+    contact_phone: phone || '',
+    deal_id: dealId,
+    deal_value: String((updated as any).value || 0),
+    ai_summary: opts.aiSummary || '',
+  }).catch(() => {});
+
   return { ok: true as const, status: 200, body: { data: updated, action: 'moved' } };
 }
 
