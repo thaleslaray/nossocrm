@@ -301,7 +301,7 @@ export const lifecycleStagesService = {
         .from('lifecycle_stages')
         .select('is_default')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (stage?.is_default) {
         return { error: new Error('Cannot delete default lifecycle stage') };

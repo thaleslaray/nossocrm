@@ -64,7 +64,7 @@ export const dealNotesService = {
             .update({ content })
             .eq('id', noteId)
             .select()
-            .single();
+            .maybeSingle();
 
         return { data: data as DealNote | null, error };
     },

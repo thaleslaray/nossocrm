@@ -41,9 +41,9 @@ export const consentsService = {
         .is('revoked_at', null)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows
+      if (error) {
         return { data: null, error };
       }
 
@@ -121,7 +121,7 @@ export const consentsService = {
         .select('*')
         .eq('user_id', user.id)
         .is('revoked_at', null)
-        .single();
+        .maybeSingle();
 
       if (!currentConsent) {
         return { error: new Error('No active consent found') };

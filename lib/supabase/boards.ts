@@ -47,7 +47,7 @@ async function getCurrentOrganizationId(): Promise<string | null> {
     .from('profiles')
     .select('organization_id')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   if (error) return null;
 
@@ -355,7 +355,7 @@ export const boardsService = {
         .from('boards')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (boardError || !boardData) return null;
 
@@ -540,7 +540,7 @@ export const boardsService = {
         .from('boards')
         .select('organization_id')
         .eq('id', id)
-        .single();
+        .maybeSingle();
       const organizationId =
         sanitizeUUID((boardRow as any)?.organization_id) || (await getCurrentOrganizationId());
 
