@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { encrypt, decrypt } from '@/lib/security/encryption';
 import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 
 function json<T>(body: T, status = 200): Response {
@@ -81,9 +82,9 @@ export async function GET() {
     aiEnabled,
     aiProvider: (orgSettings?.ai_provider || 'google') as Provider,
     aiModel: orgSettings?.ai_model || AI_DEFAULT_MODELS.google,
-    aiGoogleKey: orgSettings?.ai_google_key || '',
-    aiOpenaiKey: orgSettings?.ai_openai_key || '',
-    aiAnthropicKey: orgSettings?.ai_anthropic_key || '',
+    aiGoogleKey: orgSettings?.ai_google_key ? decrypt(orgSettings.ai_google_key) : '',
+    aiOpenaiKey: orgSettings?.ai_openai_key ? decrypt(orgSettings.ai_openai_key) : '',
+    aiAnthropicKey: orgSettings?.ai_anthropic_key ? decrypt(orgSettings.ai_anthropic_key) : '',
     aiHasGoogleKey: Boolean(orgSettings?.ai_google_key),
     aiHasOpenaiKey: Boolean(orgSettings?.ai_openai_key),
     aiHasAnthropicKey: Boolean(orgSettings?.ai_anthropic_key),
@@ -151,13 +152,13 @@ export async function POST(req: Request) {
   if (updates.aiModel !== undefined) dbUpdates.ai_model = updates.aiModel;
 
   const googleKey = normalizeKey(updates.aiGoogleKey);
-  if (googleKey !== undefined) dbUpdates.ai_google_key = googleKey;
+  if (googleKey !== undefined) dbUpdates.ai_google_key = googleKey ? encrypt(googleKey) : null;
 
   const openaiKey = normalizeKey(updates.aiOpenaiKey);
-  if (openaiKey !== undefined) dbUpdates.ai_openai_key = openaiKey;
+  if (openaiKey !== undefined) dbUpdates.ai_openai_key = openaiKey ? encrypt(openaiKey) : null;
 
   const anthropicKey = normalizeKey(updates.aiAnthropicKey);
-  if (anthropicKey !== undefined) dbUpdates.ai_anthropic_key = anthropicKey;
+  if (anthropicKey !== undefined) dbUpdates.ai_anthropic_key = anthropicKey ? encrypt(anthropicKey) : null;
 
   const { error: upsertError } = await supabase
     .from('organization_settings')

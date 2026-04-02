@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import { AI_DEFAULT_MODELS } from '@/lib/ai/defaults';
 import type { CRMCallOptions } from '@/types/ai';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { decrypt } from '@/lib/security/encryption';
 import { isAIFeatureEnabled } from '@/lib/ai/features/server';
 
 export const maxDuration = 60;
@@ -156,12 +157,18 @@ export async function POST(req: Request) {
     const provider = (orgSettings?.ai_provider ?? 'google') as AIProvider;
     const modelId: string | null = orgSettings?.ai_model ?? null;
 
-    const apiKey: string | null =
-        provider === 'google'
-            ? (orgSettings?.ai_google_key ?? null)
-            : provider === 'openai'
-                ? (orgSettings?.ai_openai_key ?? null)
-                : (orgSettings?.ai_anthropic_key ?? null);
+    let apiKey: string | null = null;
+    try {
+        apiKey =
+            provider === 'google'
+                ? (orgSettings?.ai_google_key ? decrypt(orgSettings.ai_google_key) : null)
+                : provider === 'openai'
+                    ? (orgSettings?.ai_openai_key ? decrypt(orgSettings.ai_openai_key) : null)
+                    : (orgSettings?.ai_anthropic_key ? decrypt(orgSettings.ai_anthropic_key) : null);
+    } catch (e) {
+        console.error(`[api/ai/chat] Failed to decrypt API key for provider ${provider}:`, e);
+        return new Response('Failed to decrypt AI API key', { status: 500 });
+    }
 
     if (!apiKey) {
         const providerLabel = provider === 'google' ? 'Google Gemini' : provider === 'openai' ? 'OpenAI' : 'Anthropic';

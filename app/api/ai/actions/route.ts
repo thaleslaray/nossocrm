@@ -17,6 +17,7 @@ import { getModel, type AIProvider } from '@/lib/ai/config';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { isAllowedOrigin } from '@/lib/security/sameOrigin';
+import { decrypt } from '@/lib/security/encryption';
 import { getResolvedPrompt } from '@/lib/ai/prompts/server';
 import { renderPromptTemplate } from '@/lib/ai/prompts/render';
 import { isAIFeatureEnabled } from '@/lib/ai/features/server';
@@ -213,12 +214,18 @@ export async function POST(req: Request) {
 
   // Frontend expects "AI consent required" as a *payload* error.
   const provider: AIProvider = (orgSettings?.ai_provider ?? 'google') as AIProvider;
-  const apiKey: string | null =
-    provider === 'google'
-      ? (orgSettings?.ai_google_key ?? null)
-      : provider === 'openai'
-        ? (orgSettings?.ai_openai_key ?? null)
-        : (orgSettings?.ai_anthropic_key ?? null);
+  let apiKey: string | null = null;
+  try {
+    apiKey =
+      provider === 'google'
+        ? (orgSettings?.ai_google_key ? decrypt(orgSettings.ai_google_key) : null)
+        : provider === 'openai'
+          ? (orgSettings?.ai_openai_key ? decrypt(orgSettings.ai_openai_key) : null)
+          : (orgSettings?.ai_anthropic_key ? decrypt(orgSettings.ai_anthropic_key) : null);
+  } catch (e) {
+    console.error(`[api/ai/actions] Failed to decrypt API key for provider ${provider}:`, e);
+    return json<AIActionResponse>({ error: 'Failed to decrypt AI API key' }, 500);
+  }
 
   if (orgError || !apiKey) {
     return json<AIActionResponse>({ error: 'AI consent required', consentType: 'AI_CONSENT' }, 200);

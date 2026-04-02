@@ -1759,7 +1759,7 @@ RETURNS TEXT
 LANGUAGE sql
 SECURITY DEFINER
 AS $$
-  SELECT encode(digest(token, 'sha256'), 'hex');
+  SELECT encode(extensions.digest(token::bytea, 'sha256'), 'hex');
 $$;
 
 -- Create API key (admin via UI) - returns the token ONCE
