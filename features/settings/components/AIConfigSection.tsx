@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAIConfig } from '@/context/hooks/useCRMSelectors';
+import { useOrgSettings, useUpdateAISettings, useUpdateUserSettings } from '@/lib/query/hooks/useOrgSettingsQuery';
 import { Bot, Key, Cpu, CheckCircle, AlertCircle, Loader2, Save, Trash2, ChevronDown, ChevronUp, Shield, Brain } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
@@ -204,15 +204,51 @@ export const AIConfigSection: React.FC = () => {
     const { profile } = useAuth();
     const isAdmin = profile?.role === 'admin';
 
-    const {
-        aiProvider, setAiProvider,
-        aiApiKey, setAiApiKey,
-        aiModel, setAiModel,
-        aiKeyConfigured,
-        aiThinking, setAiThinking,
-        aiSearch, setAiSearch,
-        aiAnthropicCaching, setAiAnthropicCaching
-    } = useAIConfig();
+    const { data: orgSettings } = useOrgSettings();
+    const updateAISettings = useUpdateAISettings();
+    const updateUserSettings = useUpdateUserSettings();
+
+    // Derived values from TanStack Query data
+    const aiProvider = (orgSettings?.aiProvider ?? 'google') as 'google' | 'openai' | 'anthropic';
+    const aiModel = orgSettings?.aiModel ?? '';
+    const aiKeyConfigured = orgSettings?.aiKeyConfigured ?? false;
+    const aiThinking = orgSettings?.aiThinking ?? true;
+    const aiSearch = orgSettings?.aiSearch ?? true;
+    const aiAnthropicCaching = orgSettings?.aiAnthropicCaching ?? false;
+
+    // Computed: current API key for the active provider
+    const aiApiKey = (() => {
+        switch (aiProvider) {
+            case 'google': return orgSettings?.aiGoogleKey ?? '';
+            case 'openai': return orgSettings?.aiOpenaiKey ?? '';
+            case 'anthropic': return orgSettings?.aiAnthropicKey ?? '';
+            default: return '';
+        }
+    })();
+
+    // Replacement setters using TanStack Query mutations
+    const setAiProvider = async (provider: 'google' | 'openai' | 'anthropic') => {
+        await updateAISettings.mutateAsync({ aiProvider: provider });
+    };
+    const setAiApiKey = async (key: string) => {
+        switch (aiProvider) {
+            case 'google': await updateAISettings.mutateAsync({ aiGoogleKey: key }); break;
+            case 'openai': await updateAISettings.mutateAsync({ aiOpenaiKey: key }); break;
+            case 'anthropic': await updateAISettings.mutateAsync({ aiAnthropicKey: key }); break;
+        }
+    };
+    const setAiModel = async (model: string) => {
+        await updateAISettings.mutateAsync({ aiModel: model });
+    };
+    const setAiThinking = async (enabled: boolean) => {
+        await updateUserSettings.mutateAsync({ aiThinking: enabled });
+    };
+    const setAiSearch = async (enabled: boolean) => {
+        await updateUserSettings.mutateAsync({ aiSearch: enabled });
+    };
+    const setAiAnthropicCaching = async (enabled: boolean) => {
+        await updateUserSettings.mutateAsync({ aiAnthropicCaching: enabled });
+    };
 
     const { showToast } = useToast();
 

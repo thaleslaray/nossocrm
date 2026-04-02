@@ -10,6 +10,11 @@ const repoRoot = configDir.includes('/.claude/worktrees/')
   : configDir;
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: '*.supabase.co' },
+    ],
+  },
   // Otimiza imports de bibliotecas com barrel files (index.js que re-exporta tudo)
   // Isso evita carregar módulos não utilizados, reduzindo o bundle em 15-25KB
   // Ref: https://vercel.com/blog/how-we-optimized-package-imports-in-next-js
@@ -23,6 +28,9 @@ const nextConfig: NextConfig = {
   },
   turbopack: {
     root: repoRoot,
+  },
+  async rewrites() {
+    return [{ source: '/api/chat', destination: '/api/ai/chat' }];
   },
   async headers() {
     return [

@@ -3,6 +3,8 @@ import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 import { MetaCloudWhatsAppProvider } from '@/lib/messaging/providers/whatsapp/meta-cloud.provider';
 import type { DbMessagingTemplate } from '@/lib/messaging/types';
 
+export const maxDuration = 60;
+
 function json<T>(body: T, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,

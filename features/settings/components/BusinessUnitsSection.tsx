@@ -17,7 +17,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { SettingsSection } from './SettingsSection';
 import { Modal } from '@/components/ui/Modal';
-import ConfirmModal from '@/components/ConfirmModal';
+import { ConfirmDialog as ConfirmModal } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { cn } from '@/lib/utils/cn';

@@ -1,9 +1,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@/lib/utils';
 import { PRIMARY_NAV, SECONDARY_NAV } from './navConfig';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export interface NavigationRailProps {
   /** Optional: used only if we want to keep "More" as a sheet trigger (mobile-like). */
@@ -41,28 +41,26 @@ export function NavigationRail({ onOpenMore }: NavigationRailProps) {
             const isActive = item.href ? isHrefActive(item.href) : false;
 
             return (
-              <TooltipProvider key={item.id} delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link
-                      href={item.href!}
-                      className={cn(
-                        'w-full h-12 rounded-xl flex items-center justify-center transition-colors focus-visible-ring',
-                        isActive
-                          ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
-                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
-                      )}
-                      aria-current={isActive ? 'page' : undefined}
-                      aria-label={item.label}
-                    >
-                      <Icon className={cn('h-5 w-5', isActive ? 'text-primary-500' : '')} aria-hidden="true" />
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    {item.label}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Tooltip key={item.id}>
+                <TooltipTrigger asChild>
+                  <Link
+                    href={item.href!}
+                    className={cn(
+                      'w-full h-12 rounded-xl flex items-center justify-center transition-colors focus-visible-ring',
+                      isActive
+                        ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
+                    )}
+                    aria-current={isActive ? 'page' : undefined}
+                    aria-label={item.label}
+                  >
+                    <Icon className={cn('h-5 w-5', isActive ? 'text-primary-500' : '')} aria-hidden="true" />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {item.label}
+                </TooltipContent>
+              </Tooltip>
             );
           })}
         </div>
@@ -74,28 +72,26 @@ export function NavigationRail({ onOpenMore }: NavigationRailProps) {
             const Icon = item.icon;
             const isActive = isHrefActive(item.href);
             return (
-              <TooltipProvider key={item.id} delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        'w-full h-12 rounded-xl flex items-center justify-center transition-colors focus-visible-ring',
-                        isActive
-                          ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
-                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
-                      )}
-                      aria-current={isActive ? 'page' : undefined}
-                      aria-label={item.label}
-                    >
-                      <Icon className={cn('h-5 w-5', isActive ? 'text-primary-500' : '')} aria-hidden="true" />
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    {item.label}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Tooltip key={item.id}>
+                <TooltipTrigger asChild>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      'w-full h-12 rounded-xl flex items-center justify-center transition-colors focus-visible-ring',
+                      isActive
+                        ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
+                    )}
+                    aria-current={isActive ? 'page' : undefined}
+                    aria-label={item.label}
+                  >
+                    <Icon className={cn('h-5 w-5', isActive ? 'text-primary-500' : '')} aria-hidden="true" />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {item.label}
+                </TooltipContent>
+              </Tooltip>
             );
           })}
         </div>

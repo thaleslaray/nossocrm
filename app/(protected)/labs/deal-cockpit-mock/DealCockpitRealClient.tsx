@@ -21,8 +21,15 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '@/context/AuthContext';
-import { useCRM } from '@/context/CRMContext';
-import { useMoveDealSimple } from '@/lib/query/hooks';
+import {
+  useDealsView,
+  useContacts,
+  useBoards,
+  useActivities,
+  useUpdateDeal,
+  useCreateActivity,
+  useMoveDealSimple,
+} from '@/lib/query/hooks';
 import { normalizePhoneE164 } from '@/lib/phone';
 
 import { useAIDealAnalysis, deriveHealthFromProbability } from '@/features/inbox/hooks/useAIDealAnalysis';
@@ -564,14 +571,14 @@ export default function DealCockpitRealClient({ dealId }: { dealId?: string }) {
 
   const { profile, user } = useAuth();
 
-  const {
-    deals,
-    contacts,
-    boards,
-    activities,
-    addActivity,
-    updateDeal,
-  } = useCRM();
+  const { data: deals = [] } = useDealsView();
+  const { data: contacts = [] } = useContacts();
+  const { data: boards = [] } = useBoards();
+  const { data: activities = [] } = useActivities();
+  const updateDealMutation = useUpdateDeal();
+  const createActivityMutation = useCreateActivity();
+  const updateDeal = (id: string, updates: Partial<import('@/types').Deal>) => updateDealMutation.mutateAsync({ id, updates });
+  const addActivity = (activity: Omit<import('@/types').Activity, 'id' | 'createdAt'>) => createActivityMutation.mutateAsync({ activity });
 
   const [tab, setTab] = useState<Tab>('chat');
   const [query, setQuery] = useState('');

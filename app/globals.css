@@ -28,6 +28,23 @@
   --color-dark-card: #0f172a;
   --color-dark-border: #1e293b;
   --color-dark-hover: #334155;
+
+  /* shadcn semantic tokens */
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-text-primary);
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-text-primary);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-text-primary);
+  --color-primary: var(--color-primary-500);
+  --color-primary-foreground: #ffffff;
+  --color-muted-foreground: var(--color-text-secondary);
+  --color-accent: var(--color-muted);
+  --color-accent-foreground: var(--color-text-primary);
+  --color-destructive: var(--color-error);
+  --color-border: var(--color-border);
+  --color-input: var(--color-border);
+  --color-ring: var(--color-primary-500);
 }
 
 /* ========================================

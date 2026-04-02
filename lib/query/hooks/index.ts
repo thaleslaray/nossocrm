@@ -242,8 +242,11 @@ export {
   useOrgSettings,
   useUpdateUserSettings,
   useUpdateAISettings,
+  useAIFeatureFlags,
+  useSetAIFeatureFlag,
   type MergedOrgSettings,
   type OrgAISettings,
+  type AIFeatureFlagsResponse,
 } from './useOrgSettingsQuery';
 
 // =============================================================================

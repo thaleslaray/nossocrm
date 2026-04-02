@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { detectCsvDelimiter, parseCsv, type CsvDelimiter } from '@/lib/utils/csv';
 import { normalizePhoneE164 } from '@/lib/phone';
 
+export const maxDuration = 120;
+
 const ImportModeSchema = z.enum(['create_only', 'upsert_by_email', 'skip_duplicates_by_email']);
 type ImportMode = z.infer<typeof ImportModeSchema>;
 

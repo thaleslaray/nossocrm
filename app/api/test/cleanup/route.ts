@@ -13,9 +13,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
-  // Safety check - only in development
-  if (process.env.NODE_ENV === 'production') {
-    return NextResponse.json({ error: 'Not available in production' }, { status: 403 });
+  // Safety check - only in development with explicit opt-in flag
+  if (process.env.NODE_ENV !== 'development' || process.env.ALLOW_TEST_ROUTES !== 'true') {
+    return NextResponse.json({ error: 'Not Found' }, { status: 404 });
   }
 
   try {

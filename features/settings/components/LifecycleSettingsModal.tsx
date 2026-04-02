@@ -1,7 +1,7 @@
 import React, { useState, useId } from 'react';
 import { X, Plus, Trash2, ArrowUp, ArrowDown, Check } from 'lucide-react';
-import { useCRM } from '@/context/CRMContext';
-import { LifecycleStage } from '@/types';
+import { useLifecycleStages, useCreateLifecycleStage, useUpdateLifecycleStage, useDeleteLifecycleStage, useReorderLifecycleStages } from '@/lib/query/hooks/useLifecycleStagesQuery';
+import { useContacts } from '@/lib/query/hooks/useContactsQuery';
 import { FocusTrap, useFocusReturn } from '@/lib/a11y';
 
 interface LifecycleSettingsModalProps {
@@ -32,7 +32,12 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
     const headingId = useId();
     useFocusReturn({ enabled: isOpen });
 
-    const { lifecycleStages, addLifecycleStage, updateLifecycleStage, deleteLifecycleStage, reorderLifecycleStages, contacts } = useCRM();
+    const { data: lifecycleStages = [] } = useLifecycleStages();
+    const createStage = useCreateLifecycleStage();
+    const updateStageMutation = useUpdateLifecycleStage();
+    const deleteStageMutation = useDeleteLifecycleStage();
+    const reorderStagesMutation = useReorderLifecycleStages();
+    const { data: contacts = [] } = useContacts();
     const [newStageName, setNewStageName] = useState('');
     const [isAdding, setIsAdding] = useState(false);
 
@@ -51,7 +56,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
 
     const handleAdd = () => {
         if (!newStageName.trim()) return;
-        addLifecycleStage({
+        createStage.mutate({
             name: newStageName.trim(),
             color: STAGE_COLORS[lifecycleStages.length % STAGE_COLORS.length],
             isDefault: false
@@ -67,7 +72,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
         } else if (direction === 'down' && index < newStages.length - 1) {
             [newStages[index], newStages[index + 1]] = [newStages[index + 1], newStages[index]];
         }
-        reorderLifecycleStages(newStages);
+        reorderStagesMutation.mutate(newStages);
     };
 
     return (
@@ -105,7 +110,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                                     <div className={`w-6 h-6 rounded-full ${stage.color} cursor-pointer ring-2 ring-transparent hover:ring-slate-300 dark:hover:ring-slate-600 transition-all`} />
                                     <select
                                         value={stage.color}
-                                        onChange={(e) => updateLifecycleStage(stage.id, { color: e.target.value })}
+                                        onChange={(e) => updateStageMutation.mutate({ id: stage.id, updates: { color: e.target.value } })}
                                         className="absolute inset-0 opacity-0 cursor-pointer"
                                     >
                                         {STAGE_COLORS.map(c => (
@@ -118,7 +123,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                                 <input
                                     type="text"
                                     value={stage.name}
-                                    onChange={(e) => updateLifecycleStage(stage.id, { name: e.target.value })}
+                                    onChange={(e) => updateStageMutation.mutate({ id: stage.id, updates: { name: e.target.value } })}
                                     className="flex-1 bg-transparent text-sm font-medium text-slate-900 dark:text-white outline-none border-b border-transparent focus:border-primary-500 px-1"
                                 />
 
@@ -150,7 +155,7 @@ export const LifecycleSettingsModal: React.FC<LifecycleSettingsModalProps> = ({ 
                                     </div>
 
                                     <button
-                                        onClick={() => deleteLifecycleStage(stage.id)}
+                                        onClick={() => deleteStageMutation.mutate(stage.id)}
                                         disabled={stage.isDefault || (stageCounts[stage.id] || 0) > 0}
                                         className="p-1.5 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed ml-1"
                                         title={

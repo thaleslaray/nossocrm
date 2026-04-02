@@ -4,7 +4,7 @@ import { DealCard } from './DealCard';
 import { isDealRotting, getActivityStatus } from '@/features/boards/hooks/useBoardsController';
 import { MoveToStageModal } from '../Modals/MoveToStageModal';
 import { SkeletonDealCard } from '@/components/ui/Skeleton';
-import { useLifecycleStages } from '@/context/hooks/useCRMSelectors';
+import { useLifecycleStages } from '@/lib/query/hooks/useLifecycleStagesQuery';
 
 /**
  * UI: Drop highlight should follow the stage color.
@@ -116,7 +116,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onMoveDealToStage,
   isLoading = false,
 }) => {
-  const lifecycleStages = useLifecycleStages();
+  const { data: lifecycleStages = [] } = useLifecycleStages();
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   
   // State for move-to-stage modal (keyboard accessibility alternative to drag-and-drop)

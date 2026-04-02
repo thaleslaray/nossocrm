@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { getErrorMessage } from '@/lib/utils/errorUtils';

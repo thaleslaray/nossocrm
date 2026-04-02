@@ -1,12 +1,40 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import { Search, Filter, Inbox, CheckCircle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConversationItem } from './ConversationItem';
 import { ChannelIndicator } from './ChannelIndicator';
 import { useConversations } from '@/lib/query/hooks/useConversationsQuery';
-import type { ConversationFilters, ConversationStatus, ChannelType } from '@/lib/messaging/types';
+import type { ConversationFilters, ConversationStatus, ChannelType, ConversationView } from '@/lib/messaging/types';
+import type { PresenceStatus } from '@/lib/messaging/hooks/useContactPresence';
+
+interface ConversationItemWrapperProps {
+  conversation: ConversationView;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+  presenceStatus?: PresenceStatus;
+}
+
+const ConversationItemWrapper = memo(function ConversationItemWrapper({
+  conversation,
+  isSelected,
+  onSelect,
+  presenceStatus,
+}: ConversationItemWrapperProps) {
+  const handleClick = useCallback(() => {
+    onSelect(conversation.id);
+  }, [onSelect, conversation.id]);
+
+  return (
+    <ConversationItem
+      conversation={conversation}
+      isSelected={isSelected}
+      onClick={handleClick}
+      presenceStatus={presenceStatus}
+    />
+  );
+});
 
 interface ConversationListProps {
   selectedId?: string;
@@ -23,7 +51,7 @@ const CHANNEL_OPTIONS: { id: ChannelType | 'all'; label: string }[] = [
   { id: 'sms', label: 'SMS' },
 ];
 
-export function ConversationList({
+export const ConversationList = memo(function ConversationList({
   selectedId,
   onSelect,
   businessUnitId,
@@ -80,6 +108,8 @@ export function ConversationList({
                 : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-600 dark:hover:text-white'
             )}
             title="Filtros"
+            aria-label="Filtros"
+            aria-expanded={showFilters}
           >
             <Filter className="w-4 h-4" />
             {activeFiltersCount > 0 && (
@@ -171,6 +201,9 @@ export function ConversationList({
               </label>
               <button
                 type="button"
+                role="switch"
+                aria-checked={showUnreadOnly}
+                aria-label="Apenas não lidas"
                 onClick={() => setShowUnreadOnly(!showUnreadOnly)}
                 className={cn(
                   'relative w-9 h-5 rounded-full transition-colors',
@@ -231,11 +264,11 @@ export function ConversationList({
           </div>
         ) : (
           conversations?.map((conversation) => (
-            <ConversationItem
+            <ConversationItemWrapper
               key={conversation.id}
               conversation={conversation}
               isSelected={conversation.id === selectedId}
-              onClick={() => onSelect(conversation.id)}
+              onSelect={onSelect}
               presenceStatus={conversation.contactId && getPresence ? getPresence(conversation.contactId) : undefined}
             />
           ))
@@ -243,4 +276,4 @@ export function ConversationList({
       </div>
     </div>
   );
-}
+});

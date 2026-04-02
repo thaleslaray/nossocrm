@@ -200,23 +200,25 @@ export async function POST(req: Request) {
         cockpitSnapshot: (rawContext as any)?.cockpitSnapshot ? '[provided]' : undefined,
     };
 
-    console.log('[AI Chat] 📨 Request received:', {
-        messagesCount: messages?.length,
-        rawContext: rawContextSummary,
-        context: {
-            organizationId: context.organizationId,
-            boardId: context.boardId,
-            dealId: context.dealId,
-            boardName: context.boardName,
-            stagesCount: context.stages?.length,
-            cockpitSnapshot: context.cockpitSnapshot ? '[provided]' : undefined,
-            userName: context.userName,
-        },
-        ai: {
-            provider,
-            modelId: resolvedModelId,
-        },
-    });
+    if (process.env.NODE_ENV !== 'production') {
+        console.log('[AI Chat] 📨 Request received:', {
+            messagesCount: messages?.length,
+            rawContext: rawContextSummary,
+            context: {
+                organizationId: context.organizationId,
+                boardId: context.boardId,
+                dealId: context.dealId,
+                boardName: context.boardName,
+                stagesCount: context.stages?.length,
+                cockpitSnapshot: context.cockpitSnapshot ? '[provided]' : undefined,
+                userName: context.userName,
+            },
+            ai: {
+                provider,
+                modelId: resolvedModelId,
+            },
+        });
+    }
 
     // 6. Create agent with API key and context
     let agent: Awaited<ReturnType<typeof createCRMAgent>>;

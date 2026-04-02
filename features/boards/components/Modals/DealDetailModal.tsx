@@ -1,9 +1,23 @@
 import React, { useState, useRef, useEffect, useId, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useCRM } from '@/context/CRMContext';
+import {
+  useContacts,
+  useActivities,
+  useBoards,
+  useLifecycleStages,
+  useUpdateDeal,
+  useDeleteDeal,
+  useAddDealItem,
+  useRemoveDealItem,
+  useCreateActivity,
+  useUpdateActivity,
+  useDeleteActivity,
+} from '@/lib/query/hooks';
+import { useUIState } from '@/store/uiState';
+import { useActiveProducts } from '@/lib/query/hooks/useProductsQuery';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import ConfirmModal from '@/components/ConfirmModal';
+import { ConfirmDialog as ConfirmModal } from '@/components/ui/confirm-dialog';
 import { LossReasonModal } from '@/components/ui/LossReasonModal';
 import { useMoveDealSimple } from '@/lib/query/hooks';
 import { DEALS_VIEW_KEY } from '@/lib/query';
@@ -71,22 +85,30 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
   const { mode } = useResponsiveMode();
   const isMobile = mode === 'mobile';
 
-  const {
-    contacts,
-    updateDeal,
-    deleteDeal,
-    activities,
-    addActivity,
-    updateActivity,
-    deleteActivity,
-    products,
-    addItemToDeal,
-    removeItemFromDeal,
-    customFieldDefinitions,
-    activeBoard,
-    boards,
-    lifecycleStages,
-  } = useCRM();
+  const updateDealMutation = useUpdateDeal();
+  const deleteDealMutation = useDeleteDeal();
+  const addDealItemMutation = useAddDealItem();
+  const removeDealItemMutation = useRemoveDealItem();
+  const updateDeal = (id: string, updates: Partial<import('@/types').Deal>) => updateDealMutation.mutateAsync({ id, updates });
+  const deleteDeal = (id: string) => deleteDealMutation.mutateAsync(id);
+  const addItemToDeal = (dealId: string, item: Omit<import('@/types').DealItem, 'id'>) => addDealItemMutation.mutateAsync({ dealId, item });
+  const removeItemFromDeal = (dealId: string, itemId: string) => removeDealItemMutation.mutateAsync({ dealId, itemId });
+
+  const { data: contacts = [] } = useContacts();
+  const { data: activities = [] } = useActivities();
+  const { data: boards = [] } = useBoards();
+  const { activeBoardId } = useUIState();
+  const activeBoard = boards.find(b => b.id === activeBoardId) || boards.find(b => b.isDefault) || boards[0] || null;
+  const { data: lifecycleStages = [] } = useLifecycleStages();
+
+  const createActivityMutation = useCreateActivity();
+  const updateActivityMutation = useUpdateActivity();
+  const deleteActivityMutation = useDeleteActivity();
+  const addActivity = (activity: Omit<import('@/types').Activity, 'id' | 'createdAt'>) => createActivityMutation.mutateAsync({ activity });
+  const updateActivity = (id: string, updates: Partial<import('@/types').Activity>) => updateActivityMutation.mutateAsync({ id, updates });
+  const deleteActivity = (id: string) => deleteActivityMutation.mutateAsync(id);
+  const { data: products = [] } = useActiveProducts();
+  const customFieldDefinitions: import('@/types').CustomFieldDefinition[] = [];
   const { profile } = useAuth();
   const { addToast } = useToast();
   const router = useRouter();

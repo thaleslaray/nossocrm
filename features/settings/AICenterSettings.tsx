@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useCRM } from '@/context/CRMContext';
+import { useOrgSettings, useUpdateAISettings } from '@/lib/query/hooks/useOrgSettingsQuery';
 import { AIConfigSection } from './components/AIConfigSection';
 import { AIAgentConfigSection } from './components/ai/AIAgentConfigSection';
 import { AIFeaturesSection } from './components/AIFeaturesSection';
@@ -13,7 +13,9 @@ import { AIFeaturesSection } from './components/AIFeaturesSection';
  */
 export const AICenterSettings: React.FC = () => {
   const { profile } = useAuth();
-  const { aiOrgEnabled, setAiOrgEnabled } = useCRM();
+  const { data: settings } = useOrgSettings();
+  const updateAI = useUpdateAISettings();
+  const aiOrgEnabled = settings?.aiOrgEnabled ?? false;
   const isAdmin = profile?.role === 'admin';
 
   return (
@@ -47,7 +49,7 @@ export const AICenterSettings: React.FC = () => {
             <input
               type="checkbox"
               checked={aiOrgEnabled}
-              onChange={(e) => setAiOrgEnabled(e.target.checked)}
+              onChange={(e) => updateAI.mutate({ aiEnabled: e.target.checked })}
               disabled={!isAdmin}
               className="sr-only peer"
               aria-label="Ativar IA na organização"

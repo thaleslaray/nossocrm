@@ -1,6 +1,10 @@
 /**
  * @fileoverview Modal de Confirmação Acessível
- * 
+ *
+ * @deprecated Use `ConfirmDialog` de `@/components/ui/confirm-dialog` para novos usos.
+ * Todos os 7 call sites foram migrados para a versão shadcn AlertDialog.
+ * Este arquivo é mantido apenas para retrocompatibilidade até ser removido.
+ *
  * Componente de diálogo de confirmação com suporte completo a acessibilidade
  * para ações destrutivas ou que requerem confirmação do usuário.
  * 

@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSettingsController } from './hooks/useSettingsController';

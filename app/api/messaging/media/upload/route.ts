@@ -8,6 +8,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+
+export const maxDuration = 120;
 import crypto from 'crypto';
 
 // WhatsApp limits (Meta API v25 — https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media)

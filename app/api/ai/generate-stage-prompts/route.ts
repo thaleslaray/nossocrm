@@ -13,6 +13,8 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+
+export const maxDuration = 60;
 import { generateStagePrompts } from '@/lib/ai/agent/generate-prompts.service';
 
 export async function POST(req: Request) {

@@ -1,3 +1,5 @@
+'use client'
+
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2, X } from 'lucide-react';
@@ -15,7 +17,7 @@ import { ContactsImportExportModal } from './components/ContactsImportExportModa
 import { DuplicatesBanner } from './components/DuplicatesBanner';
 import { MergeContactsModal } from './components/MergeContactsModal';
 import { useDuplicateContactsQuery, useMergeContactsMutation } from '@/lib/query/hooks';
-import ConfirmModal from '@/components/ConfirmModal';
+import { ConfirmDialog as ConfirmModal } from '@/components/ui/confirm-dialog';
 
 /**
  * Componente React `ContactsPage`.

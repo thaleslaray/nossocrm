@@ -4,7 +4,8 @@ import { Board, BoardStage, ContactStage } from '@/types';
 import { BOARD_TEMPLATES, BoardTemplateType } from '@/lib/templates/board-templates';
 import { LifecycleSettingsModal } from '@/features/settings/components/LifecycleSettingsModal';
 import { BoardAIConfigModal } from './BoardAIConfigModal';
-import { useCRM } from '@/context/CRMContext';
+import { useLifecycleStages } from '@/lib/query/hooks/useLifecycleStagesQuery';
+import { useActiveProducts } from '@/lib/query/hooks/useProductsQuery';
 import { useToast } from '@/context/ToastContext';
 import { Modal } from '@/components/ui/Modal';
 import { MODAL_FOOTER_CLASS } from '@/components/ui/modalStyles';
@@ -119,7 +120,8 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
   React.useEffect(() => {
   }, [isOpen]);
 
-  const { lifecycleStages, products } = useCRM();
+  const { data: lifecycleStages = [] } = useLifecycleStages();
+  const { data: products = [] } = useActiveProducts();
   const { addToast } = useToast();
   const [name, setName] = useState('');
   const [boardKey, setBoardKey] = useState('');

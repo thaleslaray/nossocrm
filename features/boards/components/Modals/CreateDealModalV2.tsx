@@ -1,7 +1,8 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCRM } from '@/context/CRMContext';
+import { useCreateDealWithContact } from '@/lib/query/hooks/useDealsQuery';
+import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
 import { Deal } from '@/types';
 import { Modal, ModalForm } from '@/components/ui/Modal';
 import { InputField, SubmitButton } from '@/components/ui/FormField';
@@ -20,7 +21,10 @@ interface CreateDealModalV2Props {
  * @returns {Element} Retorna um valor do tipo `Element`.
  */
 export const CreateDealModalV2: React.FC<CreateDealModalV2Props> = ({ isOpen, onClose }) => {
-  const { addDeal, activeBoard, activeBoardId } = useCRM();
+  const createDealWithContact = useCreateDealWithContact();
+  const { data: boards = [] } = useBoards();
+  const activeBoard = boards.find(b => b.isDefault) || boards[0] || null;
+  const activeBoardId = activeBoard?.id || '';
 
   const form = useForm<DealFormData>({
     // @ts-expect-error - zodResolver type variance with optional value field, safe at runtime
@@ -83,12 +87,17 @@ export const CreateDealModalV2: React.FC<CreateDealModalV2Props> = ({ isOpen, on
       isLost: false,
     };
 
-    addDeal(deal, {
-      companyName: data.companyName,
-      contact: {
-        name: data.contactName || '',
-        email: data.email || '',
-        phone: data.phone || '',
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _id, createdAt: _createdAt, ...dealWithoutId } = deal;
+    createDealWithContact.mutate({
+      deal: dealWithoutId,
+      relatedData: {
+        companyName: data.companyName,
+        contact: {
+          name: data.contactName || '',
+          email: data.email || '',
+          phone: data.phone || '',
+        },
       },
     });
 

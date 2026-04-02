@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useEffect } from 'react';
 import { useBoardsController } from './hooks/useBoardsController';
 import { PipelineView } from './components/PipelineView';

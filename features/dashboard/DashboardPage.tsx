@@ -1,6 +1,11 @@
+'use client'
+
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useDashboardCRM } from '@/context/hooks/useCRMSelectors';
+import { useActivities } from '@/lib/query/hooks/useActivitiesQuery';
+import { useLifecycleStages } from '@/lib/query/hooks/useLifecycleStagesQuery';
+import { useContacts } from '@/lib/query/hooks/useContactsQuery';
+import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
 import { useToast } from '@/context/ToastContext';
 import { TrendingUp, TrendingDown, Users, DollarSign, Target, Clock, MoreVertical, AlertTriangle } from 'lucide-react';
 import { StatCard } from './components/StatCard';
@@ -32,7 +37,10 @@ function formatChange(value: number): { text: string; isPositive: boolean } {
  */
 const DashboardPage: React.FC = () => {
   const router = useRouter();
-  const { activities, lifecycleStages, contacts, boards } = useDashboardCRM();
+  const { data: activities = [] } = useActivities();
+  const { data: lifecycleStages = [] } = useLifecycleStages();
+  const { data: contacts = [] } = useContacts();
+  const { data: boards = [] } = useBoards();
   const { addToast } = useToast();
   const [period, setPeriod] = useState<PeriodFilter>('this_month');
   const [showPipelineAlerts, setShowPipelineAlerts] = useState(false);
@@ -57,9 +65,6 @@ const DashboardPage: React.FC = () => {
     return counts;
   }, [contacts]);
 
-  useEffect(() => {
-    console.log('DashboardPage mounted');
-  }, []);
 
   const {
     isLoading,

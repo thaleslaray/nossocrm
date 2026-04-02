@@ -6,7 +6,7 @@
  *
  * Patterns utilizados (baseado em research de SalesGPT, Vercel AI SDK, Salesforce):
  * - Structured Output com Zod schema
- * - Confidence scoring (0-1) para cada critério
+ * - Confidence scoring (0 a 1) para cada critério
  * - Human-in-the-Loop (HITL) com thresholds configuráveis:
  *   - ≥ hitlThreshold (default 0.85): Avança automaticamente
  *   - 0.70 - hitlThreshold: Requer confirmação humana
@@ -358,7 +358,7 @@ async function getNextStage(
     .from('board_stages')
     .select('board_id, "order"')
     .eq('id', currentStageId)
-    .single();
+    .maybeSingle();
 
   if (!currentStage) {
     return { nextStageId: null, nextStageName: null };
@@ -372,7 +372,7 @@ async function getNextStage(
     .gt('"order"', currentStage.order)
     .order('"order"', { ascending: true })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (!nextStage) {
     return { nextStageId: null, nextStageName: null };

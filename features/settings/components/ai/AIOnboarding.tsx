@@ -122,7 +122,9 @@ export function AIOnboarding({ onComplete }: AIOnboardingProps) {
 
       // If selecting zero_config, provision stage configs automatically
       if (selectedMode === 'zero_config') {
-        console.log('[AIOnboarding] Provisioning stage configs...');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[AIOnboarding] Provisioning stage configs...');
+        }
         await provisionStages.mutateAsync();
       }
 

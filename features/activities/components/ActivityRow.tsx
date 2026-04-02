@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Phone, Users, Mail, CheckSquare, Clock, Trash2, Edit2, CheckCircle2, Circle, Building2 } from 'lucide-react';
-import { useCRM } from '@/context/CRMContext';
+import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
 import { Activity, Deal, Contact, Company } from '@/types';
 
 interface ActivityRowProps {
@@ -42,7 +42,7 @@ const ActivityRowComponent: React.FC<ActivityRowProps> = ({
         }
     };
 
-    const { activeBoard, boards } = useCRM();
+    const { data: boards = [] } = useBoards();
 
     const translateStatus = (status: string) => {
         // Se não parece ser um UUID, retorna direto (já é um label legível)

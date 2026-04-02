@@ -22,7 +22,10 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '@/context/AuthContext';
-import { useCockpitCRM } from '@/context/hooks/useCRMSelectors';
+import { useDealsView, useUpdateDeal as useUpdateDealMut } from '@/lib/query/hooks/useDealsQuery';
+import { useContacts } from '@/lib/query/hooks/useContactsQuery';
+import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
+import { useActivities, useCreateActivity } from '@/lib/query/hooks/useActivitiesQuery';
 import { useMoveDealSimple } from '@/lib/query/hooks';
 import { normalizePhoneE164 } from '@/lib/phone';
 
@@ -588,17 +591,15 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
 
   const { profile, user } = useAuth();
 
-  const {
-    loading: crmLoading,
-    error: crmError,
-    refresh: refreshCRM,
-    deals,
-    contacts,
-    boards,
-    activities,
-    addActivity,
-    updateDeal,
-  } = useCockpitCRM();
+  const { data: deals = [], isLoading: crmLoading, error: crmErrorRaw, refetch: refreshCRM } = useDealsView();
+  const crmError = crmErrorRaw ? (crmErrorRaw instanceof Error ? crmErrorRaw.message : String(crmErrorRaw)) : null;
+  const { data: contacts = [] } = useContacts();
+  const { data: boards = [] } = useBoards();
+  const { data: activities = [] } = useActivities();
+  const createActivityMut = useCreateActivity();
+  const updateDealMut = useUpdateDealMut();
+  const addActivity = useCallback((activity: Omit<import('@/types').Activity, 'id' | 'createdAt'>) => createActivityMut.mutateAsync({ activity }), [createActivityMut]);
+  const updateDeal = useCallback((id: string, updates: Partial<import('@/types').Deal>) => updateDealMut.mutateAsync({ id, updates }), [updateDealMut]);
 
   const [tab, setTab] = useState<Tab>('chat');
   const [query, setQuery] = useState('');

@@ -14,7 +14,7 @@
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCRM } from '@/context/CRMContext';
+import { useOrgSettings } from '@/lib/query/hooks/useOrgSettingsQuery';
 
 export interface UseAIEnabledResult {
   /** Se a IA está habilitada (tem API Key configurada) */
@@ -33,7 +33,10 @@ export interface UseAIEnabledResult {
  */
 export function useAIEnabled(): UseAIEnabledResult {
   const router = useRouter();
-  const { aiProvider, aiOrgEnabled, aiKeyConfigured } = useCRM();
+  const { data: settings } = useOrgSettings();
+  const aiProvider = settings?.aiProvider;
+  const aiOrgEnabled = settings?.aiOrgEnabled;
+  const aiKeyConfigured = settings?.aiKeyConfigured;
 
   const isAIEnabled = Boolean(aiOrgEnabled && aiKeyConfigured);
 

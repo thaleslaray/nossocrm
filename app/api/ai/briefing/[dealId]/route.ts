@@ -11,6 +11,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { generateMeetingBriefing } from '@/lib/ai/briefing/briefing.service';
 
+export const maxDuration = 60;
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ dealId: string }> }

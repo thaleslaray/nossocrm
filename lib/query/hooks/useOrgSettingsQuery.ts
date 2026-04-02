@@ -114,6 +114,74 @@ export const useUpdateUserSettings = () => {
   });
 };
 
+// ============ AI FEATURE FLAGS ============
+
+export interface AIFeatureFlagsResponse {
+  isAdmin: boolean;
+  flags: Record<string, boolean>;
+}
+
+/** Fetches per-feature AI flags from /api/settings/ai-features */
+export const useAIFeatureFlags = (options?: { enabled?: boolean }) => {
+  const { user, loading: authLoading } = useAuth();
+  const externalEnabled = options?.enabled ?? true;
+
+  return useQuery<AIFeatureFlagsResponse>({
+    queryKey: queryKeys.orgSettings.detail('ai-feature-flags'),
+    queryFn: async () => {
+      const res = await fetch('/api/settings/ai-features', { credentials: 'include' });
+      if (!res.ok) throw new Error(`Failed to fetch AI feature flags: ${res.statusText}`);
+      return res.json() as Promise<AIFeatureFlagsResponse>;
+    },
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: (query) => query.state.dataUpdatedAt === 0 || query.state.isInvalidated,
+    refetchOnReconnect: false,
+    enabled: !authLoading && !!user && externalEnabled,
+  });
+};
+
+/** Toggles a single AI feature flag via POST /api/settings/ai-features */
+export const useSetAIFeatureFlag = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ key, enabled }: { key: string; enabled: boolean }) => {
+      const res = await fetch('/api/settings/ai-features', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key, enabled }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `Falha ao salvar flag de IA (HTTP ${res.status})`);
+      }
+      return res.json();
+    },
+    onMutate: async ({ key, enabled }) => {
+      // Optimistic update
+      await queryClient.cancelQueries({ queryKey: queryKeys.orgSettings.detail('ai-feature-flags') });
+      const previous = queryClient.getQueryData<AIFeatureFlagsResponse>(queryKeys.orgSettings.detail('ai-feature-flags'));
+      if (previous) {
+        queryClient.setQueryData<AIFeatureFlagsResponse>(queryKeys.orgSettings.detail('ai-feature-flags'), {
+          ...previous,
+          flags: { ...previous.flags, [key]: enabled },
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.orgSettings.detail('ai-feature-flags'), context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orgSettings.detail('ai-feature-flags') });
+    },
+  });
+};
+
 /** Updates org-level AI settings via the /api/settings/ai endpoint */
 export const useUpdateAISettings = () => {
   const queryClient = useQueryClient();

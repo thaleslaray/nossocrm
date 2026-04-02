@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Key, Copy, ExternalLink, CheckCircle2, Plus, Trash2, ShieldCheck, RefreshCw, TerminalSquare, Play } from 'lucide-react';
 
-import ConfirmModal from '@/components/ConfirmModal';
+import { ConfirmDialog as ConfirmModal } from '@/components/ui/confirm-dialog';
 import { useOptionalToast } from '@/context/ToastContext';
-import { useBoards } from '@/context/boards/BoardsContext';
+import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
 import { supabase } from '@/lib/supabase/client';
 
 import { SettingsSection } from './SettingsSection';
@@ -23,7 +23,7 @@ type ApiKeyRow = {
  */
 export const ApiKeysSection: React.FC = () => {
   const { addToast } = useOptionalToast();
-  const { boards: boardsFromContext } = useBoards();
+  const { data: boardsFromContext = [] } = useBoards();
 
   const [action, setAction] = useState<'create_lead' | 'create_deal' | 'move_stage' | 'create_activity'>('create_lead');
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);

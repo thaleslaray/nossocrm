@@ -19,7 +19,7 @@ import { usePersistedState } from '@/hooks/usePersistedState';
 import { useRealtimeSyncKanban } from '@/lib/realtime/useRealtimeSync';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
-import { useCRM } from '@/context/CRMContext';
+import { useLifecycleStages } from '@/lib/query/hooks/useLifecycleStagesQuery';
 import { useAI } from '@/context/AIContext';
 
 /**
@@ -260,8 +260,8 @@ export const useBoardsController = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeBoard?.id, activeBoard?.name, activeBoard?.stages?.length, deals.length, statusFilter, ownerFilter, searchTerm, dateRange.start, dateRange.end]);
 
-  // Get lifecycle stages from CRM context for automations
-  const { lifecycleStages } = useCRM();
+  // Get lifecycle stages for automations (TanStack Query)
+  const { data: lifecycleStages = [] } = useLifecycleStages();
 
   // Enable realtime sync for Kanban
   useRealtimeSyncKanban();

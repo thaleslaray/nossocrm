@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useCRM } from '@/context/CRMContext';
+import { useCreateDealWithContact } from '@/lib/query/hooks/useDealsQuery';
+import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
 import { useAuth } from '@/context/AuthContext';
 import { Deal, Board, Contact, Company } from '@/types';
 import { X, Building2, User, Mail, Phone, AlertCircle, Loader2 } from 'lucide-react';
@@ -26,12 +27,13 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
     activeBoard: propActiveBoard,
     activeBoardId: propActiveBoardId
 }) => {
-    const { addDeal, activeBoard: contextActiveBoard, activeBoardId: contextActiveBoardId } = useCRM();
+    const createDealWithContact = useCreateDealWithContact();
+    const { data: boards = [] } = useBoards();
     const { profile, user } = useAuth();
 
     // Prioriza props sobre contexto (permite que o Kanban passe o board correto)
-    const activeBoard = propActiveBoard || contextActiveBoard;
-    const activeBoardId = propActiveBoardId || contextActiveBoardId;
+    const activeBoard = propActiveBoard || boards[0] || null;
+    const activeBoardId = propActiveBoardId || activeBoard?.id || '';
 
     // Estado para contato/empresa selecionados
     const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -156,34 +158,35 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                 isLost: false,
             };
 
-            let result;
-            
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { id: _id, createdAt: _createdAt, ...dealWithoutId } = deal;
+
             // Se selecionou contato existente
             if (selectedContact) {
-                result = await addDeal(deal, {
-                    companyName: selectedCompany?.name || '',
-                    contact: {
-                        name: selectedContact.name,
-                        email: selectedContact.email,
-                        phone: selectedContact.phone
+                await createDealWithContact.mutateAsync({
+                    deal: dealWithoutId,
+                    relatedData: {
+                        companyName: selectedCompany?.name || '',
+                        contact: {
+                            name: selectedContact.name,
+                            email: selectedContact.email,
+                            phone: selectedContact.phone
+                        }
                     }
                 });
             } else {
                 // Criando novo contato
-                result = await addDeal(deal, {
-                    companyName: newContactData.companyName,
-                    contact: {
-                        name: newContactData.name,
-                        email: newContactData.email,
-                        phone: newContactData.phone
+                await createDealWithContact.mutateAsync({
+                    deal: dealWithoutId,
+                    relatedData: {
+                        companyName: newContactData.companyName,
+                        contact: {
+                            name: newContactData.name,
+                            email: newContactData.email,
+                            phone: newContactData.phone
+                        }
                     }
                 });
-            }
-            
-            // Se retornou null, houve erro (já logado no console)
-            if (result === null) {
-                setError('Já existe um negócio com este título para este contato. Altere o título ou selecione outro contato.');
-                return;
             }
 
             onClose();

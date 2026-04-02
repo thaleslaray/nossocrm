@@ -28,14 +28,15 @@ import {
   useUpdateAIConfigMutation,
   useProvisionStagesMutation,
 } from '@/lib/query/hooks/useAIConfigQuery';
-import { useAIConfig } from '@/context/hooks/useCRMSelectors';
+import { useOrgSettings } from '@/lib/query/hooks/useOrgSettingsQuery';
 
 // =============================================================================
 // Component
 // =============================================================================
 
 export function AIAgentConfigSection() {
-  const { aiKeyConfigured } = useAIConfig();
+  const { data: settings } = useOrgSettings();
+  const aiKeyConfigured = settings?.aiKeyConfigured ?? false;
   const { data: config, isLoading, error } = useAIConfigQuery();
   const updateConfig = useUpdateAIConfigMutation();
   const provisionStages = useProvisionStagesMutation();
@@ -58,9 +59,13 @@ export function AIAgentConfigSection() {
 
       // If switching to zero_config (Automático), provision stage configs automatically
       if (mode === 'zero_config') {
-        console.log('[AIAgentConfig] Provisioning stage configs for zero_config mode...');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[AIAgentConfig] Provisioning stage configs for zero_config mode...');
+        }
         const result = await provisionStages.mutateAsync();
-        console.log('[AIAgentConfig] Provisioning result:', result);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[AIAgentConfig] Provisioning result:', result);
+        }
       }
     } catch (e) {
       console.error('[AIAgentConfig] Failed to update mode:', e);

@@ -286,6 +286,7 @@ export function MessageInput({ conversation }: MessageInputProps) {
           disabled={isUploading}
           className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors disabled:opacity-50"
           title="Anexar arquivo"
+          aria-label="Anexar arquivo"
         >
           {isUploading ? (
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -319,6 +320,7 @@ export function MessageInput({ conversation }: MessageInputProps) {
           type="button"
           className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors"
           title="Emojis"
+          aria-label="Emojis"
         >
           <Smile className="w-5 h-5" />
         </button>
@@ -328,6 +330,7 @@ export function MessageInput({ conversation }: MessageInputProps) {
           onClick={() => setShowTemplates(true)}
           className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors"
           title="Enviar template"
+          aria-label="Enviar template"
         >
           <FileText className="w-5 h-5" />
         </button>

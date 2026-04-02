@@ -13,6 +13,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getOrgAIConfig } from '@/lib/ai/agent/agent.service';
+
+export const maxDuration = 60;
 import {
   fetchConversationsForLearning,
   learnFromConversations,
