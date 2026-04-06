@@ -21,6 +21,7 @@ export interface StageAIConfig {
   advancement_criteria: string[];
   settings: StageAISettings;
   ai_model: string | null;
+  notify_team: boolean;
   created_at: string;
   updated_at: string;
 }

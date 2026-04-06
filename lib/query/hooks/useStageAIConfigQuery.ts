@@ -25,6 +25,7 @@ export interface StageAIConfigInput {
   advancement_criteria?: string[];
   settings?: Partial<StageAISettings>;
   ai_model?: string;
+  notify_team?: boolean;
 }
 
 // =============================================================================
@@ -124,6 +125,7 @@ export function useUpsertStageAIConfigMutation() {
           ...input.settings,
         },
         ai_model: input.ai_model || null,
+        notify_team: input.notify_team ?? false,
       };
 
       if (existing) {
