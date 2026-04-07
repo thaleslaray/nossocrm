@@ -312,12 +312,14 @@ async function handleMessagesUpsert(
 ) {
   const { data } = payload;
 
-  // Skip outbound, groups, and broadcast
-  if (data.key.fromMe) return;
-
   const remoteJid = data.key.remoteJid;
+
+  // Skip groups and broadcast — not supported for now
   if (remoteJid.includes("@g.us")) return;
   if (remoteJid === "status@broadcast") return;
+
+  const isFromMe = data.key.fromMe === true;
+  const direction = isFromMe ? "outbound" : "inbound";
 
   const phone = normalizeRemoteJid(remoteJid);
   if (!phone) {
@@ -425,16 +427,18 @@ async function handleMessagesUpsert(
     }
   }
 
-  // Insert inbound message
+  // Insert message (inbound or outbound from WhatsApp app)
   const { error: msgErr } = await supabase.from("messaging_messages").insert({
     conversation_id: conversationId,
     external_id: externalMessageId,
-    direction: "inbound",
+    direction,
     content_type: "text",
     content: { type: "text", text: messageText },
-    status: "delivered",
-    delivered_at: timestamp.toISOString(),
-    sender_name: pushName,
+    status: direction === "outbound" ? "sent" : "delivered",
+    ...(direction === "outbound"
+      ? { sent_at: timestamp.toISOString() }
+      : { delivered_at: timestamp.toISOString() }),
+    sender_name: isFromMe ? "Você" : pushName,
     metadata: {
       evolution_message_id: externalMessageId,
       message_type: data.messageType,
@@ -450,34 +454,34 @@ async function handleMessagesUpsert(
     return;
   }
 
-  // Fetch inserted message id for AI process
-  const { data: insertedMsg } = await supabase
-    .from("messaging_messages")
-    .select("id")
-    .eq("external_id", externalMessageId)
-    .eq("conversation_id", conversationId)
-    .maybeSingle();
-
   // Update conversation
   await supabase
     .from("messaging_conversations")
     .update({
       last_message_at: timestamp.toISOString(),
       last_message_preview: messageText.slice(0, 100),
-      last_message_direction: "inbound",
       status: "open",
     })
     .eq("id", conversationId);
 
-  // Trigger AI processing (fire-and-forget)
-  triggerAIProcessing({
-    conversationId,
-    organizationId: channel.organization_id,
-    messageText,
-    messageId: insertedMsg?.id ?? externalMessageId,
-  }).catch((err) => {
-    console.error("[Evolution] AI processing trigger error:", err);
-  });
+  // Only trigger AI for inbound messages
+  if (!isFromMe) {
+    const { data: insertedMsg } = await supabase
+      .from("messaging_messages")
+      .select("id")
+      .eq("external_id", externalMessageId)
+      .eq("conversation_id", conversationId)
+      .maybeSingle();
+
+    triggerAIProcessing({
+      conversationId,
+      organizationId: channel.organization_id,
+      messageText,
+      messageId: insertedMsg?.id ?? externalMessageId,
+    }).catch((err) => {
+      console.error("[Evolution] AI processing trigger error:", err);
+    });
+  }
 }
 
 async function handleMessagesUpdate(
