@@ -38,9 +38,9 @@ const LABEL_CLASS = 'block text-xs font-bold text-slate-500 uppercase mb-1';
 const SECTION_TITLE_CLASS = 'text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 pt-1';
 
 const CATEGORIAS = [
-  { value: 'economica', label: 'Econômica', desc: 'Custo-benefício' },
-  { value: 'intermediaria', label: 'Intermediária', desc: 'Conforto' },
-  { value: 'premium', label: 'Premium', desc: 'Luxo' },
+  { value: 'economica',    label: 'Econômica',    desc: 'Melhor custo-benefício', Icon: Wallet },
+  { value: 'intermediaria', label: 'Intermediária', desc: 'Conforto e qualidade',   Icon: Star   },
+  { value: 'premium',      label: 'Premium / Luxo', desc: 'Experiência de luxo',    Icon: Crown  },
 ] as const;
 
 const URGENCIAS = [
