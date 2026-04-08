@@ -85,3 +85,11 @@ scripts/
 
 # Test documentation (test code stays, docs are local)
 test/*.md
+
+# Claude/AI tools local context files (never commit)
+.claude/
+AGENTS.md
+.sc-context.md
+
+# Generated/internal PDFs (may contain sensitive prompts or specs)
+docs/*.pdf
