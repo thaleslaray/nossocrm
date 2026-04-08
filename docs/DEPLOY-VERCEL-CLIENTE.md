@@ -50,7 +50,7 @@ Na Vercel, vá em **Settings → Environment Variables** e adicione:
 
 | Nome | Valor | Onde Obter |
 |------|-------|------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://aldjuddpzudrvtnfgmru.supabase.co` | Copiar do Dashboard Supabase |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://drgsnhbtucwocpeiwdth.supabase.co` | Copiar do Dashboard Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | (chave anon) | Supabase → Settings → API |
 | `SUPABASE_SERVICE_ROLE_KEY` | (chave service_role) | Supabase → Settings → API |
 | `DEFAULT_ORGANIZATION_ID` | `4e72d64a-a457-45cb-b1ac-ee7d548ec584` | Já configurado |
@@ -58,7 +58,7 @@ Na Vercel, vá em **Settings → Environment Variables** e adicione:
 **Como obter as chaves do Supabase:**
 
 ```
-1. Acesse: https://supabase.com/dashboard/project/aldjuddpzudrvtnfgmru
+1. Acesse: https://supabase.com/dashboard/project/drgsnhbtucwocpeiwdth
 2. Vá em: Settings (⚙️) → API
 3. Copie as chaves:
    - Project URL
@@ -107,7 +107,7 @@ URL: https://SEU-PROJETO.vercel.app
 ### Teste 2: Webhook de Leads
 
 ```bash
-curl -X POST 'https://aldjuddpzudrvtnfgmru.supabase.co/functions/v1/gptmaker-in' \
+curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in' \
   -H 'Content-Type: application/json' \
   -d '{
     "nome": "Teste Deploy Vercel",
@@ -142,9 +142,9 @@ curl -X POST 'https://aldjuddpzudrvtnfgmru.supabase.co/functions/v1/gptmaker-in'
 | Serviço | URL |
 |---------|-----|
 | **Vercel Dashboard** | `https://vercel.com/dashboard` |
-| **Supabase Dashboard** | `https://supabase.com/dashboard/project/aldjuddpzudrvtnfgmru` |
+| **Supabase Dashboard** | `https://supabase.com/dashboard/project/drgsnhbtucwocpeiwdth` |
 | **GitHub Repository** | `https://github.com/kleberyascom/nossocrm` |
-| **Edge Function** | `https://aldjuddpzudrvtnfgmru.supabase.co/functions/v1/gptmaker-in` |
+| **Edge Function** | `https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in` |
 
 ---
 
