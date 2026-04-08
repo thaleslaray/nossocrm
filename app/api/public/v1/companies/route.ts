@@ -35,7 +35,10 @@ export async function GET(request: Request) {
 
   if (website) query = query.eq('website', website);
   if (name) query = query.ilike('name', name);
-  if (q) query = query.or(`name.ilike.%${q}%,website.ilike.%${q}%`);
+  if (q) {
+    const safeQ = escapePostgrestFilter(q);
+    query = query.or(`name.ilike.%${safeQ}%,website.ilike.%${safeQ}%`);
+  }
 
   const from = offset;
   const to = offset + limit - 1;
