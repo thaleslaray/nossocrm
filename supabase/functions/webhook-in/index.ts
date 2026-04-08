@@ -339,7 +339,7 @@ Deno.serve(async (req) => {
           email: leadEmail,
           phone: leadPhone,
           source: payload.source || "webhook",
-          company_name: companyName,
+          // contacts.company_name removido — vínculo via client_company_id
           client_company_id: clientCompanyId,
           notes: payload.notes || null,
         })
