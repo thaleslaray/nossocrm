@@ -109,10 +109,37 @@ export const requiredDate = (field: string) =>
 
 export const contactFormSchema = z.object({
   name: requiredString('Nome', MAX_LENGTHS.NAME),
-  email: emailSchema,
+  email: z.string()
+    .max(MAX_LENGTHS.EMAIL, `Email deve ter no máximo ${MAX_LENGTHS.EMAIL} caracteres`)
+    .email(msg('EMAIL_INVALID'))
+    .optional()
+    .or(z.literal('')),
   phone: phoneSchema,
-  role: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
-  companyName: optionalString.pipe(z.string().max(MAX_LENGTHS.COMPANY_NAME)),
+  // Campos de viagem
+  destino_viagem: z.string().min(2, 'Destino deve ter no mínimo 2 caracteres'),
+  data_viagem: z.string().optional().or(z.literal('')),
+  quantidade_adultos: z.coerce.number().int().min(1, 'Mínimo 1 adulto'),
+  quantidade_criancas: z.coerce.number().int().min(0, 'Mínimo 0 crianças').default(0),
+  idade_criancas: z.string().optional().or(z.literal('')),
+  categoria_viagem: z.enum(['economica', 'intermediaria', 'premium'], {
+    message: 'Selecione a categoria da viagem',
+  }),
+  urgencia_viagem: z.enum(['imediato', 'curto_prazo', 'medio_prazo', 'planejando'], {
+    message: 'Selecione a urgência da viagem',
+  }),
+  origem_lead: z.enum(['instagram', 'facebook', 'google', 'site', 'whatsapp', 'indicacao', 'outro'], {
+    message: 'Selecione a origem do lead',
+  }),
+  indicado_por: z.string().optional().or(z.literal('')),
+  observacoes_viagem: z.string().max(1000, 'Observações devem ter no máximo 1000 caracteres').optional().or(z.literal('')),
+}).superRefine((data, ctx) => {
+  if ((data.quantidade_criancas ?? 0) > 0 && !data.idade_criancas?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['idade_criancas'],
+      message: 'Informe as idades das crianças',
+    });
+  }
 });
 
 export type ContactFormData = z.infer<typeof contactFormSchema>;

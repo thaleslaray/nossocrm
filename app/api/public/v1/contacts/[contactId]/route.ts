@@ -12,8 +12,6 @@ const ContactPatchSchema = z.object({
   name: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
-  role: z.string().optional(),
-  company_name: z.string().optional(),
   client_company_id: z.string().uuid().nullable().optional(),
   avatar: z.string().optional(),
   status: z.string().optional(),
@@ -24,7 +22,20 @@ const ContactPatchSchema = z.object({
   total_value: z.number().nullable().optional(),
   source: z.string().optional(),
   notes: z.string().optional(),
+  // Travel fields
+  destino_viagem: z.string().optional(),
+  data_viagem: z.string().nullable().optional(),
+  quantidade_adultos: z.number().int().min(1).optional(),
+  quantidade_criancas: z.number().int().min(0).optional(),
+  idade_criancas: z.string().nullable().optional(),
+  categoria_viagem: z.enum(['economica', 'intermediaria', 'premium']).nullable().optional(),
+  urgencia_viagem: z.enum(['imediato', 'curto_prazo', 'medio_prazo', 'planejando']).nullable().optional(),
+  origem_lead: z.enum(['instagram', 'facebook', 'google', 'site', 'whatsapp', 'indicacao', 'outro']).nullable().optional(),
+  indicado_por: z.string().nullable().optional(),
+  observacoes_viagem: z.string().nullable().optional(),
 }).strict();
+
+const TRAVEL_SELECT = 'id,name,email,phone,client_company_id,avatar,notes,status,stage,source,birth_date,last_interaction,last_purchase_date,total_value,destino_viagem,data_viagem,quantidade_adultos,quantidade_criancas,idade_criancas,categoria_viagem,urgencia_viagem,origem_lead,indicado_por,observacoes_viagem,created_at,updated_at';
 
 function toIsoDateString(v: string | undefined | null) {
   const s = (v || '').trim();
@@ -55,7 +66,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ contactId: 
   const sb = createStaticAdminClient();
   const { data, error } = await sb
     .from('contacts')
-    .select('id,name,email,phone,role,company_name,client_company_id,avatar,notes,status,stage,source,birth_date,last_interaction,last_purchase_date,total_value,created_at,updated_at')
+    .select(TRAVEL_SELECT)
     .eq('organization_id', auth.organizationId)
     .is('deleted_at', null)
     .eq('id', contactId)
@@ -86,8 +97,6 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ contactId
   if (parsed.data.name !== undefined) updates.name = normalizeText(parsed.data.name);
   if (parsed.data.email !== undefined) updates.email = normalizeEmail(parsed.data.email);
   if (parsed.data.phone !== undefined) updates.phone = normalizePhone(parsed.data.phone);
-  if (parsed.data.role !== undefined) updates.role = normalizeText(parsed.data.role);
-  if (parsed.data.company_name !== undefined) updates.company_name = normalizeText(parsed.data.company_name);
   if (parsed.data.avatar !== undefined) updates.avatar = normalizeText(parsed.data.avatar);
   if (parsed.data.status !== undefined) updates.status = normalizeText(parsed.data.status);
   if (parsed.data.stage !== undefined) updates.stage = normalizeText(parsed.data.stage);
@@ -117,6 +126,16 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ contactId
   if (parsed.data.total_value !== undefined) {
     updates.total_value = parsed.data.total_value === null ? null : Number(parsed.data.total_value);
   }
+  if (parsed.data.destino_viagem !== undefined) updates.destino_viagem = parsed.data.destino_viagem;
+  if (parsed.data.data_viagem !== undefined) updates.data_viagem = parsed.data.data_viagem ?? null;
+  if (parsed.data.quantidade_adultos !== undefined) updates.quantidade_adultos = parsed.data.quantidade_adultos;
+  if (parsed.data.quantidade_criancas !== undefined) updates.quantidade_criancas = parsed.data.quantidade_criancas;
+  if (parsed.data.idade_criancas !== undefined) updates.idade_criancas = parsed.data.idade_criancas ?? null;
+  if (parsed.data.categoria_viagem !== undefined) updates.categoria_viagem = parsed.data.categoria_viagem ?? null;
+  if (parsed.data.urgencia_viagem !== undefined) updates.urgencia_viagem = parsed.data.urgencia_viagem ?? null;
+  if (parsed.data.origem_lead !== undefined) updates.origem_lead = parsed.data.origem_lead ?? null;
+  if (parsed.data.indicado_por !== undefined) updates.indicado_por = parsed.data.indicado_por ?? null;
+  if (parsed.data.observacoes_viagem !== undefined) updates.observacoes_viagem = parsed.data.observacoes_viagem ?? null;
   updates.updated_at = new Date().toISOString();
 
   const sb = createStaticAdminClient();
@@ -125,7 +144,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ contactId
     .update(updates)
     .eq('organization_id', auth.organizationId)
     .eq('id', contactId)
-    .select('id,name,email,phone,role,company_name,client_company_id,avatar,notes,status,stage,source,birth_date,last_interaction,last_purchase_date,total_value,created_at,updated_at')
+    .select(TRAVEL_SELECT)
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message, code: 'DB_ERROR' }, { status: 500 });

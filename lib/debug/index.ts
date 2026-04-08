@@ -57,19 +57,25 @@ if (typeof window !== 'undefined') {
 
 /**
  * Função pública `fakeContact` do projeto.
- * @returns {{ name: string; email: string; phone: string; role: string; companyName: string; }} Retorna um valor do tipo `{ name: string; email: string; phone: string; role: string; companyName: string; }`.
  */
 export const fakeContact = () => ({
   name: faker.person.fullName(),
   email: faker.internet.email().toLowerCase(),
-  // Evita `fromRegExp` (pode gerar barra invertida em alguns ambientes)
   phone: (() => {
     const ddd = faker.number.int({ min: 11, max: 99 });
     const subscriber = `${faker.number.int({ min: 0, max: 99999999 })}`.padStart(8, '0');
     return `+55${ddd}9${subscriber}`;
   })(),
-  role: faker.person.jobTitle(),
-  companyName: faker.company.name(),
+  destino_viagem: faker.helpers.arrayElement(['Paris', 'Orlando', 'Cancún', 'Lisboa', 'Roma', 'Buenos Aires', 'Dubai', 'Tokyo']),
+  data_viagem: faker.date.future().toISOString().split('T')[0],
+  quantidade_adultos: faker.number.int({ min: 1, max: 4 }),
+  quantidade_criancas: faker.number.int({ min: 0, max: 2 }),
+  idade_criancas: faker.helpers.maybe(() => `${faker.number.int({ min: 2, max: 12 })} e ${faker.number.int({ min: 2, max: 12 })} anos`, { probability: 0.4 }) ?? '',
+  categoria_viagem: faker.helpers.arrayElement(['economica', 'intermediaria', 'premium'] as const),
+  urgencia_viagem: faker.helpers.arrayElement(['imediato', 'curto_prazo', 'medio_prazo', 'planejando'] as const),
+  origem_lead: faker.helpers.arrayElement(['instagram', 'facebook', 'google', 'site', 'whatsapp', 'indicacao', 'outro'] as const),
+  indicado_por: faker.helpers.maybe(() => faker.person.fullName(), { probability: 0.3 }) ?? '',
+  observacoes_viagem: faker.helpers.maybe(() => faker.lorem.sentence(), { probability: 0.5 }) ?? '',
 });
 
 /**

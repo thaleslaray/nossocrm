@@ -15,42 +15,34 @@ interface ContactFormModalProps {
   onClose: () => void;
   onSubmit: (data: ContactFormData) => void;
   editingContact: Contact | null;
-  defaultCompanyName?: string;
 }
 
-/**
- * Componente React `ContactFormModalV2`.
- *
- * @param {ContactFormModalProps} {
-  isOpen,
-  onClose,
-  onSubmit,
-  editingContact,
-  defaultCompanyName = '',
-} - Parâmetro `{
-  isOpen,
-  onClose,
-  onSubmit,
-  editingContact,
-  defaultCompanyName = '',
-}`.
- * @returns {Element} Retorna um valor do tipo `Element`.
- */
 export const ContactFormModalV2: React.FC<ContactFormModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
   editingContact,
-  defaultCompanyName = '',
 }) => {
+  const travelDefaults = {
+    destino_viagem: editingContact?.destino_viagem || '',
+    data_viagem: editingContact?.data_viagem || '',
+    quantidade_adultos: editingContact?.quantidade_adultos ?? 1,
+    quantidade_criancas: editingContact?.quantidade_criancas ?? 0,
+    idade_criancas: editingContact?.idade_criancas || '',
+    categoria_viagem: editingContact?.categoria_viagem,
+    urgencia_viagem: editingContact?.urgencia_viagem,
+    origem_lead: editingContact?.origem_lead,
+    indicado_por: editingContact?.indicado_por || '',
+    observacoes_viagem: editingContact?.observacoes_viagem || '',
+  };
+
   const form = useForm<ContactFormInput>({
     resolver: zodResolver(contactFormSchema),
     defaultValues: {
       name: editingContact?.name || '',
       email: editingContact?.email || '',
       phone: editingContact?.phone || '',
-      role: editingContact?.role || '',
-      companyName: defaultCompanyName,
+      ...travelDefaults,
     },
   });
 
@@ -68,11 +60,19 @@ export const ContactFormModalV2: React.FC<ContactFormModalProps> = ({
         name: editingContact?.name || '',
         email: editingContact?.email || '',
         phone: editingContact?.phone || '',
-        role: editingContact?.role || '',
-        companyName: defaultCompanyName,
+        destino_viagem: editingContact?.destino_viagem || '',
+        data_viagem: editingContact?.data_viagem || '',
+        quantidade_adultos: editingContact?.quantidade_adultos ?? 1,
+        quantidade_criancas: editingContact?.quantidade_criancas ?? 0,
+        idade_criancas: editingContact?.idade_criancas || '',
+        categoria_viagem: editingContact?.categoria_viagem,
+        urgencia_viagem: editingContact?.urgencia_viagem,
+        origem_lead: editingContact?.origem_lead,
+        indicado_por: editingContact?.indicado_por || '',
+        observacoes_viagem: editingContact?.observacoes_viagem || '',
       });
     }
-  }, [isOpen, editingContact, defaultCompanyName, reset]);
+  }, [isOpen, editingContact, reset]);
 
   const handleFormSubmit = (data: ContactFormInput) => {
     const parsed = contactFormSchema.parse(data);
@@ -95,40 +95,58 @@ export const ContactFormModalV2: React.FC<ContactFormModalProps> = ({
           registration={register('name')}
         />
 
-        <InputField
-          label="Email"
-          type="email"
-          placeholder="ana@empresa.com"
-          error={errors.email}
-          registration={register('email')}
-        />
-
         <div className="grid grid-cols-2 gap-4">
           <InputField
-            label="Telefone"
+            label="Telefone / WhatsApp"
             placeholder="+5511999999999"
             hint="Formato E.164 (ex.: +5511999999999)"
             error={errors.phone}
             registration={register('phone')}
           />
           <InputField
-            label="Cargo"
-            placeholder="Gerente"
-            error={errors.role}
-            registration={register('role')}
+            label="Email"
+            type="email"
+            placeholder="ana@email.com"
+            error={errors.email}
+            registration={register('email')}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <InputField
+            label="Destino *"
+            placeholder="Ex: Orlando, Paris"
+            error={errors.destino_viagem}
+            registration={register('destino_viagem')}
+          />
+          <InputField
+            label="Data prevista"
+            type="date"
+            error={errors.data_viagem}
+            registration={register('data_viagem')}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <InputField
+            label="Adultos *"
+            type="number"
+            error={errors.quantidade_adultos as any}
+            registration={register('quantidade_adultos')}
+          />
+          <InputField
+            label="Crianças"
+            type="number"
+            error={errors.quantidade_criancas as any}
+            registration={register('quantidade_criancas')}
           />
         </div>
 
         <InputField
-          label="Empresa"
-          placeholder="Nome da Empresa"
-          hint={
-            editingContact
-              ? 'Edite para alterar a empresa. Deixe em branco para desvincular.'
-              : 'Se a empresa já existir, o contato será vinculado a ela.'
-          }
-          error={errors.companyName}
-          registration={register('companyName')}
+          label="Observações"
+          placeholder="Preferências, restrições..."
+          error={errors.observacoes_viagem}
+          registration={register('observacoes_viagem')}
         />
 
         <SubmitButton isLoading={isSubmitting}>

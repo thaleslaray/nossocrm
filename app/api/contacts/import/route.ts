@@ -27,11 +27,20 @@ type ParsedRow = {
   lastName?: string;
   email?: string;
   phone?: string;
-  role?: string;
   company?: string;
   status?: string;
   stage?: string;
   notes?: string;
+  destino_viagem?: string;
+  data_viagem?: string;
+  quantidade_adultos?: string;
+  quantidade_criancas?: string;
+  idade_criancas?: string;
+  categoria_viagem?: string;
+  urgencia_viagem?: string;
+  origem_lead?: string;
+  indicado_por?: string;
+  observacoes_viagem?: string;
 };
 
 const HEADER_SYNONYMS: Record<keyof ParsedRow, string[]> = {
@@ -40,11 +49,20 @@ const HEADER_SYNONYMS: Record<keyof ParsedRow, string[]> = {
   lastName: ['last name', 'lastname', 'sobrenome'],
   email: ['email', 'e-mail', 'e-mail address', 'mail'],
   phone: ['phone', 'telefone', 'celular', 'whatsapp', 'fone'],
-  role: ['role', 'cargo', 'titulo', 'title', 'funcao', 'funçao', 'funcao/cargo'],
   company: ['company', 'empresa', 'conta', 'account', 'organization', 'organizacao', 'organização'],
   status: ['status'],
   stage: ['stage', 'etapa', 'lifecycle stage', 'ciclo de vida', 'pipeline stage'],
-  notes: ['notes', 'nota', 'notas', 'observacoes', 'observações', 'obs'],
+  notes: ['notes', 'nota', 'notas', 'obs'],
+  destino_viagem: ['destino_viagem', 'destino', 'destination'],
+  data_viagem: ['data_viagem', 'data da viagem', 'travel date'],
+  quantidade_adultos: ['quantidade_adultos', 'adultos', 'adults'],
+  quantidade_criancas: ['quantidade_criancas', 'criancas', 'crianças', 'children'],
+  idade_criancas: ['idade_criancas', 'idade das criancas', 'idades'],
+  categoria_viagem: ['categoria_viagem', 'categoria', 'category'],
+  urgencia_viagem: ['urgencia_viagem', 'urgencia', 'urgência', 'urgency'],
+  origem_lead: ['origem_lead', 'origem', 'source', 'canal'],
+  indicado_por: ['indicado_por', 'indicado por', 'referred by'],
+  observacoes_viagem: ['observacoes_viagem', 'observacoes', 'observações', 'notes'],
 };
 
 function buildHeaderIndex(headers: string[]) {
@@ -66,11 +84,20 @@ function buildHeaderIndex(headers: string[]) {
     lastName: find(HEADER_SYNONYMS.lastName),
     email: find(HEADER_SYNONYMS.email),
     phone: find(HEADER_SYNONYMS.phone),
-    role: find(HEADER_SYNONYMS.role),
     company: find(HEADER_SYNONYMS.company),
     status: find(HEADER_SYNONYMS.status),
     stage: find(HEADER_SYNONYMS.stage),
     notes: find(HEADER_SYNONYMS.notes),
+    destino_viagem: find(HEADER_SYNONYMS.destino_viagem),
+    data_viagem: find(HEADER_SYNONYMS.data_viagem),
+    quantidade_adultos: find(HEADER_SYNONYMS.quantidade_adultos),
+    quantidade_criancas: find(HEADER_SYNONYMS.quantidade_criancas),
+    idade_criancas: find(HEADER_SYNONYMS.idade_criancas),
+    categoria_viagem: find(HEADER_SYNONYMS.categoria_viagem),
+    urgencia_viagem: find(HEADER_SYNONYMS.urgencia_viagem),
+    origem_lead: find(HEADER_SYNONYMS.origem_lead),
+    indicado_por: find(HEADER_SYNONYMS.indicado_por),
+    observacoes_viagem: find(HEADER_SYNONYMS.observacoes_viagem),
   };
 
   return mapping;
@@ -164,7 +191,6 @@ export async function POST(req: Request) {
           name: computedName,
           email,
           phone,
-          role: getCell(r, mapping.role),
           company: getCell(r, mapping.company),
           status: normalizeStatus(getCell(r, mapping.status)),
           stage: normalizeStage(getCell(r, mapping.stage)),
@@ -290,11 +316,20 @@ export async function POST(req: Request) {
         name: p.data.name || '',
         email: p.data.email || null,
         phone: phoneE164 || null,
-        role: p.data.role || null,
         client_company_id: companyId || null,
         notes: p.data.notes || null,
         status: p.data.status || 'ACTIVE',
         stage: p.data.stage || 'LEAD',
+        destino_viagem: p.data.destino_viagem || null,
+        data_viagem: p.data.data_viagem || null,
+        quantidade_adultos: p.data.quantidade_adultos ? parseInt(p.data.quantidade_adultos, 10) || null : null,
+        quantidade_criancas: p.data.quantidade_criancas ? parseInt(p.data.quantidade_criancas, 10) || 0 : 0,
+        idade_criancas: p.data.idade_criancas || null,
+        categoria_viagem: p.data.categoria_viagem || null,
+        urgencia_viagem: p.data.urgencia_viagem || null,
+        origem_lead: p.data.origem_lead || null,
+        indicado_por: p.data.indicado_por || null,
+        observacoes_viagem: p.data.observacoes_viagem || null,
         updated_at: new Date().toISOString(),
       };
 

@@ -13,7 +13,6 @@ const ContactInlineSchema = z.object({
   name: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
-  role: z.string().optional(),
   client_company_id: z.string().uuid().optional(),
 }).strict();
 
@@ -127,7 +126,6 @@ async function upsertContactForDeal(opts: {
     organization_id: opts.organizationId,
     email,
     phone,
-    role: normalizeText(opts.contact.role),
     client_company_id: sanitizeUUID(opts.contact.client_company_id) || null,
     updated_at: now,
   };

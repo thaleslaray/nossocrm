@@ -37,10 +37,6 @@ export interface DbContact {
   email: string | null;
   /** Telefone do contato. */
   phone: string | null;
-  /** Cargo/função do contato. */
-  role: string | null;
-  /** Nome da empresa (texto livre, deprecado). */
-  company_name: string | null;
   /** ID da empresa CRM vinculada. */
   client_company_id: string | null;
   /** URL do avatar. */
@@ -67,6 +63,17 @@ export interface DbContact {
   updated_at: string;
   /** ID do dono/responsável. */
   owner_id: string | null;
+  // Campos de viagem (agência de viagens)
+  destino_viagem: string | null;
+  data_viagem: string | null;
+  quantidade_adultos: number | null;
+  quantidade_criancas: number | null;
+  idade_criancas: string | null;
+  categoria_viagem: string | null;
+  urgencia_viagem: string | null;
+  origem_lead: string | null;
+  indicado_por: string | null;
+  observacoes_viagem: string | null;
 }
 
 /**
@@ -105,7 +112,6 @@ const transformContact = (db: DbContact): Contact => ({
   name: db.name,
   email: db.email || '',
   phone: normalizePhoneE164(db.phone),
-  role: db.role || '',
   clientCompanyId: db.client_company_id || undefined,
   companyId: db.client_company_id || '', // @deprecated - backwards compatibility
   avatar: db.avatar || '',
@@ -119,6 +125,17 @@ const transformContact = (db: DbContact): Contact => ({
   totalValue: db.total_value || 0,
   createdAt: db.created_at,
   updatedAt: db.updated_at,
+  // Campos de viagem
+  destino_viagem: db.destino_viagem || undefined,
+  data_viagem: db.data_viagem || undefined,
+  quantidade_adultos: db.quantidade_adultos ?? undefined,
+  quantidade_criancas: db.quantidade_criancas ?? undefined,
+  idade_criancas: db.idade_criancas || undefined,
+  categoria_viagem: db.categoria_viagem as Contact['categoria_viagem'] || undefined,
+  urgencia_viagem: db.urgencia_viagem as Contact['urgencia_viagem'] || undefined,
+  origem_lead: db.origem_lead as Contact['origem_lead'] || undefined,
+  indicado_por: db.indicado_por || undefined,
+  observacoes_viagem: db.observacoes_viagem || undefined,
 });
 
 /**
@@ -152,7 +169,6 @@ const transformContactToDb = (contact: Partial<Contact>): Partial<DbContact> => 
     const e164 = normalizePhoneE164(contact.phone);
     db.phone = e164 ? e164 : null;
   }
-  if (contact.role !== undefined) db.role = contact.role || null;
   // Support both new clientCompanyId and deprecated companyId
   if (contact.clientCompanyId !== undefined) db.client_company_id = contact.clientCompanyId || null;
   else if (contact.companyId !== undefined) db.client_company_id = contact.companyId || null;
@@ -165,6 +181,17 @@ const transformContactToDb = (contact: Partial<Contact>): Partial<DbContact> => 
   if (contact.lastInteraction !== undefined) db.last_interaction = contact.lastInteraction || null;
   if (contact.lastPurchaseDate !== undefined) db.last_purchase_date = contact.lastPurchaseDate || null;
   if (contact.totalValue !== undefined) db.total_value = contact.totalValue;
+  // Campos de viagem
+  if (contact.destino_viagem !== undefined) db.destino_viagem = contact.destino_viagem || null;
+  if (contact.data_viagem !== undefined) db.data_viagem = contact.data_viagem || null;
+  if (contact.quantidade_adultos !== undefined) db.quantidade_adultos = contact.quantidade_adultos ?? null;
+  if (contact.quantidade_criancas !== undefined) db.quantidade_criancas = contact.quantidade_criancas ?? null;
+  if (contact.idade_criancas !== undefined) db.idade_criancas = contact.idade_criancas || null;
+  if (contact.categoria_viagem !== undefined) db.categoria_viagem = contact.categoria_viagem || null;
+  if (contact.urgencia_viagem !== undefined) db.urgencia_viagem = contact.urgencia_viagem || null;
+  if (contact.origem_lead !== undefined) db.origem_lead = contact.origem_lead || null;
+  if (contact.indicado_por !== undefined) db.indicado_por = contact.indicado_por || null;
+  if (contact.observacoes_viagem !== undefined) db.observacoes_viagem = contact.observacoes_viagem || null;
 
   return db;
 };
@@ -403,7 +430,6 @@ export const contactsService = {
         name: contact.name,
         email: sanitizeText(contact.email),
         phone: sanitizeText(phoneE164),
-        role: sanitizeText(contact.role),
         client_company_id: sanitizeUUID(contact.clientCompanyId || contact.companyId),
         avatar: sanitizeText(contact.avatar),
         notes: sanitizeText(contact.notes),
@@ -414,6 +440,17 @@ export const contactsService = {
         last_interaction: sanitizeText(contact.lastInteraction),
         last_purchase_date: sanitizeText(contact.lastPurchaseDate),
         total_value: sanitizeNumber(contact.totalValue, 0),
+        // Campos de viagem
+        destino_viagem: sanitizeText(contact.destino_viagem),
+        data_viagem: sanitizeText(contact.data_viagem),
+        quantidade_adultos: contact.quantidade_adultos ?? 1,
+        quantidade_criancas: contact.quantidade_criancas ?? 0,
+        idade_criancas: sanitizeText(contact.idade_criancas),
+        categoria_viagem: sanitizeText(contact.categoria_viagem),
+        urgencia_viagem: sanitizeText(contact.urgencia_viagem),
+        origem_lead: sanitizeText(contact.origem_lead),
+        indicado_por: sanitizeText(contact.indicado_por),
+        observacoes_viagem: sanitizeText(contact.observacoes_viagem),
       };
 
       const { data, error } = await supabase

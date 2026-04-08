@@ -54,7 +54,7 @@ export async function GET(req: Request) {
       let q = supabase
         .from('contacts')
         .select(
-          'id,name,email,phone,role,notes,status,stage,created_at,updated_at,client_company_id,last_purchase_date'
+          'id,name,email,phone,notes,status,stage,created_at,updated_at,client_company_id,last_purchase_date,destino_viagem,data_viagem,quantidade_adultos,quantidade_criancas,idade_criancas,categoria_viagem,urgencia_viagem,origem_lead,indicado_por,observacoes_viagem'
         )
         .is('deleted_at', null);
 
@@ -120,11 +120,20 @@ export async function GET(req: Request) {
       'name',
       'email',
       'phone',
-      'role',
       'company',
       'status',
       'stage',
       'notes',
+      'destino_viagem',
+      'data_viagem',
+      'quantidade_adultos',
+      'quantidade_criancas',
+      'idade_criancas',
+      'categoria_viagem',
+      'urgencia_viagem',
+      'origem_lead',
+      'indicado_por',
+      'observacoes_viagem',
       'created_at',
       'updated_at',
     ];
@@ -133,11 +142,20 @@ export async function GET(req: Request) {
       c.name || '',
       c.email || '',
       c.phone || '',
-      c.role || '',
       companyNameById.get(c.client_company_id) || '',
       c.status || '',
       c.stage || '',
       c.notes || '',
+      c.destino_viagem || '',
+      c.data_viagem || '',
+      c.quantidade_adultos ?? '',
+      c.quantidade_criancas ?? '',
+      c.idade_criancas || '',
+      c.categoria_viagem || '',
+      c.urgencia_viagem || '',
+      c.origem_lead || '',
+      c.indicado_por || '',
+      c.observacoes_viagem || '',
       c.created_at || '',
       c.updated_at || '',
     ]);

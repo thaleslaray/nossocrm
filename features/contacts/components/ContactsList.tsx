@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, Mail, Phone, Plus, Calendar, Pencil, Trash2, Globe, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { MapPin, Building2, Mail, Phone, Plus, Calendar, Pencil, Trash2, Globe, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Contact, Company, ContactSortableColumn } from '@/types';
 import { StageBadge } from './ContactsStageTabs';
 
@@ -196,7 +196,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                     <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Nome</th>
                                 )}
                                 <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Estágio</th>
-                                <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Cargo / Empresa</th>
+                                <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Destino / Categoria</th>
                                 <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Contato</th>
                                 <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Status</th>
                                 {onSort ? (
@@ -245,10 +245,33 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                     </td>
                                     <td className="px-6 py-4">
                                         <div>
-                                            <span className="text-slate-900 dark:text-white font-medium block">{contact.role || 'Cargo não inf.'}</span>
-                                            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                                <Building2 size={10} />
-                                                <span>{getCompanyName(contact.clientCompanyId)}</span>
+                                            <div className="flex items-center gap-1 text-sm text-slate-900 dark:text-white font-medium">
+                                                <MapPin size={12} className="text-primary-500 shrink-0" />
+                                                <span>{contact.destino_viagem || '---'}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1 mt-1">
+                                                {contact.categoria_viagem && (
+                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                                        contact.categoria_viagem === 'premium'
+                                                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                                                            : contact.categoria_viagem === 'intermediaria'
+                                                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                                                            : 'bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300'
+                                                    }`}>
+                                                        {contact.categoria_viagem === 'economica' ? 'Econômica' : contact.categoria_viagem === 'intermediaria' ? 'Intermediária' : 'Premium'}
+                                                    </span>
+                                                )}
+                                                {contact.urgencia_viagem && (
+                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                                        contact.urgencia_viagem === 'imediato'
+                                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                                            : contact.urgencia_viagem === 'curto_prazo'
+                                                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
+                                                            : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-400'
+                                                    }`}>
+                                                        {contact.urgencia_viagem === 'imediato' ? 'Imediato' : contact.urgencia_viagem === 'curto_prazo' ? 'Curto prazo' : contact.urgencia_viagem === 'medio_prazo' ? 'Médio prazo' : 'Planejando'}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </td>
