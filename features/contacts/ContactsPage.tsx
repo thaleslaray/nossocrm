@@ -1,6 +1,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2, X } from 'lucide-react';
+import { Contact } from '@/types';
 import { useContactsController } from './hooks/useContactsController';
 import { ContactsHeader } from './components/ContactsHeader';
 import { ContactsFilters } from './components/ContactsFilters';
