@@ -56,7 +56,7 @@ const CATEGORIA_META: Record<string, { label: string; Icon: React.FC<{ size?: nu
 
 const URGENCIA_META: Record<string, { label: string; colorClass: string }> = {
   imediato:    { label: 'Imediato (até 30 dias)',       colorClass: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
-  curto_prazo: { label: 'Curto prazo (1–3 meses)',      colorClass: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' },
+  curto_prazo: { label: 'Curto prazo (1–3 meses)',      colorClass: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' },
   medio_prazo: { label: 'Médio prazo (3–6 meses)',      colorClass: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' },
   planejando:  { label: 'Planejando com antecedência',  colorClass: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-400' },
 };
