@@ -744,7 +744,6 @@ export default function DealCockpitRealClient({ dealId }: { dealId?: string }) {
       ? {
           id: selectedContact.id,
           name: selectedContact.name,
-          role: selectedContact.role,
           email: selectedContact.email,
           phone: selectedContact.phone,
           avatar: selectedContact.avatar,
