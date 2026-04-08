@@ -1,10 +1,12 @@
 # 📊 Relatório de Entrega - Webhook Inteligente de Leads
 
 > **Cliente:** Kleber Yascom  
-> **Projeto:** NuestroCRM - CRM Inteligente para Agência de Viagens  
+> **Projeto:** NossoCRM - CRM Inteligente para Agência de Viagens  
 > **Entrega:** Webhook Automatizado de Captação de Leads  
-> **Data de Conclusão:** 12 de Março de 2026  
-> **Status:** ✅ **EM PRODUÇÃO**
+> **Data de Conclusão:** 12 de Março de 2026 (atualizado em Abril de 2026)  
+> **Status:** ✅ **EM PRODUÇÃO**  
+> **Projeto Supabase:** `drgsnhbtucwocpeiwdth`  
+> **Função Edge:** `webhook-in` (substituiu `gptmaker-in`)
 
 ---
 
