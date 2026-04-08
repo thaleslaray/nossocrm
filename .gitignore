@@ -54,8 +54,11 @@ testsprite_tests/tmp/
 # vercel
 .vercel
 
-# supabase local temp artifacts
+# supabase local development artifacts
 supabase/.temp/
+supabase/.branches/
+supabase/snippets/
+.supabase/
 
 # typescript
 *.tsbuildinfo
@@ -82,3 +85,11 @@ scripts/
 
 # Test documentation (test code stays, docs are local)
 test/*.md
+
+# Claude/AI tools local context files (never commit)
+.claude/
+AGENTS.md
+.sc-context.md
+
+# Generated/internal PDFs (may contain sensitive prompts or specs)
+docs/*.pdf
