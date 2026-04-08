@@ -118,6 +118,7 @@ export const ContactsPage: React.FC = () => {
                 updateContact={controller.updateContact}
                 convertContactToDeal={controller.convertContactToDeal}
                 openEditModal={controller.openEditModal}
+                openDetailDrawer={setDetailContact}
                 setDeleteId={controller.setDeleteId}
                 openEditCompanyModal={controller.openEditCompanyModal}
                 setDeleteCompanyId={controller.setDeleteCompanyId}
