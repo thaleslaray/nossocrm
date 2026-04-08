@@ -256,7 +256,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                                             ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
                                                             : contact.categoria_viagem === 'intermediaria'
                                                             ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                                                            : 'bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300'
+                                                            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                                                     }`}>
                                                         {contact.categoria_viagem === 'economica' ? 'Econômica' : contact.categoria_viagem === 'intermediaria' ? 'Intermediária' : 'Premium'}
                                                     </span>
