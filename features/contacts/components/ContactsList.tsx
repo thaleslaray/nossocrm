@@ -142,6 +142,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
     updateContact,
     convertContactToDeal,
     openEditModal,
+    openDetailDrawer,
     setDeleteId,
     openEditCompanyModal,
     setDeleteCompanyId,
