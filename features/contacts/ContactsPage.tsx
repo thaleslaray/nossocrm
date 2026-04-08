@@ -8,6 +8,7 @@ import { ContactsTabs } from './components/ContactsTabs';
 import { ContactsStageTabs } from './components/ContactsStageTabs';
 import { ContactsList } from './components/ContactsList';
 import { ContactFormModal } from './components/ContactFormModal';
+import { ContactDetailDrawer } from './components/ContactDetailDrawer';
 import { CompanyFormModal } from './components/CompanyFormModal';
 import { SelectBoardModal } from './components/SelectBoardModal';
 import { PaginationControls } from './components/PaginationControls';
