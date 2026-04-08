@@ -79,6 +79,9 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
 
+    // DEBUG: loga payload bruto para inspecionar formato do GPTMaker
+    console.log("GPTMAKER_PAYLOAD:", JSON.stringify(body));
+
     const nome = toText(body.nome);
     const contato = toText(body.contato);
     const destino = toText(body.destino);
