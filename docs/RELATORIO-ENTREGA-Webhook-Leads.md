@@ -37,7 +37,7 @@ Desenvolvemos e implantamos um **webhook inteligente** que automatiza a captaç�
    ↓ (POST JSON)
    
 2. EDGE FUNCTION (Supabase)
-   https://aldjuddpzudrvtnfgmru.supabase.co/functions/v1/gptmaker-in
+   https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in/<source_id>
    ↓
    ├─ Valida campos obrigatórios
    ├─ Classifica lead (Quente/Morno/Frio)
