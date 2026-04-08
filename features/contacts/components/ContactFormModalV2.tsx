@@ -151,6 +151,64 @@ export const ContactFormModalV2: React.FC<ContactFormModalProps> = ({
           />
         </div>
 
+        {Number(qtdCriancas) > 0 && (
+          <InputField
+            label="Idades das Crianças *"
+            placeholder="Ex: 5, 8"
+            hint="Separe as idades por vírgula"
+            error={errors.idade_criancas}
+            registration={register('idade_criancas')}
+          />
+        )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Categoria *</label>
+            <select className={selectClass} {...register('categoria_viagem')}>
+              <option value="">Selecione...</option>
+              <option value="economica">Econômica</option>
+              <option value="intermediaria">Intermediária</option>
+              <option value="premium">Premium</option>
+            </select>
+            {errors.categoria_viagem && <p className={errorMsgClass}>{errors.categoria_viagem.message}</p>}
+          </div>
+          <div>
+            <label className={labelClass}>Urgência *</label>
+            <select className={selectClass} {...register('urgencia_viagem')}>
+              <option value="">Selecione...</option>
+              <option value="imediato">Imediato</option>
+              <option value="curto_prazo">Curto prazo</option>
+              <option value="medio_prazo">Médio prazo</option>
+              <option value="planejando">Planejando</option>
+            </select>
+            {errors.urgencia_viagem && <p className={errorMsgClass}>{errors.urgencia_viagem.message}</p>}
+          </div>
+        </div>
+
+        <div>
+          <label className={labelClass}>Origem do Lead *</label>
+          <select className={selectClass} {...register('origem_lead')}>
+            <option value="">Selecione...</option>
+            <option value="instagram">Instagram</option>
+            <option value="facebook">Facebook</option>
+            <option value="google">Google</option>
+            <option value="site">Site</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="indicacao">Indicação</option>
+            <option value="outro">Outro</option>
+          </select>
+          {errors.origem_lead && <p className={errorMsgClass}>{errors.origem_lead.message}</p>}
+        </div>
+
+        {origemLead === 'indicacao' && (
+          <InputField
+            label="Indicado por"
+            placeholder="Nome de quem indicou"
+            error={errors.indicado_por}
+            registration={register('indicado_por')}
+          />
+        )}
+
         <InputField
           label="Observações"
           placeholder="Preferências, restrições..."
