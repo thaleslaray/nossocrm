@@ -56,7 +56,11 @@ export const ContactFormModalV2: React.FC<ContactFormModalProps> = ({
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
+    watch,
   } = form;
+
+  const qtdCriancas = watch('quantidade_criancas');
+  const origemLead = watch('origem_lead');
 
   // Reset form when modal opens with different contact
   React.useEffect(() => {
