@@ -241,7 +241,7 @@ export function ContactsImportExportModal(props: {
           </div>
 
           <div className="text-xs text-slate-600 dark:text-slate-300">
-            <b>Campos exportados:</b> name, email, phone, role, company, status, stage, notes, created_at, updated_at.
+            <b>Campos exportados:</b> name, email, phone, company, status, stage, notes, destino_viagem, data_viagem, quantidade_adultos, quantidade_criancas, idade_criancas, categoria_viagem, urgencia_viagem, origem_lead, indicado_por, observacoes_viagem, created_at, updated_at.
           </div>
 
           <button
