@@ -8,6 +8,11 @@ import { InputField, SubmitButton } from '@/components/ui/FormField';
 import { contactFormSchema } from '@/lib/validations/schemas';
 import type { ContactFormData } from '@/lib/validations/schemas';
 
+const selectClass =
+  'w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500 transition-all duration-200';
+const labelClass = 'block text-xs font-bold text-slate-500 uppercase mb-1';
+const errorMsgClass = 'text-xs text-red-500 mt-1';
+
 type ContactFormInput = z.input<typeof contactFormSchema>;
 
 interface ContactFormModalProps {
