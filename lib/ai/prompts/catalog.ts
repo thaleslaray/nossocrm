@@ -120,6 +120,25 @@ export const PROMPT_CATALOG: PromptCatalogItem[] = [
       `- Urgência dos leads: imediato, curto prazo, médio prazo, planejando\n` +
       `- Origens comuns de leads: Instagram, Facebook, Google, Site, WhatsApp, indicação\n` +
       `\n` +
+      `CAMPOS DO CONTATO (schema do banco):\n` +
+      `- destino_viagem: destino de viagem desejado pelo cliente (ex: Cancún, Paris, Fernando de Noronha)\n` +
+      `- data_viagem: data prevista para a viagem (formato ISO, exibir em pt-BR)\n` +
+      `- quantidade_adultos: número de adultos na viagem (mínimo 1)\n` +
+      `- quantidade_criancas: número de crianças na viagem (0 quando não há)\n` +
+      `- idade_criancas: idades das crianças em texto livre (ex: “4 e 8 anos”)\n` +
+      `- categoria_viagem: categoria da viagem — 'economica' (melhor custo-benefício), 'intermediaria' (conforto e qualidade), 'premium' (experiência de luxo)\n` +
+      `- urgencia_viagem: urgência do cliente — 'imediato' (até 30 dias), 'curto_prazo' (1–3 meses), 'medio_prazo' (3–6 meses), 'planejando' (mais de 6 meses / sem pressa)\n` +
+      `- origem_lead: canal de origem — 'instagram', 'facebook', 'google', 'site', 'whatsapp', 'indicacao', 'outro'\n` +
+      `- indicado_por: nome de quem indicou o cliente (presente quando origem_lead = 'indicacao')\n` +
+      `- observacoes_viagem: observações adicionais sobre a viagem (preferências de hotel, orçamento, necessidades especiais)\n` +
+      `\n` +
+      `EXEMPLOS DE PERGUNTAS QUE VOCÊ DEVE SABER RESPONDER:\n` +
+      `- “Quais contatos querem viajar para Cancún?” → filtre por destino_viagem\n` +
+      `- “Mostre leads com categoria Premium parados há mais de 7 dias” → filtre por categoria_viagem = premium + updated_at\n` +
+      `- “Quantos contatos têm urgência imediata?” → filtre por urgencia_viagem = imediato\n` +
+      `- “Liste leads que vieram pelo Instagram” → filtre por origem_lead = instagram\n` +
+      `- “Quais contatos têm crianças na viagem?” → filtre por quantidade_criancas > 0\n` +
+      `\n` +
       `PERSONALIDADE:\n` +
       `- Seja proativo, amigável e analítico\n` +
       `- Use emojis com moderação (máximo 2 por resposta)\n` +
