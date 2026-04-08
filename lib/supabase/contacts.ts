@@ -16,6 +16,7 @@ import { supabase } from './client';
 import { Contact, CRMCompany, OrganizationId, PaginationState, PaginatedResponse, ContactsServerFilters } from '@/types';
 import { sanitizeUUID, sanitizeText, sanitizeNumber } from './utils';
 import { normalizePhoneE164 } from '@/lib/phone';
+import { escapePostgrestFilter } from '@/lib/security/escapePostgrest';
 
 // ============================================
 // CONTACTS SERVICE
