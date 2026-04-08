@@ -79,7 +79,8 @@ export async function GET(request: Request) {
   if (email) query = query.eq('email', email);
   if (phone) query = query.eq('phone', phone);
   if (q) {
-    query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`);
+    const safeQ = escapePostgrestFilter(q);
+    query = query.or(`name.ilike.%${safeQ}%,email.ilike.%${safeQ}%,phone.ilike.%${safeQ}%`);
   }
 
   const from = offset;
