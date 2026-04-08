@@ -138,6 +138,16 @@ export const ContactsPage: React.FC = () => {
                 />
             )}
 
+            <ContactDetailDrawer
+                contact={detailContact}
+                isOpen={!!detailContact}
+                onClose={() => setDetailContact(null)}
+                onEdit={(contact) => {
+                    setDetailContact(null);
+                    controller.openEditModal(contact);
+                }}
+            />
+
             <ContactFormModal
                 isOpen={controller.isModalOpen}
                 onClose={() => controller.setIsModalOpen(false)}
