@@ -202,10 +202,10 @@ export const ContactFormModalV2: React.FC<ContactFormModalProps> = ({
           <label className={labelClass}>Urgência *</label>
           <select className={selectClass} {...register('urgencia_viagem')}>
             <option value="">Selecione...</option>
-            <option value="imediato">Imediato — menos de 30 dias</option>
-            <option value="curto_prazo">Curto prazo — 1 a 3 meses</option>
-            <option value="medio_prazo">Médio prazo — 3 a 6 meses</option>
-            <option value="planejando">Planejando — mais de 6 meses</option>
+            <option value="imediato">Imediato (até 30 dias)</option>
+            <option value="curto_prazo">Curto prazo (1–3 meses)</option>
+            <option value="medio_prazo">Médio prazo (3–6 meses)</option>
+            <option value="planejando">Planejando com antecedência</option>
           </select>
           {errors.urgencia_viagem && <p className={errorMsgClass}>{errors.urgencia_viagem.message}</p>}
         </div>
