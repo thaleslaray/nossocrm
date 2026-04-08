@@ -6,6 +6,7 @@ import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public
 import { resolveBoardIdFromKey, resolveFirstStageId } from '@/lib/public-api/resolve';
 import { normalizeEmail, normalizePhone, normalizeText } from '@/lib/public-api/sanitize';
 import { isValidUUID, sanitizeUUID } from '@/lib/supabase/utils';
+import { escapePostgrestFilter } from '@/lib/security/escapePostgrest';
 
 export const runtime = 'nodejs';
 
