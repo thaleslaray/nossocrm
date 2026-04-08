@@ -420,7 +420,7 @@ curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in' 
 | **Projeto** | `drgsnhbtucwocpeiwdth` | ✅ Ativo |
 | **Edge Functions** | webhook-in | ✅ Produzindo |
 | **Banco de Dados** | PostgreSQL 15 | ✅ Configurado |
-| **Organization** | `4e72d64a-a457-45cb-b1ac-ee7d548ec584` | ✅ Ativa |
+| **Organization** | (ver Supabase → Table Editor → `organizations`) | ✅ Ativa |
 | **Boards** | Captação Viagens | ✅ Criado |
 | **Stages** | Quente, Morno, Frio | ✅ Criados |
 
