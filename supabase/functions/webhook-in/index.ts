@@ -53,6 +53,33 @@ type LeadPayload = {
   title?: string;
   value?: number | string;
   company?: string;
+
+  // ===== Campos de viagem (form público da agência) =====
+  // Aliases em PT-BR aceitos diretamente do form de captura.
+  // Nota: o schema do contato segue estritamente o PDF de spec
+  // (enums fechados + data DATE + split adultos/crianças). Valores livres
+  // do form são normalizados no handler e o que não couber é concatenado
+  // em observacoes_viagem.
+  nome?: string;                          // alias de name
+  destino?: string;                       // alias de destino_viagem
+  destino_viagem?: string;
+  data?: string;                          // alias de data_viagem (texto livre)
+  data_viagem?: string;
+  viajantes?: string;                     // texto livre: "2 adultos, 1 criança (8 anos)"
+  quantidade_adultos?: number | string;
+  quantidade_criancas?: number | string;
+  idade_criancas?: string;
+  tipo_viagem?: string;                   // alias de categoria_viagem (texto livre)
+  tipo_de_viagem?: string;
+  categoria_viagem?: string;
+  urgencia?: string;                      // alias de urgencia_viagem (texto livre)
+  urgencia_viagem?: string;
+  origem_lead?: string;
+  indicado_por?: string;
+  orcamento?: string | number;            // sem coluna própria → observações
+  orcamento_viagem?: string | number;     // alias
+  observacoes?: string;                   // alias de observacoes_viagem
+  observacoes_viagem?: string;
 };
 
 const corsHeaders = {
