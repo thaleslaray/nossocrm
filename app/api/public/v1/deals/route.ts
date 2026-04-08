@@ -63,7 +63,7 @@ export async function GET(request: Request) {
   if (contactId) query = query.eq('contact_id', contactId);
   if (clientCompanyId) query = query.eq('client_company_id', clientCompanyId);
   if (updatedAfter) query = query.gte('updated_at', updatedAfter);
-  if (q) query = query.ilike('title', `%${q}%`);
+  if (q) query = query.ilike('title', `%${escapePostgrestFilter(q)}%`);
 
   if (status === 'open') query = query.eq('is_won', false).eq('is_lost', false);
   if (status === 'won') query = query.eq('is_won', true);
