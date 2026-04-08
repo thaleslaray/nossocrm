@@ -653,7 +653,6 @@ const CRMInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       name: lead.name,
       email: lead.email,
       phone: '',
-      role: lead.role || '',
       status: 'ACTIVE',
       stage: 'LEAD',
       lastPurchaseDate: '',
