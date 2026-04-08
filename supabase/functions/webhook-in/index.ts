@@ -558,6 +558,19 @@ Deno.serve(async (req) => {
       if (payload.notes) updates.notes = payload.notes;
       if (payload.source) updates.source = payload.source;
 
+      // Campos de viagem — só escreve os não-nulos (evita sobrescrever valores
+      // existentes no contato com null vindo de payload parcial)
+      if (travel.destino_viagem)        updates.destino_viagem = travel.destino_viagem;
+      if (travel.data_viagem)           updates.data_viagem = travel.data_viagem;
+      if (travel.quantidade_adultos !== null)  updates.quantidade_adultos = travel.quantidade_adultos;
+      if (travel.quantidade_criancas !== null) updates.quantidade_criancas = travel.quantidade_criancas;
+      if (travel.idade_criancas)        updates.idade_criancas = travel.idade_criancas;
+      if (travel.categoria_viagem)      updates.categoria_viagem = travel.categoria_viagem;
+      if (travel.urgencia_viagem)       updates.urgencia_viagem = travel.urgencia_viagem;
+      if (travel.origem_lead)           updates.origem_lead = travel.origem_lead;
+      if (travel.indicado_por)          updates.indicado_por = travel.indicado_por;
+      if (travel.observacoes_viagem)    updates.observacoes_viagem = travel.observacoes_viagem;
+
       if (Object.keys(updates).length > 0) {
         const { error: updErr } = await supabase
           .from("contacts")
