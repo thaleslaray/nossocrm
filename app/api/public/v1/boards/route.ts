@@ -28,7 +28,10 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: true });
 
   if (key) query = query.eq('key', key);
-  if (q) query = query.or(`name.ilike.%${q}%,key.ilike.%${q}%`);
+  if (q) {
+    const safeQ = escapePostgrestFilter(q);
+    query = query.or(`name.ilike.%${safeQ}%,key.ilike.%${safeQ}%`);
+  }
 
   const { data, count, error } = await query.range(from, to);
   if (error) {
