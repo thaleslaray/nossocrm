@@ -274,20 +274,21 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
                 <div>
                   <label className={LABEL_CLASS}>Categoria *</label>
                   <div className="grid grid-cols-3 gap-2">
-                    {CATEGORIAS.map(cat => (
+                    {CATEGORIAS.map(({ value, label, desc, Icon }) => (
                       <button
-                        key={cat.value}
+                        key={value}
                         type="button"
-                        onClick={() => update('categoria_viagem', cat.value)}
+                        onClick={() => update('categoria_viagem', value)}
                         className={[
-                          'rounded-lg border px-3 py-2 text-xs font-semibold text-center transition-all',
-                          formData.categoria_viagem === cat.value
+                          'rounded-lg border px-3 py-3 text-xs font-semibold text-center transition-all flex flex-col items-center gap-1',
+                          formData.categoria_viagem === value
                             ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 ring-2 ring-primary-500'
                             : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300',
                         ].join(' ')}
                       >
-                        <span className="block">{cat.label}</span>
-                        <span className="block text-[10px] font-normal opacity-60">{cat.desc}</span>
+                        <Icon size={16} aria-hidden="true" />
+                        <span className="block">{label}</span>
+                        <span className="block text-[10px] font-normal opacity-60">{desc}</span>
                       </button>
                     ))}
                   </div>
