@@ -70,10 +70,12 @@ Deno.serve(async (req) => {
       return json(405, { error: "Método não permitido" }, corsHeaders);
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") || "https://aldjuddpzudrvtnfgmru.supabase.co",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || ""
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !supabaseKey) {
+      return json(500, { error: "Configuração do servidor incompleta" }, corsHeaders);
+    }
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
 
