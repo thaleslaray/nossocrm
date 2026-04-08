@@ -590,7 +590,7 @@ Content-Type: application/json
 | **Edge Functions** | https://supabase.com/dashboard/project/drgsnhbtucwocpeiwdth/functions |
 | **Table Editor** | https://supabase.com/dashboard/project/drgsnhbtucwocpeiwdth/editor |
 | **GitHub Repo** | https://github.com/kleberyascom/nossocrm |
-| **Webhook URL** | https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in |
+| **Webhook URL** | https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in/`<source_id>` |
 
 ---
 
