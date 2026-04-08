@@ -593,6 +593,17 @@ Deno.serve(async (req) => {
           // contacts.company_name removido — vínculo via client_company_id
           client_company_id: clientCompanyId,
           notes: payload.notes || null,
+          // Campos de viagem (nulos respeitam DEFAULTs: quantidade_adultos=1, quantidade_criancas=0)
+          destino_viagem: travel.destino_viagem,
+          data_viagem: travel.data_viagem,
+          quantidade_adultos: travel.quantidade_adultos ?? undefined,
+          quantidade_criancas: travel.quantidade_criancas ?? undefined,
+          idade_criancas: travel.idade_criancas,
+          categoria_viagem: travel.categoria_viagem,
+          urgencia_viagem: travel.urgencia_viagem,
+          origem_lead: travel.origem_lead,
+          indicado_por: travel.indicado_por,
+          observacoes_viagem: travel.observacoes_viagem,
         })
         .select("id")
         .single();
