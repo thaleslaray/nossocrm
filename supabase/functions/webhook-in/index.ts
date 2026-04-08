@@ -181,6 +181,216 @@ function getDealValue(payload: LeadPayload) {
   );
 }
 
+// =============================================================================
+// Travel field normalization — mapeia texto livre do form para o schema estrito
+// =============================================================================
+
+function stripAccents(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+const CATEGORIA_KEYWORDS: Array<[string, string[]]> = [
+  ["economica", ["econom", "custo", "barat", "basic"]],
+  ["intermediaria", ["intermed", "conforto", "medio", "standard"]],
+  ["premium", ["premium", "luxo", "luxury", "top", "vip"]],
+];
+
+function normalizeCategoriaViagem(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const lower = stripAccents(input.trim());
+  if (!lower) return null;
+  if (["economica", "intermediaria", "premium"].includes(lower)) return lower;
+  for (const [value, keywords] of CATEGORIA_KEYWORDS) {
+    if (keywords.some((kw) => lower.includes(kw))) return value;
+  }
+  return null;
+}
+
+const URGENCIA_KEYWORDS: Array<[string, string[]]> = [
+  ["imediato", ["imediat", "urgent", "agora", "hoje", "ja "]],
+  ["curto_prazo", ["curto", "1-3", "1 a 3", "2 mes", "3 mes", "mes"]],
+  ["medio_prazo", ["medio", "3-6", "3 a 6", "4 mes", "5 mes", "6 mes"]],
+  ["planejando", ["planej", "antece", "sem pressa", "futuro", "ano"]],
+];
+
+function normalizeUrgenciaViagem(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const lower = stripAccents(input.trim());
+  if (!lower) return null;
+  if (["imediato", "curto_prazo", "medio_prazo", "planejando"].includes(lower)) return lower;
+  for (const [value, keywords] of URGENCIA_KEYWORDS) {
+    if (keywords.some((kw) => lower.includes(kw))) return value;
+  }
+  return null;
+}
+
+const ORIGEM_KEYWORDS: Array<[string, string[]]> = [
+  ["instagram", ["instagram", "insta", "ig"]],
+  ["facebook", ["facebook", "fb"]],
+  ["google", ["google", "ads", "adwords"]],
+  ["site", ["site", "website", "landing"]],
+  ["whatsapp", ["whatsapp", "wpp", "whats"]],
+  ["indicacao", ["indicacao", "referral", "indicad", "amigo"]],
+  ["outro", ["outro", "other"]],
+];
+
+function normalizeOrigemLead(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const lower = stripAccents(input.trim());
+  if (!lower) return null;
+  if (["instagram", "facebook", "google", "site", "whatsapp", "indicacao", "outro"].includes(lower)) return lower;
+  for (const [value, keywords] of ORIGEM_KEYWORDS) {
+    if (keywords.some((kw) => lower.includes(kw))) return value;
+  }
+  return null;
+}
+
+/** Tenta parsear data livre para ISO YYYY-MM-DD. Retorna null se não parseável. */
+function parseDataViagem(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const raw = input.trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const ddmm = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (ddmm) {
+    const [, d, m, y] = ddmm;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+  return null;
+}
+
+/** Parseia texto livre tipo "2 adultos, 1 criança (8 anos)" em campos estruturados. */
+function parseViajantes(input: string | null | undefined): {
+  adultos: number | null;
+  criancas: number | null;
+  idades: string | null;
+} {
+  if (!input) return { adultos: null, criancas: null, idades: null };
+  const raw = stripAccents(input);
+  const adultosMatch = raw.match(/(\d+)\s*(?:adulto|adults?)/);
+  const criancasMatch = raw.match(/(\d+)\s*(?:crianc|kids?|children)/);
+  const idadesMatch = raw.match(/((?:\d+(?:\s*(?:e|,|\s)\s*\d+)*)\s*anos?)/);
+  return {
+    adultos: adultosMatch ? parseInt(adultosMatch[1], 10) : null,
+    criancas: criancasMatch ? parseInt(criancasMatch[1], 10) : null,
+    idades: idadesMatch ? idadesMatch[1].trim() : null,
+  };
+}
+
+type TravelFields = {
+  destino_viagem: string | null;
+  data_viagem: string | null;
+  quantidade_adultos: number | null;
+  quantidade_criancas: number | null;
+  idade_criancas: string | null;
+  categoria_viagem: string | null;
+  urgencia_viagem: string | null;
+  origem_lead: string | null;
+  indicado_por: string | null;
+  observacoes_viagem: string | null;
+};
+
+/**
+ * Extrai os campos de viagem do payload, normalizando texto livre para o schema
+ * estrito do PDF. Valores não-parseáveis (orçamento, data não reconhecida, etc.)
+ * são concatenados em observacoes_viagem.
+ */
+function getTravelFields(payload: LeadPayload): TravelFields {
+  const destino_viagem =
+    toNullableString(payload.destino_viagem) || toNullableString(payload.destino);
+
+  // Data
+  const dataRaw = toNullableString(payload.data_viagem) || toNullableString(payload.data);
+  const data_viagem = parseDataViagem(dataRaw);
+  const dataNaoParseada = dataRaw && !data_viagem ? dataRaw : null;
+
+  // Estruturados: adultos/crianças
+  let quantidade_adultos: number | null = null;
+  if (typeof payload.quantidade_adultos === "number" && Number.isFinite(payload.quantidade_adultos)) {
+    quantidade_adultos = payload.quantidade_adultos;
+  } else if (typeof payload.quantidade_adultos === "string") {
+    const n = parseInt(payload.quantidade_adultos, 10);
+    if (!Number.isNaN(n)) quantidade_adultos = n;
+  }
+  let quantidade_criancas: number | null = null;
+  if (typeof payload.quantidade_criancas === "number" && Number.isFinite(payload.quantidade_criancas)) {
+    quantidade_criancas = payload.quantidade_criancas;
+  } else if (typeof payload.quantidade_criancas === "string") {
+    const n = parseInt(payload.quantidade_criancas, 10);
+    if (!Number.isNaN(n)) quantidade_criancas = n;
+  }
+  let idade_criancas = toNullableString(payload.idade_criancas);
+
+  // Fallback: parsear "viajantes" livre quando não vieram estruturados
+  const viajantesRaw = toNullableString(payload.viajantes);
+  let viajantesNaoParseados: string | null = null;
+  if (viajantesRaw) {
+    const parsed = parseViajantes(viajantesRaw);
+    if (quantidade_adultos === null) quantidade_adultos = parsed.adultos;
+    if (quantidade_criancas === null) quantidade_criancas = parsed.criancas;
+    if (!idade_criancas) idade_criancas = parsed.idades;
+    if (parsed.adultos === null && parsed.criancas === null && !parsed.idades) {
+      viajantesNaoParseados = viajantesRaw;
+    }
+  }
+
+  // Categoria (enum)
+  const tipoRaw =
+    toNullableString(payload.categoria_viagem) ||
+    toNullableString(payload.tipo_viagem) ||
+    toNullableString(payload.tipo_de_viagem);
+  const categoria_viagem = normalizeCategoriaViagem(tipoRaw);
+  const tipoNaoParseado = tipoRaw && !categoria_viagem ? tipoRaw : null;
+
+  // Urgência (enum)
+  const urgenciaRaw =
+    toNullableString(payload.urgencia_viagem) || toNullableString(payload.urgencia);
+  const urgencia_viagem = normalizeUrgenciaViagem(urgenciaRaw);
+  const urgenciaNaoParseada = urgenciaRaw && !urgencia_viagem ? urgenciaRaw : null;
+
+  // Origem
+  const origem_lead = normalizeOrigemLead(toNullableString(payload.origem_lead));
+  const indicado_por = toNullableString(payload.indicado_por);
+
+  // Orçamento: sem coluna própria — vai para observações (conforme PDF)
+  const orcamentoRaw =
+    typeof payload.orcamento === "number"
+      ? String(payload.orcamento)
+      : toNullableString(payload.orcamento as string | undefined);
+  const orcamentoViagemRaw =
+    typeof payload.orcamento_viagem === "number"
+      ? String(payload.orcamento_viagem)
+      : toNullableString(payload.orcamento_viagem as string | undefined);
+  const orcamento = orcamentoRaw || orcamentoViagemRaw;
+
+  // Observações: base + extras
+  const obsBase =
+    toNullableString(payload.observacoes_viagem) || toNullableString(payload.observacoes);
+  const extras: string[] = [];
+  if (obsBase) extras.push(obsBase);
+  if (orcamento) extras.push(`Orçamento: ${orcamento}`);
+  if (dataNaoParseada) extras.push(`Data (livre): ${dataNaoParseada}`);
+  if (viajantesNaoParseados) extras.push(`Viajantes (livre): ${viajantesNaoParseados}`);
+  if (tipoNaoParseado) extras.push(`Tipo (livre): ${tipoNaoParseado}`);
+  if (urgenciaNaoParseada) extras.push(`Urgência (livre): ${urgenciaNaoParseada}`);
+  const observacoes_viagem = extras.length > 0 ? extras.join(" | ") : null;
+
+  return {
+    destino_viagem,
+    data_viagem,
+    quantidade_adultos,
+    quantidade_criancas,
+    idade_criancas,
+    categoria_viagem,
+    urgencia_viagem,
+    origem_lead,
+    indicado_por,
+    observacoes_viagem,
+  };
+}
+
 Deno.serve(async (req) => {
   // CORS preflight
   if (req.method === "OPTIONS") {
