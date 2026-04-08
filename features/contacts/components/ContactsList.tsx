@@ -82,6 +82,7 @@ interface ContactsListProps {
     updateContact: (id: string, data: Partial<Contact>) => void;
     convertContactToDeal: (id: string) => void;
     openEditModal: (contact: Contact) => void;
+    openDetailDrawer: (contact: Contact) => void;
     setDeleteId: (id: string) => void;
     openEditCompanyModal?: (company: Company) => void;
     setDeleteCompanyId?: (id: string) => void;
