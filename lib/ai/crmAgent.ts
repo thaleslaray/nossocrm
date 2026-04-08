@@ -50,12 +50,18 @@ function formatCockpitSnapshotForPrompt(snapshot: any): string[] {
     const contact = snapshot.contact;
     if (contact && typeof contact === 'object') {
         const name = clampText(contact.name, 80);
-        const role = clampText(contact.role, 80);
+        const destino = clampText(contact.destino_viagem, 80);
         const email = clampText(contact.email, 120);
         const phone = clampText(contact.phone, 60);
-        lines.push(`👤 Contato (cockpit): ${name ?? '(sem nome)'}${role ? ` — ${role}` : ''}`);
+        lines.push(`👤 Contato (cockpit): ${name ?? '(sem nome)'}${destino ? ` — Destino: ${destino}` : ''}`);
         if (email) lines.push(`   - Email: ${email}`);
         if (phone) lines.push(`   - Telefone: ${phone}`);
+        const categoria = clampText(contact.categoria_viagem, 30);
+        const urgencia = clampText(contact.urgencia_viagem, 30);
+        const origem = clampText(contact.origem_lead, 30);
+        if (categoria) lines.push(`   - Categoria: ${categoria}`);
+        if (urgencia) lines.push(`   - Urgência: ${urgencia}`);
+        if (origem) lines.push(`   - Origem: ${origem}`);
         const notes = clampText(contact.notes, 220);
         if (notes) lines.push(`   - Notas do contato: ${notes}`);
     }
