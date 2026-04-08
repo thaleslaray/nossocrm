@@ -71,16 +71,30 @@ export function ContactsImportExportModal(props: {
 
   const templateCsv = useMemo(() => {
     const d: CsvDelimiter = delimiter === 'auto' ? ';' : delimiter;
-    const header = ['name', 'email', 'phone', 'role', 'company', 'status', 'stage', 'notes'];
+    const header = [
+      'name', 'email', 'phone', 'company', 'status', 'stage', 'notes',
+      'destino_viagem', 'data_viagem', 'quantidade_adultos', 'quantidade_criancas',
+      'idade_criancas', 'categoria_viagem', 'urgencia_viagem', 'origem_lead',
+      'indicado_por', 'observacoes_viagem',
+    ];
     const example = [
       'Maria Silva',
-      'maria@empresa.com',
+      'maria@email.com',
       '+55 11 99999-9999',
-      'Compras',
-      'Empresa Exemplo',
+      '',
       'ACTIVE',
       'LEAD',
-      'Conheci em evento',
+      '',
+      'Orlando',
+      '2026-12-15',
+      '2',
+      '0',
+      '',
+      'premium',
+      'curto_prazo',
+      'instagram',
+      '',
+      '',
     ];
     return withUtf8Bom(stringifyCsv([header, example], d));
   }, [delimiter]);
