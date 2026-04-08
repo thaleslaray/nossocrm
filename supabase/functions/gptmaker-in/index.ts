@@ -195,54 +195,72 @@ Deno.serve(async (req) => {
       }, corsHeaders);
     }
 
-    // ── Caso 2: Payload completo de lead (formato original) ───────────────────
+    // ── Caso 2: Payload completo de lead ─────────────────────────────────────
+    // Aceita nomes do schema do banco (destino_viagem, categoria_viagem, etc.)
+    // e também os nomes legados (destino, orcamento_categoria, urgencia)
     const nome = toText(body.nome);
-    const contato = toText(body.contato);
-    const destino = toText(body.destino);
-    const data = toText(body.data);
+    const contato = toText(body.contato) || toText(body.telefone) || toText(body["e-mail"]);
 
+    // Destino
+    const destino_viagem = toText(body.destino_viagem) || toText(body.destino);
+
+    // Datas
     const data_ida_raw = toText(body.data_ida);
     const data_volta_raw = toText(body.data_volta);
     const data_ida = formatDateBR(data_ida_raw);
     const data_volta = formatDateBR(data_volta_raw);
+    const data_viagem_raw = data_ida_raw || toText(body.data_viagem) || toText(body.data);
 
-    const numero_viajantes = toText(body.numero_viajantes);
+    // Viajantes
+    const quantidade_adultos_str = toText(body.quantidade_adultos) || toText(body.numero_viajantes);
+    const quantidade_adultos = quantidade_adultos_str ? (parseInt(quantidade_adultos_str) || 1) : 1;
+    const quantidade_criancas_str = toText(body.quantidade_criancas);
+    const quantidade_criancas = quantidade_criancas_str ? (parseInt(quantidade_criancas_str) || 0) : 0;
+    const idade_criancas = toText(body.idade_criancas);
+
+    // Outros campos
     const tipo_viagem = toText(body.tipo_viagem);
-    const orcamento_categoria = toText(body.orcamento_categoria);
-    const urgencia = toText(body.urgencia);
+    const categoria_viagem = toText(body.categoria_viagem) || toText(body.orcamento_categoria);
+    const urgencia_viagem = toText(body.urgencia_viagem) || toText(body.urgencia);
+    const origem_lead = toText(body.origem_lead) || "outro";
+    const indicado_por = toText(body.indicado_por);
+    const observacoes_viagem = toText(body.observacoes_viagem);
     const pipeline = toText(body.pipeline) || "Captação de Leads";
 
-    if (!nome || !destino) {
-      return json(400, { error: "Campos obrigatórios: nome, destino" }, corsHeaders);
+    if (!nome) {
+      return json(400, { error: "Campo obrigatório: nome" }, corsHeaders);
     }
 
     const auto = classifyLead({
       data_ida: data_ida_raw,
       data_volta: data_volta_raw,
-      urgencia,
-      orcamento_categoria,
+      urgencia_viagem,
+      categoria_viagem,
     });
 
     const classificacao = toText(body.classificacao) || auto.classificacao;
     const stageLabel = auto.stage_label;
-    const dealTitle = `${nome} | ${destino}`;
+    const dealTitle = destino_viagem ? `${nome} | ${destino_viagem}` : nome;
 
     const custom_fields = {
       nome,
       contato,
-      destino,
-      data,
+      destino_viagem,
       data_ida,
       data_volta,
-      numero_viajantes,
+      quantidade_adultos,
+      quantidade_criancas,
+      idade_criancas,
       tipo_viagem,
-      orcamento_categoria,
-      urgencia,
+      categoria_viagem,
+      urgencia_viagem,
+      origem_lead,
+      indicado_por,
+      observacoes_viagem,
       classificacao,
       pipeline,
       stage_label: stageLabel,
       source: "gptmaker",
-      external_event_id: toText(body.external_event_id),
     };
 
     // 1. Buscar organization
