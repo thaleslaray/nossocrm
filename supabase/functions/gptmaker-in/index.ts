@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     const tipo_viagem = toText(body.tipo_viagem);
     const orcamento_categoria = toText(body.orcamento_categoria);
     const urgencia = toText(body.urgencia);
-    const pipeline = toText(body.pipeline) || "Captação Viagens";
+    const pipeline = toText(body.pipeline) || "Captação de Leads";
 
     const organizationId = req.headers.get("X-Organization-ID") || 
                            Deno.env.get("DEFAULT_ORGANIZATION_ID") ||
