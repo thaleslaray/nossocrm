@@ -331,6 +331,16 @@ Deno.serve(async (req) => {
           organization_id: organizationId,
           stage: "lead",
           source: "gptmaker",
+          destino_viagem,
+          data_viagem: data_viagem_raw || null,
+          quantidade_adultos,
+          quantidade_criancas,
+          idade_criancas,
+          categoria_viagem,
+          urgencia_viagem,
+          origem_lead: origem_lead || "outro",
+          indicado_por,
+          observacoes_viagem,
         })
         .select("id")
         .single();
