@@ -24,6 +24,7 @@ export const ContactsPage: React.FC = () => {
     const controller = useContactsController();
     const router = useRouter();
     const [isImportExportOpen, setIsImportExportOpen] = React.useState(false);
+    const [detailContact, setDetailContact] = React.useState<Contact | null>(null);
 
     const goToDeal = (dealId: string) => {
         controller.setDeleteWithDeals(null);
