@@ -387,25 +387,28 @@ VALUES
 
 ### Código dos Testes
 ```bash
-# Teste 1: Lead Quente
-curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in' \
+# Teste 1: Lead (campos conforme PDF spec)
+curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in/<source_id>' \
   -H 'Content-Type: application/json' \
+  -H 'X-Webhook-Secret: <secret>' \
   -d '{
     "nome": "Ana Paula Santos",
-    "contato": "ana.santos@email.com.br",
-    "destino": "Maldivas",
-    "data_ida": "2026-09-15",
-    "data_volta": "2026-09-25",
-    "urgencia": "Alta",
-    "orcamento_categoria": "Luxo",
-    "pipeline": "Captação Viagens"
+    "email": "ana.santos@email.com.br",
+    "destino_viagem": "Maldivas",
+    "data_viagem": "2026-09-15",
+    "quantidade_adultos": 2,
+    "categoria_viagem": "premium",
+    "urgencia_viagem": "curto_prazo",
+    "origem_lead": "instagram"
   }'
 
 # Resposta:
 {
-  "success": true,
-  "classification": { "classificacao": "Quente" },
-  "deal": { "title": "Ana Paula Santos | Maldivas" }
+  "ok": true,
+  "message": "Recebido! Criamos um novo negócio no funil configurado.",
+  "action": { "contact": "created", "deal": "created" },
+  "contact_id": "...",
+  "deal_id": "..."
 }
 ```
 
