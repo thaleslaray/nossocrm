@@ -77,10 +77,23 @@ Deno.serve(async (req) => {
     }
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const body = await req.json();
+    const rawBody = await req.text();
+    const body = JSON.parse(rawBody);
 
-    // DEBUG: loga payload bruto para inspecionar formato do GPTMaker
-    console.log("GPTMAKER_PAYLOAD:", JSON.stringify(body));
+    // DEBUG: salva payload bruto no banco para inspecionar formato do GPTMaker
+    try {
+      const debugClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY")!
+      );
+      const headersObj: Record<string, string> = {};
+      req.headers.forEach((v, k) => { headersObj[k] = v; });
+      await debugClient.from("webhook_debug_logs").insert({
+        source: "gptmaker-in",
+        payload: body,
+        headers: headersObj,
+      });
+    } catch (_) { /* ignora erros de debug */ }
 
     const nome = toText(body.nome);
     const contato = toText(body.contato);
