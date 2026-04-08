@@ -1517,7 +1517,7 @@ export default function DealCockpitRealClient({ dealId }: { dealId?: string }) {
               <div className="flex min-h-0 flex-col gap-3">
                 <div>
                   <div className="text-sm font-semibold text-slate-100">{contact?.name ?? '—'}</div>
-                  <div className="mt-1 text-xs text-slate-400">{selectedContact?.role ?? ''}</div>
+                  <div className="mt-1 text-xs text-slate-400">{selectedContact?.destino_viagem ?? ''}</div>
                   <div className="mt-3 space-y-2 text-xs">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-slate-500">Tel</span>
