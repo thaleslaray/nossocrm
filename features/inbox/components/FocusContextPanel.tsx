@@ -1009,10 +1009,7 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <h4 className="text-sm font-semibold text-white truncate">{contact.name}</h4>
-                                            {contact.role && (
-                                                <span className="text-[10px] px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded">{contact.role}</span>
-                                            )}
-                                        </div>
+                                                        </div>
 
                                         {/* Contact details grid */}
                                         <div className="mt-2 grid grid-cols-1 gap-1.5">
