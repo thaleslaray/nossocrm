@@ -75,6 +75,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "axe-core": "^4.10.3",
     "eslint": "^9",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-config-next": "16.0.8",
     "happy-dom": "^20.0.11",
     "tailwindcss": "^4",
