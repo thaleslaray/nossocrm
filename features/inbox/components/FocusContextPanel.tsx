@@ -148,7 +148,6 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                     companyName: (deal as any).companyName,
                     currentProbability: deal.probability,
                     contactName: contact?.name,
-                    contactRole: contact?.role,
                     recentHistory: recentHistory // Inject History
                 }
             }
