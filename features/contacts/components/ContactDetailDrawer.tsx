@@ -1,9 +1,9 @@
 import React from 'react';
 import {
-  X, Pencil, MapPin, Calendar, Users, Baby, Wallet, Star, Crown,
-  Instagram, Facebook, Globe, MessageCircle, Phone, Mail, UserCheck, FileText,
-  Zap,
+  X, Pencil, MapPin, Calendar, Users, Wallet, Star, Crown,
+  Globe, MessageCircle, Phone, Mail, UserCheck, FileText, Zap, Share2,
 } from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
 import { Contact } from '@/types';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
