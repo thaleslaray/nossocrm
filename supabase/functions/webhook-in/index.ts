@@ -159,6 +159,7 @@ function getContactName(payload: LeadPayload) {
     toNullableString(payload.contact_name) ||
     toNullableString(payload.contactName) ||
     toNullableString(payload.name) ||
+    toNullableString(payload.nome) ||
     null
   );
 }
