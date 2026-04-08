@@ -53,7 +53,7 @@ Na Vercel, vá em **Settings → Environment Variables** e adicione:
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://drgsnhbtucwocpeiwdth.supabase.co` | Copiar do Dashboard Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | (chave anon) | Supabase → Settings → API |
 | `SUPABASE_SERVICE_ROLE_KEY` | (chave service_role) | Supabase → Settings → API |
-| `DEFAULT_ORGANIZATION_ID` | `4e72d64a-a457-45cb-b1ac-ee7d548ec584` | Já configurado |
+| `DEFAULT_ORGANIZATION_ID` | (UUID da organização) | Supabase → Table Editor → `organizations` |
 
 **Como obter as chaves do Supabase:**
 
