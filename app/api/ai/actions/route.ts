@@ -153,6 +153,29 @@ export async function POST(req: Request) {
     return json<AIActionResponse>({ error: 'Unauthorized' }, 401);
   }
 
+  // Quota diária por usuário (limite de custo de IA — Sprint 2)
+  const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_REQUEST_LIMIT ?? 100);
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: usageRow } = await supabase
+    .from('user_ai_usage')
+    .select('request_count')
+    .eq('user_id', user.id)
+    .eq('usage_date', today)
+    .maybeSingle();
+
+  if ((usageRow?.request_count ?? 0) >= AI_DAILY_LIMIT) {
+    const secondsUntilMidnight = Math.ceil(
+      (new Date(today + 'T23:59:59Z').getTime() - Date.now()) / 1000
+    );
+    return json<AIActionResponse>({
+      error: `Limite diário de ${AI_DAILY_LIMIT} requisições de IA atingido. Tente novamente amanhã.`,
+      retryAfter: secondsUntilMidnight,
+    }, 200);
+  }
+
+  // Incrementa uso atomicamente (fire-and-forget — não bloqueia a resposta)
+  void supabase.rpc('increment_ai_usage', { p_user_id: user.id });
+
   const body = await req.json().catch(() => null);
   const action = body?.action as AIAction | undefined;
   const data = (body?.data ?? {}) as Record<string, unknown>;
@@ -171,7 +194,7 @@ export async function POST(req: Request) {
     return json<AIActionResponse>({ error: 'Profile not found' }, 404);
   }
 
-  const { data: orgSettings, error: orgError } = await supabase
+  const { data: orgSettings } = await supabase
     .from('organization_settings')
     .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key')
     .eq('organization_id', profile.organization_id)
@@ -212,19 +235,27 @@ export async function POST(req: Request) {
   }
 
   // Frontend expects "AI consent required" as a *payload* error.
-  const provider: AIProvider = (orgSettings?.ai_provider ?? 'google') as AIProvider;
-  const apiKey: string | null =
-    provider === 'google'
-      ? (orgSettings?.ai_google_key ?? null)
-      : provider === 'openai'
-        ? (orgSettings?.ai_openai_key ?? null)
-        : (orgSettings?.ai_anthropic_key ?? null);
+  // Key resolution: env vars take priority over DB (security — keys not stored in plaintext DB).
+  const provider: AIProvider = (
+    (process.env.AI_PROVIDER as AIProvider | undefined) ??
+    (orgSettings?.ai_provider as AIProvider | undefined) ??
+    'google'
+  );
+  const envKey =
+    provider === 'google' ? (process.env.AI_GOOGLE_KEY || null) :
+    provider === 'openai' ? (process.env.AI_OPENAI_KEY || null) :
+    (process.env.AI_ANTHROPIC_KEY || null);
+  const dbKey =
+    provider === 'google' ? (orgSettings?.ai_google_key ?? null) :
+    provider === 'openai' ? (orgSettings?.ai_openai_key ?? null) :
+    (orgSettings?.ai_anthropic_key ?? null);
+  const apiKey: string | null = envKey || dbKey;
 
-  if (orgError || !apiKey) {
+  if (!apiKey) {
     return json<AIActionResponse>({ error: 'AI consent required', consentType: 'AI_CONSENT' }, 200);
   }
 
-  const modelId = orgSettings.ai_model || '';
+  const modelId = process.env.AI_MODEL || orgSettings?.ai_model || '';
   const model = getModel(provider, apiKey, modelId);
 
   try {
