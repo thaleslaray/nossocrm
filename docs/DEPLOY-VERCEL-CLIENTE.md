@@ -107,7 +107,7 @@ URL: https://SEU-PROJETO.vercel.app
 ### Teste 2: Webhook de Leads
 
 ```bash
-curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in' \
+curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in' \
   -H 'Content-Type: application/json' \
   -d '{
     "nome": "Teste Deploy Vercel",
@@ -144,7 +144,7 @@ curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in'
 | **Vercel Dashboard** | `https://vercel.com/dashboard` |
 | **Supabase Dashboard** | `https://supabase.com/dashboard/project/drgsnhbtucwocpeiwdth` |
 | **GitHub Repository** | `https://github.com/kleberyascom/nossocrm` |
-| **Edge Function** | `https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in` |
+| **Edge Function** | `https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in` |
 
 ---
 
@@ -193,7 +193,7 @@ Table Editor → boards → "Captação Viagens" deve existir
 **Dúvidas técnicas?**
 
 - **Documentação Completa:** `/README.md` no repositório
-- **Edge Function:** `supabase/functions/gptmaker-in/index.ts`
+- **Edge Function:** `supabase/functions/webhook-in/index.ts`
 - **Webhook Tests:** 10 testes cobrindo todos os cenários
 
 ---
