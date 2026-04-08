@@ -85,3 +85,7 @@ scripts/
 
 # Test documentation (test code stays, docs are local)
 test/*.md
+
+# Claude/SocratiCode local context files
+AGENTS.md
+.sc-context.md
