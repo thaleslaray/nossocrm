@@ -219,7 +219,7 @@ Invalid API key
 **Solução Aplicada:**
 ```bash
 # Obter chave atualizada:
-supabase projects api-keys --project-ref aldjuddpzudrvtnfgmru
+supabase projects api-keys --project-ref drgsnhbtucwocpeiwdth
 
 # Resultado:
 service_role | eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
@@ -388,7 +388,7 @@ VALUES
 ### Código dos Testes
 ```bash
 # Teste 1: Lead Quente
-curl -X POST 'https://aldjuddpzudrvtnfgmru.supabase.co/functions/v1/gptmaker-in' \
+curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in' \
   -H 'Content-Type: application/json' \
   -d '{
     "nome": "Ana Paula Santos",
@@ -417,7 +417,7 @@ curl -X POST 'https://aldjuddpzudrvtnfgmru.supabase.co/functions/v1/gptmaker-in'
 
 | Recurso | Configuração | Status |
 |---------|-------------|--------|
-| **Projeto** | `aldjuddpzudrvtnfgmru` | ✅ Ativo |
+| **Projeto** | `drgsnhbtucwocpeiwdth` | ✅ Ativo |
 | **Edge Functions** | gptmaker-in | ✅ Produzindo |
 | **Banco de Dados** | PostgreSQL 15 | ✅ Configurado |
 | **Organization** | `4e72d64a-a457-45cb-b1ac-ee7d548ec584` | ✅ Ativa |
@@ -433,7 +433,7 @@ supabase secrets list
 NAME                          | STATUS
 ------------------------------|--------
 DEFAULT_ORGANIZATION_ID       | ✅ 4e72d64a-...
-SUPABASE_URL                  | ✅ https://aldjuddpzudrvtnfgmru.supabase.co
+SUPABASE_URL                  | ✅ https://drgsnhbtucwocpeiwdth.supabase.co
 SUPABASE_SERVICE_ROLE_KEY     | ✅ eyJhbGciOiJIUzI1NiIs...
 SUPABASE_ANON_KEY             | ✅ eyJhbGciOiJIUzI1NiIs...
 ```
@@ -468,7 +468,7 @@ SUPABASE_ANON_KEY             | ✅ eyJhbGciOiJIUzI1NiIs...
 ### URL em Produção
 
 ```
-POST https://aldjuddpzudrvtnfgmru.supabase.co/functions/v1/gptmaker-in
+POST https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in
 Content-Type: application/json
 ```
 
@@ -585,11 +585,11 @@ Content-Type: application/json
 
 | Serviço | URL |
 |---------|-----|
-| **Supabase Dashboard** | https://supabase.com/dashboard/project/aldjuddpzudrvtnfgmru |
-| **Edge Functions** | https://supabase.com/dashboard/project/aldjuddpzudrvtnfgmru/functions |
-| **Table Editor** | https://supabase.com/dashboard/project/aldjuddpzudrvtnfgmru/editor |
+| **Supabase Dashboard** | https://supabase.com/dashboard/project/drgsnhbtucwocpeiwdth |
+| **Edge Functions** | https://supabase.com/dashboard/project/drgsnhbtucwocpeiwdth/functions |
+| **Table Editor** | https://supabase.com/dashboard/project/drgsnhbtucwocpeiwdth/editor |
 | **GitHub Repo** | https://github.com/kleberyascom/nossocrm |
-| **Webhook URL** | https://aldjuddpzudrvtnfgmru.supabase.co/functions/v1/gptmaker-in |
+| **Webhook URL** | https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in |
 
 ---
 
