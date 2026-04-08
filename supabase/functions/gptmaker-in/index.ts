@@ -43,14 +43,14 @@ function classifyLead({
   const hasBudget = !!orcamento_categoria;
 
   if (hasDates && highUrgency && hasBudget) {
-    return { classificacao: "Quente", stage_label: "Lead Quente" };
+    return { classificacao: "Quente", stage_label: "Interessado" };
   }
 
   if ((hasDates && hasBudget) || (hasDates && highUrgency) || (hasBudget && highUrgency)) {
-    return { classificacao: "Morno", stage_label: "Lead Morno" };
+    return { classificacao: "Morno", stage_label: "Novo Contato" };
   }
 
-  return { classificacao: "Frio", stage_label: "Lead Frio" };
+  return { classificacao: "Frio", stage_label: "Novo Contato" };
 }
 
 Deno.serve(async (req) => {
