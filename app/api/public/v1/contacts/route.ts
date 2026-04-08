@@ -5,6 +5,7 @@ import { createStaticAdminClient } from '@/lib/supabase/server';
 import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public-api/cursor';
 import { normalizeEmail, normalizePhone, normalizeText } from '@/lib/public-api/sanitize';
 import { sanitizeUUID } from '@/lib/supabase/utils';
+import { escapePostgrestFilter } from '@/lib/security/escapePostgrest';
 
 export const runtime = 'nodejs';
 
