@@ -6,7 +6,7 @@
 > **Data de Conclusão:** 12 de Março de 2026 (atualizado em Abril de 2026)  
 > **Status:** ✅ **EM PRODUÇÃO**  
 > **Projeto Supabase:** `drgsnhbtucwocpeiwdth`  
-> **Função Edge:** `webhook-in` (substituiu `gptmaker-in`)
+> **Função Edge:** `webhook-in` (substituiu `webhook-in`)
 
 ---
 
@@ -388,7 +388,7 @@ VALUES
 ### Código dos Testes
 ```bash
 # Teste 1: Lead Quente
-curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in' \
+curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in' \
   -H 'Content-Type: application/json' \
   -d '{
     "nome": "Ana Paula Santos",
@@ -418,7 +418,7 @@ curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in'
 | Recurso | Configuração | Status |
 |---------|-------------|--------|
 | **Projeto** | `drgsnhbtucwocpeiwdth` | ✅ Ativo |
-| **Edge Functions** | gptmaker-in | ✅ Produzindo |
+| **Edge Functions** | webhook-in | ✅ Produzindo |
 | **Banco de Dados** | PostgreSQL 15 | ✅ Configurado |
 | **Organization** | `4e72d64a-a457-45cb-b1ac-ee7d548ec584` | ✅ Ativa |
 | **Boards** | Captação Viagens | ✅ Criado |
@@ -446,7 +446,7 @@ SUPABASE_ANON_KEY             | ✅ eyJhbGciOiJIUzI1NiIs...
 
 **Commits Realizados:**
 ```
-6fc6578 fix: atualizar .gitignore e adicionar Edge Function gptmaker-in
+6fc6578 fix: atualizar .gitignore e adicionar Edge Function webhook-in
 44fcdd5 docs: adicionar guia de deploy na Vercel para o cliente
 ```
 
@@ -456,7 +456,7 @@ SUPABASE_ANON_KEY             | ✅ eyJhbGciOiJIUzI1NiIs...
 
 | Arquivo | Localização | Finalidade |
 |---------|-------------|------------|
-| `index.ts` | `supabase/functions/gptmaker-in/` | Edge Function |
+| `index.ts` | `supabase/functions/webhook-in/` | Edge Function |
 | `DEPLOY-VERCEL-CLIENTE.md` | `docs/` | Guia de deploy |
 | `RELATORIO-ENTREGA-Webhook-Leads.md` | `docs/` | Este documento |
 | `.gitignore` | Raiz | Atualizado |
@@ -468,7 +468,7 @@ SUPABASE_ANON_KEY             | ✅ eyJhbGciOiJIUzI1NiIs...
 ### URL em Produção
 
 ```
-POST https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in
+POST https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in
 Content-Type: application/json
 ```
 
@@ -579,7 +579,7 @@ Content-Type: application/json
 | README Principal | `/README.md` |
 | Guia de Deploy Vercel | `docs/DEPLOY-VERCEL-CLIENTE.md` |
 | Este Relatório | `docs/RELATORIO-ENTREGA-Webhook-Leads.md` |
-| AGENTS.md | `supabase/functions/gptmaker-in/AGENTS.md` |
+| AGENTS.md | `supabase/functions/webhook-in/AGENTS.md` |
 
 ### URLs Importantes
 
@@ -589,7 +589,7 @@ Content-Type: application/json
 | **Edge Functions** | https://supabase.com/dashboard/project/drgsnhbtucwocpeiwdth/functions |
 | **Table Editor** | https://supabase.com/dashboard/project/drgsnhbtucwocpeiwdth/editor |
 | **GitHub Repo** | https://github.com/kleberyascom/nossocrm |
-| **Webhook URL** | https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/gptmaker-in |
+| **Webhook URL** | https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in |
 
 ---
 
