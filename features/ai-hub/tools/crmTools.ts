@@ -17,7 +17,7 @@ export const searchDeals = tool({
 });
 
 export const getContact = tool({
-  description: 'Busca informações de um contato específico por nome ou email',
+  description: 'Busca informações de um contato específico por nome ou email. Retorna dados de viagem: destino, data, número de adultos/crianças, categoria (economica/intermediaria/premium), urgência, origem do lead e observações.',
   inputSchema: z.object({
     query: z.string().describe('Nome ou email do contato para buscar'),
   }),

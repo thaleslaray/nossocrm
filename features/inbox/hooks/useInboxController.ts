@@ -543,7 +543,6 @@ export const useInboxController = () => {
         name: seedContact.name,
         email: seedContact.email,
         phone: seedContact.phone,
-        role: seedContact.role,
         companyId: '',
         status: 'ACTIVE',
         stage: 'CUSTOMER',

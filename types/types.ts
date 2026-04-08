@@ -148,13 +148,17 @@ export interface CRMCompany {
 // Contact (Person we talk to)
 // =============================================================================
 
+// Tipos de enumeração para campos de viagem
+export type CategoriaViagem = 'economica' | 'intermediaria' | 'premium';
+export type UrgenciaViagem = 'imediato' | 'curto_prazo' | 'medio_prazo' | 'planejando';
+export type OrigemLead = 'instagram' | 'facebook' | 'google' | 'site' | 'whatsapp' | 'indicacao' | 'outro';
+
 // A Pessoa (Com quem falamos)
 export interface Contact {
   id: string;
   organizationId?: OrganizationId; // Tenant FK (for RLS) - optional during migration
   clientCompanyId?: ClientCompanyId; // CRM company this contact belongs to
   name: string;
-  role?: string;
   email: string;
   phone: string;
   avatar?: string;
@@ -168,6 +172,18 @@ export interface Contact {
   totalValue?: number; // LTV
   createdAt: string;
   updatedAt?: string; // Última modificação do registro
+
+  // Campos de viagem (agência de viagens)
+  destino_viagem?: string;
+  data_viagem?: string;
+  quantidade_adultos?: number;
+  quantidade_criancas?: number;
+  idade_criancas?: string;
+  categoria_viagem?: CategoriaViagem;
+  urgencia_viagem?: UrgenciaViagem;
+  origem_lead?: OrigemLead;
+  indicado_por?: string;
+  observacoes_viagem?: string;
 
   // @deprecated - Use clientCompanyId instead
   companyId?: string;

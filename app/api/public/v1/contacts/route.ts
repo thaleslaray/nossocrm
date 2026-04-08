@@ -12,8 +12,6 @@ const ContactUpsertSchema = z.object({
   name: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
-  role: z.string().optional(),
-  company_name: z.string().optional(),
   client_company_id: z.string().uuid().optional(),
   avatar: z.string().optional(),
   status: z.string().optional(),
@@ -24,6 +22,17 @@ const ContactUpsertSchema = z.object({
   total_value: z.number().optional(),
   source: z.string().optional(),
   notes: z.string().optional(),
+  // Travel fields
+  destino_viagem: z.string().optional(),
+  data_viagem: z.string().optional(),
+  quantidade_adultos: z.number().int().min(1).optional(),
+  quantidade_criancas: z.number().int().min(0).optional(),
+  idade_criancas: z.string().optional(),
+  categoria_viagem: z.enum(['economica', 'intermediaria', 'premium']).optional(),
+  urgencia_viagem: z.enum(['imediato', 'curto_prazo', 'medio_prazo', 'planejando']).optional(),
+  origem_lead: z.enum(['instagram', 'facebook', 'google', 'site', 'whatsapp', 'indicacao', 'outro']).optional(),
+  indicado_por: z.string().optional(),
+  observacoes_viagem: z.string().optional(),
 }).strict();
 
 function toIsoDateString(v: string | undefined) {
@@ -44,30 +53,6 @@ function toIsoTimestamp(v: string | undefined) {
   return d.toISOString();
 }
 
-async function resolveCompanyIdFromName(opts: { organizationId: string; companyName: string }) {
-  const sb = createStaticAdminClient();
-  const name = normalizeText(opts.companyName);
-  if (!name) return null;
-
-  const existing = await sb
-    .from('crm_companies')
-    .select('id')
-    .eq('organization_id', opts.organizationId)
-    .is('deleted_at', null)
-    .ilike('name', name)
-    .maybeSingle();
-  if (existing.error) throw existing.error;
-  if (existing.data?.id) return existing.data.id as string;
-
-  const now = new Date().toISOString();
-  const created = await sb
-    .from('crm_companies')
-    .insert({ organization_id: opts.organizationId, name, created_at: now, updated_at: now })
-    .select('id')
-    .single();
-  if (created.error) throw created.error;
-  return created.data.id as string;
-}
 
 export async function GET(request: Request) {
   const auth = await authPublicApi(request);
@@ -84,7 +69,7 @@ export async function GET(request: Request) {
   const sb = createStaticAdminClient();
   let query = sb
     .from('contacts')
-    .select('id,name,email,phone,role,company_name,client_company_id,avatar,notes,status,stage,source,birth_date,last_interaction,last_purchase_date,total_value,created_at,updated_at', { count: 'exact' })
+    .select('id,name,email,phone,client_company_id,avatar,notes,status,stage,source,birth_date,last_interaction,last_purchase_date,total_value,destino_viagem,data_viagem,quantidade_adultos,quantidade_criancas,idade_criancas,categoria_viagem,urgencia_viagem,origem_lead,indicado_por,observacoes_viagem,created_at,updated_at', { count: 'exact' })
     .eq('organization_id', auth.organizationId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
@@ -111,8 +96,6 @@ export async function GET(request: Request) {
       name: c.name,
       email: c.email ?? null,
       phone: c.phone ?? null,
-      role: c.role ?? null,
-      company_name: c.company_name ?? null,
       client_company_id: c.client_company_id ?? null,
       avatar: c.avatar ?? null,
       status: c.status ?? null,
@@ -123,6 +106,16 @@ export async function GET(request: Request) {
       last_interaction: c.last_interaction ?? null,
       last_purchase_date: c.last_purchase_date ?? null,
       total_value: c.total_value != null ? Number(c.total_value) : null,
+      destino_viagem: c.destino_viagem ?? null,
+      data_viagem: c.data_viagem ?? null,
+      quantidade_adultos: c.quantidade_adultos ?? null,
+      quantidade_criancas: c.quantidade_criancas ?? null,
+      idade_criancas: c.idade_criancas ?? null,
+      categoria_viagem: c.categoria_viagem ?? null,
+      urgencia_viagem: c.urgencia_viagem ?? null,
+      origem_lead: c.origem_lead ?? null,
+      indicado_por: c.indicado_por ?? null,
+      observacoes_viagem: c.observacoes_viagem ?? null,
       created_at: c.created_at,
       updated_at: c.updated_at,
     })),
@@ -143,7 +136,6 @@ export async function POST(request: Request) {
   const email = normalizeEmail(parsed.data.email);
   const phone = normalizePhone(parsed.data.phone);
   const name = normalizeText(parsed.data.name);
-  const companyName = normalizeText(parsed.data.company_name);
 
   if (!email && !phone) {
     return NextResponse.json({ error: 'Provide email or phone', code: 'VALIDATION_ERROR' }, { status: 422 });
@@ -158,14 +150,7 @@ export async function POST(request: Request) {
   const lastInteraction = toIsoTimestamp(parsed.data.last_interaction);
   if (lastInteraction === '__INVALID__') return NextResponse.json({ error: 'Invalid last_interaction', code: 'VALIDATION_ERROR' }, { status: 422 });
 
-  let clientCompanyId = sanitizeUUID(parsed.data.client_company_id) || null;
-  if (!clientCompanyId && companyName) {
-    try {
-      clientCompanyId = await resolveCompanyIdFromName({ organizationId: auth.organizationId, companyName });
-    } catch (e: any) {
-      return NextResponse.json({ error: e?.message || 'Invalid company', code: 'VALIDATION_ERROR' }, { status: 422 });
-    }
-  }
+  const clientCompanyId = sanitizeUUID(parsed.data.client_company_id) || null;
 
   let lookup = sb
     .from('contacts')
@@ -180,13 +165,13 @@ export async function POST(request: Request) {
   const existing = await lookup.maybeSingle();
   if (existing.error) return NextResponse.json({ error: existing.error.message, code: 'DB_ERROR' }, { status: 500 });
 
+  const TRAVEL_SELECT = 'id,name,email,phone,client_company_id,avatar,notes,status,stage,source,birth_date,last_interaction,last_purchase_date,total_value,destino_viagem,data_viagem,quantidade_adultos,quantidade_criancas,idade_criancas,categoria_viagem,urgencia_viagem,origem_lead,indicado_por,observacoes_viagem,created_at,updated_at';
+
   const now = new Date().toISOString();
   const payload: any = {
     organization_id: auth.organizationId,
     email,
     phone,
-    role: normalizeText(parsed.data.role),
-    company_name: companyName,
     client_company_id: clientCompanyId,
     avatar: normalizeText(parsed.data.avatar),
     status: normalizeText(parsed.data.status),
@@ -197,6 +182,16 @@ export async function POST(request: Request) {
     last_interaction: lastInteraction,
     last_purchase_date: lastPurchaseDate,
     total_value: parsed.data.total_value ?? undefined,
+    destino_viagem: parsed.data.destino_viagem ?? undefined,
+    data_viagem: parsed.data.data_viagem ?? undefined,
+    quantidade_adultos: parsed.data.quantidade_adultos ?? undefined,
+    quantidade_criancas: parsed.data.quantidade_criancas ?? undefined,
+    idade_criancas: parsed.data.idade_criancas ?? undefined,
+    categoria_viagem: parsed.data.categoria_viagem ?? undefined,
+    urgencia_viagem: parsed.data.urgencia_viagem ?? undefined,
+    origem_lead: parsed.data.origem_lead ?? undefined,
+    indicado_por: parsed.data.indicado_por ?? undefined,
+    observacoes_viagem: parsed.data.observacoes_viagem ?? undefined,
     updated_at: now,
   };
 
@@ -206,7 +201,7 @@ export async function POST(request: Request) {
       .from('contacts')
       .update(payload)
       .eq('id', existing.data.id)
-      .select('id,name,email,phone,role,company_name,client_company_id,avatar,notes,status,stage,source,birth_date,last_interaction,last_purchase_date,total_value,created_at,updated_at')
+      .select(TRAVEL_SELECT)
       .single();
     if (error) return NextResponse.json({ error: error.message, code: 'DB_ERROR' }, { status: 500 });
     return NextResponse.json({ data: data, action: 'updated' });
@@ -227,7 +222,7 @@ export async function POST(request: Request) {
   const { data, error } = await sb
     .from('contacts')
     .insert(insertPayload)
-    .select('id,name,email,phone,role,company_name,client_company_id,avatar,notes,status,stage,source,birth_date,last_interaction,last_purchase_date,total_value,created_at,updated_at')
+    .select(TRAVEL_SELECT)
     .single();
   if (error) return NextResponse.json({ error: error.message, code: 'DB_ERROR' }, { status: 500 });
   return NextResponse.json({ data, action: 'created' }, { status: 201 });
