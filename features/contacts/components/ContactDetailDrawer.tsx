@@ -51,7 +51,7 @@ const Field: React.FC<{ label: string; value: React.ReactNode; icon?: React.Reac
 const CATEGORIA_META: Record<string, { label: string; Icon: React.FC<{ size?: number; className?: string }> ; colorClass: string }> = {
   economica:    { label: 'Econômica',      Icon: Wallet, colorClass: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
   intermediaria:{ label: 'Intermediária',  Icon: Star,   colorClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-  premium:      { label: 'Premium / Luxo', Icon: Crown,  colorClass: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
+  premium:      { label: 'Premium / Luxo', Icon: Crown,  colorClass: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
 };
 
 const URGENCIA_META: Record<string, { label: string; colorClass: string }> = {
