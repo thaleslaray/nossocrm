@@ -475,7 +475,6 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
             ? {
                 id: contact.id,
                 name: contact.name,
-                role: contact.role,
                 email: contact.email,
                 phone: contact.phone,
                 avatar: contact.avatar,
