@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { authPublicApi } from '@/lib/public-api/auth';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public-api/cursor';
+import { escapePostgrestFilter } from '@/lib/security/escapePostgrest';
 
 export const runtime = 'nodejs';
 
