@@ -314,7 +314,8 @@ Deno.serve(async (req) => {
       if (leadName && (!existing.name || existing.name === "Sem nome")) updates.name = leadName;
       if (leadEmail && !existing.email) updates.email = leadEmail;
       if (leadPhone && !existing.phone) updates.phone = leadPhone;
-      if (companyName) updates.company_name = companyName;
+      // Nota: coluna contacts.company_name foi removida na adaptação para agência
+      // de viagens. Vínculo a empresas agora é via client_company_id.
       if (clientCompanyId) updates.client_company_id = clientCompanyId;
       if (payload.notes) updates.notes = payload.notes;
       if (payload.source) updates.source = payload.source;
