@@ -131,13 +131,13 @@ export const ContactFormModalV2: React.FC<ContactFormModalProps> = ({
           <InputField
             label="Adultos *"
             type="number"
-            error={errors.quantidade_adultos as FieldError | undefined}
+            error={errors.quantidade_adultos as any}
             registration={register('quantidade_adultos')}
           />
           <InputField
             label="Crianças"
             type="number"
-            error={errors.quantidade_criancas as FieldError | undefined}
+            error={errors.quantidade_criancas as any}
             registration={register('quantidade_criancas')}
           />
         </div>
