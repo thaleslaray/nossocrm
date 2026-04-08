@@ -349,7 +349,7 @@ export const contactsService = {
       if (filters) {
         // T007: Search filter (name OR email)
         if (filters.search && filters.search.trim()) {
-          const searchTerm = filters.search.trim();
+          const searchTerm = escapePostgrestFilter(filters.search.trim());
           query = query.or(`name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
         }
 
