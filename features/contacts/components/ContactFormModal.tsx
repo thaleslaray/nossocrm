@@ -1,5 +1,5 @@
 import React, { useId, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Wallet, Star, Crown } from 'lucide-react';
 import { Contact } from '@/types';
 import { DebugFillButton } from '@/components/debug/DebugFillButton';
 import { fakeContact } from '@/lib/debug';
