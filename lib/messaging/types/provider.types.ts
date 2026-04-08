@@ -515,5 +515,4 @@ export type ProviderFeature =
   | 'reactions'        // Supports reactions
   | 'read_receipts'    // Supports read receipts
   | 'typing_indicator' // Supports typing indicators
-  | 'qr_code'          // Requires QR code for connection
-  | 'groups';          // Supports group messaging
+  | 'qr_code';         // Requires QR code for connection

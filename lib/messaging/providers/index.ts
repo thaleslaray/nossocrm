@@ -250,6 +250,14 @@ registerProvider({
       placeholder: 'sua-api-key',
       helpText: 'AUTHENTICATION_API_KEY configurado no servidor Evolution API',
     },
+    {
+      key: 'webhookSecret',
+      label: 'Webhook Secret (opcional)',
+      type: 'password',
+      required: false,
+      placeholder: 'secret-para-validar-webhooks',
+      helpText: 'Se configurado, valida os webhooks recebidos. Recomendado para produção.',
+    },
   ],
-  features: ['media', 'read_receipts', 'qr_code', 'groups'],
+  features: ['media', 'read_receipts', 'qr_code'],
 });

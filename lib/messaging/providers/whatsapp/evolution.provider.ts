@@ -252,6 +252,7 @@ export class EvolutionWhatsAppProvider extends BaseChannelProvider {
           };
       }
     } catch (error) {
+      this.log('error', 'getStatus failed', { error: error instanceof Error ? error.message : error, instanceName: this.instanceName });
       return {
         status: 'error',
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -299,6 +300,7 @@ export class EvolutionWhatsAppProvider extends BaseChannelProvider {
 
       return { success: true };
     } catch (error) {
+      this.log('error', 'configureWebhook failed', { error: error instanceof Error ? error.message : error });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -637,7 +639,11 @@ export class EvolutionWhatsAppProvider extends BaseChannelProvider {
     };
 
     const numericStatus = first.update?.status ?? 0;
-    const status: MessageStatus = statusMap[numericStatus] ?? 'sent';
+    const mapped = statusMap[numericStatus];
+    if (!mapped && numericStatus !== undefined) {
+      this.log('warn', `Status code desconhecido: ${numericStatus}, tratando como 'sent'`);
+    }
+    const status: MessageStatus = mapped ?? 'sent';
 
     const eventData: StatusUpdateEvent = {
       type: 'status_update',
@@ -769,11 +775,11 @@ export class EvolutionWhatsAppProvider extends BaseChannelProvider {
       }
 
       case 'reactionMessage': {
-        const rea = message.reactionMessage as Record<string, unknown> | undefined;
+        const reaction = (message as Record<string, unknown>).reactionMessage as Record<string, unknown>;
         return {
           type: 'reaction',
-          emoji: (rea?.text as string) ?? '',
-          messageId: '', // reaction target ID not available in incoming payload
+          emoji: (reaction?.text as string) || '',
+          messageId: ((reaction?.key as Record<string, unknown>)?.id as string) || '',
         };
       }
 
@@ -812,6 +818,29 @@ export class EvolutionWhatsAppProvider extends BaseChannelProvider {
         message: 'Evolution API server URL is required',
         code: 'REQUIRED',
       });
+    } else {
+      try {
+        const url = new URL(credentials.serverUrl as string);
+        if (!['http:', 'https:'].includes(url.protocol)) {
+          return {
+            valid: false,
+            errors: [{
+              field: 'credentials.serverUrl',
+              message: 'serverUrl deve começar com http:// ou https://',
+              code: 'INVALID_URL',
+            }],
+          };
+        }
+      } catch {
+        return {
+          valid: false,
+          errors: [{
+            field: 'credentials.serverUrl',
+            message: 'serverUrl não é uma URL válida (exemplo: http://localhost:8080)',
+            code: 'INVALID_URL',
+          }],
+        };
+      }
     }
 
     if (!credentials.instanceName) {
@@ -853,10 +882,10 @@ export class EvolutionWhatsAppProvider extends BaseChannelProvider {
     };
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 15000);
 
     const requestBody = body ? JSON.stringify(body) : undefined;
-    this.log('info', `${method} ${endpoint}`, body ? { ...body } : undefined);
+    this.log('info', `${method} ${endpoint}`);
 
     let response: Response;
     try {
@@ -871,13 +900,17 @@ export class EvolutionWhatsAppProvider extends BaseChannelProvider {
     }
 
     const responseText = await response.text();
-    this.log('info', `response ${response.status}`, responseText.slice(0, 500));
+    this.log('info', `${method} ${endpoint} response (${Date.now()}ms): ${response.status}`);
 
     if (!response.ok) {
       throw new Error(`Evolution API request failed: ${response.status} ${responseText}`);
     }
 
-    return JSON.parse(responseText) as T;
+    try {
+      return JSON.parse(responseText) as T;
+    } catch {
+      throw new Error(`Evolution API retornou resposta não-JSON em ${endpoint}: ${responseText.slice(0, 200)}`);
+    }
   }
 }
 

@@ -95,10 +95,17 @@ export function registerMessagingTools(server: McpServer) {
           status: 'pending',
         })
         .select('id, name, channel_type, provider, external_identifier, status, created_at')
-        .single();
+        .maybeSingle();
 
-      if (error) return err(error.message);
-      return ok(data);
+      if (error || !data) {
+        return err(error?.message ?? 'Falha ao criar canal');
+      }
+
+      const result: Record<string, unknown> = { ...data };
+      if (args.provider === 'evolution') {
+        result.warning = 'Canal Evolution criado. Configure o webhook na sua instância apontando para: /functions/v1/messaging-webhook-evolution/' + data.id;
+      }
+      return ok(result);
     }
   );
 
