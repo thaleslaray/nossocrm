@@ -107,17 +107,18 @@ URL: https://SEU-PROJETO.vercel.app
 ### Teste 2: Webhook de Leads
 
 ```bash
-curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in' \
+curl -X POST 'https://drgsnhbtucwocpeiwdth.supabase.co/functions/v1/webhook-in/<source_id>' \
   -H 'Content-Type: application/json' \
+  -H 'X-Webhook-Secret: <secret>' \
   -d '{
     "nome": "Teste Deploy Vercel",
-    "contato": "teste@vercel.com",
-    "destino": "Fernando de Noronha",
-    "data_ida": "2026-12-01",
-    "data_volta": "2026-12-10",
-    "urgencia": "Alta",
-    "orcamento_categoria": "Premium",
-    "pipeline": "Captação Viagens"
+    "email": "teste@vercel.com",
+    "destino_viagem": "Fernando de Noronha",
+    "data_viagem": "2026-12-01",
+    "quantidade_adultos": 2,
+    "categoria_viagem": "premium",
+    "urgencia_viagem": "curto_prazo",
+    "origem_lead": "site"
   }'
 ```
 
