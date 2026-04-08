@@ -61,7 +61,7 @@ const URGENCIA_META: Record<string, { label: string; colorClass: string }> = {
   planejando:  { label: 'Planejando com antecedência',  colorClass: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-400' },
 };
 
-const ORIGEM_META: Record<string, { label: string; Icon: React.FC<LucideProps> }> = {
+const ORIGEM_META: Record<string, { label: string; Icon: React.FC<{ size?: number; className?: string }> }> = {
   instagram:  { label: 'Instagram',  Icon: Share2 },
   facebook:   { label: 'Facebook',   Icon: Share2 },
   google:     { label: 'Google',     Icon: Globe },
