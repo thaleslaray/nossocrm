@@ -481,21 +481,22 @@ Content-Type: application/json
 }
 ```
 
-### Payload Completo
+### Payload Completo (campos de viagem — conforme PDF spec)
 
 ```json
 {
   "nome": "João Silva",
-  "contato": "joao@email.com",
-  "destino": "Paris",
-  "data": "Agosto 2026",
-  "data_ida": "2026-08-01",
-  "data_volta": "2026-08-15",
-  "numero_viajantes": "2",
-  "tipo_viagem": "Lua de mel",
-  "orcamento_categoria": "Premium",
-  "urgencia": "Alta",
-  "pipeline": "Captação Viagens"
+  "email": "joao@email.com",
+  "phone": "+5511999999999",
+  "destino_viagem": "Paris",
+  "data_viagem": "2026-08-01",
+  "quantidade_adultos": 2,
+  "quantidade_criancas": 0,
+  "categoria_viagem": "premium",
+  "urgencia_viagem": "medio_prazo",
+  "origem_lead": "instagram",
+  "indicado_por": null,
+  "observacoes_viagem": "Lua de mel. Orçamento estimado: R$ 18.000."
 }
 ```
 
