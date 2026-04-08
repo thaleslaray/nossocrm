@@ -159,6 +159,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'CSV sem cabeçalho.' }, { status: 400 });
     }
 
+    // Limite defensivo contra DoS via CSV gigante
+    const MAX_CSV_ROWS = 10000;
+    if (rows.length > MAX_CSV_ROWS) {
+      return NextResponse.json(
+        {
+          error: `CSV excede o limite de ${MAX_CSV_ROWS} linhas (recebido: ${rows.length}). Divida em arquivos menores.`,
+        },
+        { status: 413 }
+      );
+    }
+
     const mapping = buildHeaderIndex(headers);
 
     // Parse rows
