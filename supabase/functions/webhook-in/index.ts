@@ -18,6 +18,7 @@
  * - Este handler usa `SUPABASE_SERVICE_ROLE_KEY` (segredo padrão do Supabase) e ignora RLS.
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "npm:zod@3";
 
 type LeadPayload = {
   /**
@@ -81,6 +82,63 @@ type LeadPayload = {
   observacoes?: string;                   // alias de observacoes_viagem
   observacoes_viagem?: string;
 };
+
+// =============================================================================
+// Validação de payload (Zod) — rejeita payloads malformados antes de processar
+// =============================================================================
+
+const LeadPayloadSchema = z.object({
+  external_event_id: z.string().max(255).optional(),
+  name:              z.string().max(500).optional(),
+  nome:              z.string().max(500).optional(),
+  email:             z.union([z.string().email().max(320), z.literal(""), z.undefined()]).optional(),
+  phone:             z.string().max(50).optional(),
+  source:            z.string().max(100).optional(),
+  notes:             z.string().max(5000).optional(),
+  contact_name:      z.string().max(500).optional(),
+  deal_title:        z.string().max(500).optional(),
+  deal_value:        z.union([z.number(), z.string().max(100)]).optional(),
+  destino_viagem:    z.string().max(500).optional(),
+  destino:           z.string().max(500).optional(),
+  data_viagem:       z.string().max(100).optional(),
+  data:              z.string().max(100).optional(),
+  viajantes:         z.string().max(200).optional(),
+  quantidade_adultos:  z.union([z.number().int().min(0).max(99), z.string().max(10)]).optional(),
+  quantidade_criancas: z.union([z.number().int().min(0).max(99), z.string().max(10)]).optional(),
+  idade_criancas:    z.string().max(200).optional(),
+  categoria_viagem:  z.string().max(50).optional(),
+  tipo_viagem:       z.string().max(100).optional(),
+  tipo_de_viagem:    z.string().max(100).optional(),
+  urgencia_viagem:   z.string().max(50).optional(),
+  urgencia:          z.string().max(50).optional(),
+  origem_lead:       z.string().max(50).optional(),
+  indicado_por:      z.string().max(500).optional(),
+  orcamento:         z.union([z.number(), z.string().max(200)]).optional(),
+  orcamento_viagem:  z.union([z.number(), z.string().max(200)]).optional(),
+  observacoes_viagem: z.string().max(5000).optional(),
+  observacoes:       z.string().max(5000).optional(),
+}).passthrough();
+
+// =============================================================================
+// Comparação de secrets em tempo constante (previne timing attacks)
+// =============================================================================
+
+async function timingSafeEqual(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode("nossocrm-webhook-compare"),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const [macA, macB] = await Promise.all([
+    crypto.subtle.sign("HMAC", key, enc.encode(a)),
+    crypto.subtle.sign("HMAC", key, enc.encode(b)),
+  ]);
+  const arrA = new Uint8Array(macA);
+  const arrB = new Uint8Array(macB);
+  let diff = 0;
+  for (let i = 0; i < arrA.length; i++) diff |= arrA[i] ^ arrB[i];
+  return diff === 0;
+}
 
 const corsHeaders = {
   // NOTE: Para chamadas a partir do browser (UI "Enviar teste") precisamos de CORS.
@@ -427,14 +485,22 @@ Deno.serve(async (req) => {
 
   if (sourceErr) return json(500, { error: "Erro ao buscar fonte", details: sourceErr.message });
   if (!source || !source.active) return json(404, { error: "Fonte não encontrada/inativa" });
-  if (String(source.secret) !== String(secretHeader)) return json(401, { error: "Secret inválido" });
+  if (!(await timingSafeEqual(String(source.secret), String(secretHeader)))) {
+    return json(401, { error: "Secret inválido" });
+  }
 
-  let payload: LeadPayload;
+  let rawBody: unknown;
   try {
-    payload = (await req.json()) as LeadPayload;
+    rawBody = await req.json();
   } catch {
     return json(400, { error: "JSON inválido" });
   }
+
+  const parseResult = LeadPayloadSchema.safeParse(rawBody);
+  if (!parseResult.success) {
+    return json(400, { error: "Payload inválido", details: parseResult.error.flatten().fieldErrors });
+  }
+  const payload = parseResult.data as LeadPayload;
 
   const leadName = getContactName(payload);
   const leadEmail = payload.email?.trim()?.toLowerCase() || null;
