@@ -274,7 +274,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                                         contact.urgencia_viagem === 'imediato'
                                                             ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
                                                             : contact.urgencia_viagem === 'curto_prazo'
-                                                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
+                                                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
                                                             : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-400'
                                                     }`}>
                                                         {contact.urgencia_viagem === 'imediato' ? 'Imediato' : contact.urgencia_viagem === 'curto_prazo' ? 'Curto prazo' : contact.urgencia_viagem === 'medio_prazo' ? 'Médio prazo' : 'Planejando'}
