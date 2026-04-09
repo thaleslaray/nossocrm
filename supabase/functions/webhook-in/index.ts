@@ -33,6 +33,8 @@ type LeadPayload = {
   email?: string;
   /** Telefone do contato */
   phone?: string;
+  /** Alias PT-BR de phone */
+  telefone?: string;
   source?: string;
   notes?: string;
   /** Nome da empresa (cliente) */
@@ -93,6 +95,7 @@ const LeadPayloadSchema = z.object({
   nome:              z.string().max(500).optional(),
   email:             z.union([z.string().email().max(320), z.literal(""), z.undefined()]).optional(),
   phone:             z.string().max(50).optional(),
+  telefone:          z.string().max(50).optional(),
   source:            z.string().max(100).optional(),
   notes:             z.string().max(5000).optional(),
   contact_name:      z.string().max(500).optional(),
@@ -266,10 +269,10 @@ function normalizeCategoriaViagem(input: string | null | undefined): string | nu
 }
 
 const URGENCIA_KEYWORDS: Array<[string, string[]]> = [
-  ["imediato", ["imediat", "urgent", "agora", "hoje", "ja "]],
-  ["curto_prazo", ["curto", "1-3", "1 a 3", "2 mes", "3 mes", "mes"]],
+  ["imediato", ["imediat", "urgent", "agora", "hoje", "ja ", "alta", "rapido", "logo"]],
+  ["curto_prazo", ["curto", "1-3", "1 a 3", "2 mes", "3 mes", "mes", "breve", "proxim"]],
   ["medio_prazo", ["medio", "3-6", "3 a 6", "4 mes", "5 mes", "6 mes"]],
-  ["planejando", ["planej", "antece", "sem pressa", "futuro", "ano"]],
+  ["planejando", ["planej", "antece", "sem pressa", "futuro", "ano", "long"]],
 ];
 
 function normalizeUrgenciaViagem(input: string | null | undefined): string | null {
@@ -290,7 +293,7 @@ const ORIGEM_KEYWORDS: Array<[string, string[]]> = [
   ["site", ["site", "website", "landing"]],
   ["whatsapp", ["whatsapp", "wpp", "whats"]],
   ["indicacao", ["indicacao", "referral", "indicad", "amigo"]],
-  ["outro", ["outro", "other"]],
+  ["outro", ["outro", "other", "widget", "chat", "bot", "ia", "ai", "gptmaker"]],
 ];
 
 function normalizeOrigemLead(input: string | null | undefined): string | null {
@@ -504,7 +507,7 @@ Deno.serve(async (req) => {
 
   const leadName = getContactName(payload);
   const leadEmail = payload.email?.trim()?.toLowerCase() || null;
-  const leadPhone = normalizePhone(payload.phone || undefined);
+  const leadPhone = normalizePhone(payload.phone || payload.telefone || undefined);
   const externalEventId = payload.external_event_id?.trim() || null;
   const companyName = getCompanyName(payload);
   const dealTitleFromPayload = getDealTitle(payload);
