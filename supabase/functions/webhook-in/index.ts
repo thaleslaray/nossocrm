@@ -95,6 +95,7 @@ const LeadPayloadSchema = z.object({
   nome:              z.string().max(500).optional(),
   email:             z.union([z.string().email().max(320), z.literal(""), z.undefined()]).optional(),
   phone:             z.string().max(50).optional(),
+  telefone:          z.string().max(50).optional(),
   source:            z.string().max(100).optional(),
   notes:             z.string().max(5000).optional(),
   contact_name:      z.string().max(500).optional(),
