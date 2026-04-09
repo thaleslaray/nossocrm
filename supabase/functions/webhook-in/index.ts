@@ -507,7 +507,7 @@ Deno.serve(async (req) => {
 
   const leadName = getContactName(payload);
   const leadEmail = payload.email?.trim()?.toLowerCase() || null;
-  const leadPhone = normalizePhone(payload.phone || undefined);
+  const leadPhone = normalizePhone(payload.phone || payload.telefone || undefined);
   const externalEventId = payload.external_event_id?.trim() || null;
   const companyName = getCompanyName(payload);
   const dealTitleFromPayload = getDealTitle(payload);
