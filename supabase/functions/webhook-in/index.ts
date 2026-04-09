@@ -266,10 +266,10 @@ function normalizeCategoriaViagem(input: string | null | undefined): string | nu
 }
 
 const URGENCIA_KEYWORDS: Array<[string, string[]]> = [
-  ["imediato", ["imediat", "urgent", "agora", "hoje", "ja "]],
-  ["curto_prazo", ["curto", "1-3", "1 a 3", "2 mes", "3 mes", "mes"]],
+  ["imediato", ["imediat", "urgent", "agora", "hoje", "ja ", "alta", "rapido", "logo"]],
+  ["curto_prazo", ["curto", "1-3", "1 a 3", "2 mes", "3 mes", "mes", "breve", "proxim"]],
   ["medio_prazo", ["medio", "3-6", "3 a 6", "4 mes", "5 mes", "6 mes"]],
-  ["planejando", ["planej", "antece", "sem pressa", "futuro", "ano"]],
+  ["planejando", ["planej", "antece", "sem pressa", "futuro", "ano", "long"]],
 ];
 
 function normalizeUrgenciaViagem(input: string | null | undefined): string | null {
