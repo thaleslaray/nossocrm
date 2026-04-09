@@ -6,16 +6,22 @@
  */
 
 /**
- * Escapes PostgREST special characters in a user-supplied value
+ * Strips PostgREST special characters from a user-supplied value
  * so it can be safely interpolated into `.or()` / `.filter()` strings.
  *
- * PostgREST uses `,` to separate conditions, `.` to separate field/operator/value,
- * and `(` / `)` for grouping. `%` and `*` are wildcards.
- * Backslash-escaping is not supported by PostgREST, so we strip these characters.
+ * Characters removed and why:
+ *   `,`  — separates conditions in `.or()` / `.and()` — primary injection vector
+ *   `(`  — opens grouping operators like `and(...)`, `not(...)`
+ *   `)`  — closes grouping operators
+ *   `*`  — PostgREST full-text wildcard (different from ILIKE `%`)
+ *   `\`  — escape character (no PostgREST escaping, so strip it)
+ *
+ * `.` is intentionally NOT removed: inside a `%value%` ilike pattern the dot
+ * is a literal character and cannot escape the value boundary. Removing it
+ * would break email and domain searches (e.g. "user@example.com").
  */
 export function sanitizePostgrestValue(value: string): string {
-  // Remove characters that have structural meaning in PostgREST filter syntax
-  return value.replace(/[,.()*\\]/g, '');
+  return value.replace(/[,()*\\]/g, '');
 }
 
 const ALLOWED_URL_SCHEMES = new Set(['http:', 'https:']);

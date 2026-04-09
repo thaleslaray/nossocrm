@@ -40,8 +40,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    // Parse query params
-    const searchParams = request.nextUrl.searchParams;
+    // Parse query params (use URL constructor for testability — request.nextUrl is Next.js-only)
+    const searchParams = new URL(request.url).searchParams;
     const dealId = searchParams.get('dealId') || undefined;
     const status = searchParams.get('status') as 'pending' | 'all' | null;
 
