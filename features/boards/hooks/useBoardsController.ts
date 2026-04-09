@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { DealView, Board, CustomFieldDefinition } from '@/types';
 import {
@@ -439,20 +439,20 @@ export const useBoardsController = () => {
   ]);
 
   // Drag & Drop Handlers
-  const handleDragStart = (e: React.DragEvent, id: string, title: string) => {
+  const handleDragStart = useCallback((e: React.DragEvent, id: string, title: string) => {
     setDraggingId(id);
     e.dataTransfer.setData('dealId', id);
     // Fallback when optimistic temp id gets replaced mid-drag (avoid logging title).
     e.dataTransfer.setData('dealTitle', title || '');
     e.dataTransfer.effectAllowed = 'move';
-  };
+  }, []); // setDraggingId is stable (useState setter)
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent, stageId: string) => {
+  const handleDrop = useCallback((e: React.DragEvent, stageId: string) => {
     e.preventDefault();
     const dealId = e.dataTransfer.getData('dealId') || lastMouseDownDealId.current;
     const dealTitle = e.dataTransfer.getData('dealTitle') || '';
@@ -505,7 +505,7 @@ export const useBoardsController = () => {
       }
     }
     setDraggingId(null);
-  };
+  }, [activeBoard, deals, addToast, moveDealMutation, lifecycleStages, lastMouseDownDealId]);
 
   // Handler for loss reason modal confirmation
   const handleLossReasonConfirm = (reason: string) => {

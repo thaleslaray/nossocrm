@@ -1,0 +1,96 @@
+# Release — NossoCRM
+#
+# Triggered when a semantic version tag (vX.Y.Z) is pushed to main branch.
+# Creates a GitHub Release with auto-generated release notes from merged PRs.
+#
+# Usage:
+#   npm run release:prepare    # Analyze commits and suggest version
+#   npm run release:draft      # Preview changelog
+#   npm run release:tag        # Create tag and push
+#   git push origin main
+#   git push origin vX.Y.Z      # This triggers this workflow
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ─── release ──────────────────────────────────────────────────────────────
+  # Create GitHub Release from pushed semantic version tag
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for changelog generation
+
+      - name: Extract version from tag
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          TAG="${REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Release version: ${VERSION}"
+
+      - name: Get previous release
+        id: prev_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST=$(gh release list --limit 1 --json tagName --jq -r '.[] | .tagName' 2>/dev/null || echo "")
+          if [ -z "$LATEST" ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          else
+            PREV_TAG="${LATEST}"
+          fi
+          echo "previous_tag=${PREV_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Extract changelog for version
+        id: changelog
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ -f "CHANGELOG.md" ]; then
+            # Extract section from ## [VERSION] to next ## [
+            # Using a safe shell command to avoid injection
+            awk "/^## \[${VERSION}\]/,/^## \[/" CHANGELOG.md | head -n -1 > /tmp/changelog.txt
+            if [ -s /tmp/changelog.txt ]; then
+              # Convert to GitHub Actions multiline format
+              {
+                echo 'NOTES<<EOF'
+                cat /tmp/changelog.txt
+                echo 'EOF'
+              } >> $GITHUB_ENV
+            fi
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ${{ env.NOTES }}
+
+            ---
+
+            **Full Diff**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_release.outputs.previous_tag }}...${{ steps.version.outputs.tag }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

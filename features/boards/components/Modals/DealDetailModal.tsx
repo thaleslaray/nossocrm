@@ -584,22 +584,25 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                   onClick={() => setShowBriefingDrawer(true)}
                   className="ml-2 px-3 py-1.5 bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-500/30 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
                   title="Preparar para a conversa com este lead"
+                  aria-label="Preparar conversa com este lead"
                 >
-                  <FileText size={14} />
+                  <FileText size={14} aria-hidden="true" />
                   <span className="hidden sm:inline">Preparar</span>
                 </button>
                 <button
                   onClick={() => setDeleteId(deal.id)}
                   className="ml-2 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                   title="Excluir Negócio"
+                  aria-label="Excluir negócio"
                 >
-                  <Trash2 size={24} />
+                  <Trash2 size={24} aria-hidden="true" />
                 </button>
                 <button
                   onClick={onClose}
                   className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                  aria-label="Fechar modal"
                 >
-                  <X size={24} />
+                  <X size={24} aria-hidden="true" />
                 </button>
               </div>
             </div>

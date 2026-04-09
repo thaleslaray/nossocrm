@@ -1,0 +1,50 @@
+# Preview — NossoCRM
+#
+# Triggers a Vercel Preview deployment on every PR.
+# The deployment URL is posted as a PR comment via Vercel's GitHub integration.
+#
+# Prerequisites (set in repo Settings → Secrets and variables → Actions):
+#   VERCEL_TOKEN            — personal access token from vercel.com/account/tokens
+#   VERCEL_ORG_ID           — from .vercel/project.json or `vercel env pull`
+#   VERCEL_PROJECT_ID       — from .vercel/project.json or `vercel env pull`
+#
+# This job does NOT run the build itself — Vercel handles the build on its
+# infrastructure using the same Next.js config. The CI check job (ci.yml)
+# is the quality gate; preview deploy runs in parallel to save time.
+#
+# Security: no untrusted event inputs are interpolated into run: commands.
+
+name: Preview Deploy
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    name: Deploy Preview to Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Vercel (Preview)
+        id: deploy
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          # Do not promote to production on this workflow
+          vercel-args: "--no-wait"
+          github-comment: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}

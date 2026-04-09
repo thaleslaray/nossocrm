@@ -82,8 +82,8 @@ export function useMergeContactsMutation() {
       // Full invalidation list — merge touches 8+ tables
       queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.contacts.lists() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.lists() });
+      // Use DEALS_VIEW_KEY — é a única source of truth para deals (SSOT)
+      // queryKeys.deals.all e deals.lists() são redundantes quando DEALS_VIEW_KEY já está presente
       queryClient.invalidateQueries({ queryKey: DEALS_VIEW_KEY });
       queryClient.invalidateQueries({ queryKey: queryKeys.messagingConversations.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });

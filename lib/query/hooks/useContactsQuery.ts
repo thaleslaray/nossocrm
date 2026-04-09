@@ -7,7 +7,7 @@
  * - Automatic cache invalidation
  */
 import { useQuery, useMutation, useQueryClient, keepPreviousData, type QueryKey } from '@tanstack/react-query';
-import { queryKeys } from '../index';
+import { queryKeys, DEALS_VIEW_KEY } from '../index';
 import { contactsService, companiesService } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { Contact, ContactStage, Company, PaginationState, PaginatedResponse, ContactsServerFilters } from '@/types';
@@ -492,8 +492,8 @@ export const useDeleteContact = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
-      // Also invalidate deals since they reference contacts
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
+      // Use DEALS_VIEW_KEY — é a única source of truth para deals (SSOT)
+      queryClient.invalidateQueries({ queryKey: DEALS_VIEW_KEY });
     },
   });
 };
@@ -589,7 +589,8 @@ export const useBulkDeleteContacts = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
+      // Use DEALS_VIEW_KEY — é a única source of truth para deals (SSOT)
+      queryClient.invalidateQueries({ queryKey: DEALS_VIEW_KEY });
     },
   });
 };
@@ -653,7 +654,8 @@ export const useBulkDeleteCompanies = () => {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
+      // Use DEALS_VIEW_KEY — é a única source of truth para deals (SSOT)
+      queryClient.invalidateQueries({ queryKey: DEALS_VIEW_KEY });
     },
   });
 };

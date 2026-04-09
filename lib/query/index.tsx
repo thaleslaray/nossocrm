@@ -146,8 +146,8 @@ export const queryClient = new QueryClient({
       retry: 3,
       // Retry delay with exponential backoff
       retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
-      // Refetch on window focus for fresh data
-      refetchOnWindowFocus: true,
+      // Realtime covers main entities — window focus refetch is redundant
+      refetchOnWindowFocus: false,
       // Don't refetch on mount if data is fresh
       refetchOnMount: true,
       // Refetch on reconnect

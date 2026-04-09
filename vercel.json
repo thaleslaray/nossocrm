@@ -2,12 +2,14 @@
   "functions": {
     "app/api/ai/**": { "maxDuration": 60 },
     "app/api/messaging/ai/**": { "maxDuration": 60 },
+    "app/api/cron/stage-evaluations/route.ts": { "maxDuration": 60 },
     "app/api/contacts/import/route.ts": { "maxDuration": 120 },
     "app/api/contacts/export/route.ts": { "maxDuration": 120 },
     "app/api/[transport]/route.ts": { "maxDuration": 120 }
   },
   "crons": [
     { "path": "/api/cron/daily-briefing", "schedule": "0 8 * * 1-5" },
-    { "path": "/api/cron/template-sync", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/template-sync", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/stage-evaluations", "schedule": "* * * * *" }
   ]
 }

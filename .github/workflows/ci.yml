@@ -1,0 +1,141 @@
+# CI — NossoCRM
+#
+# Jobs:
+#   check  — lint + typecheck + tests (runs on every PR and push to main/feature branches)
+#   build  — Next.js production build (runs only on push to main)
+#
+# Cache strategy:
+#   - pnpm store: keyed on pnpm-lock.yaml hash via actions/setup-node cache: "pnpm"
+#   - .next/cache: keyed on source hash, restores on prefix match
+#
+# Security: no untrusted event inputs are interpolated into run: commands.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  PNPM_VERSION: "9"
+
+jobs:
+  # ─── commitlint ────────────────────────────────────────────────────────────
+  # Validates commit messages follow conventional commits format
+  # Runs only on PRs to catch format issues before merge
+  commitlint:
+    name: Validate Conventional Commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install commitlint
+        run: npm install --save-dev @commitlint/cli @commitlint/config-conventional
+
+      - name: Validate commits
+        run: |
+          npx commitlint \
+            --from ${{ github.event.pull_request.base.sha }} \
+            --to ${{ github.event.pull_request.head.sha }}
+
+  # ─── check ────────────────────────────────────────────────────────────────
+  # Runs precheck:fast: ESLint (--max-warnings 0) + tsc --noEmit + vitest run
+  # Fast path — no Next.js build required. Runs on all triggering events.
+  check:
+    name: Lint / Typecheck / Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (ESLint — zero warnings)
+        run: pnpm lint
+
+      - name: Typecheck (tsc --noEmit)
+        run: pnpm typecheck
+
+      - name: Tests (Vitest)
+        run: pnpm test:run
+
+  # ─── build ────────────────────────────────────────────────────────────────
+  # Full Next.js production build. Runs only on pushes to main.
+  # Depends on check passing to avoid wasting build minutes on broken code.
+  build:
+    name: Build (Next.js)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.css') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Next.js build requires these to be present even if not used at runtime.
+          # Real values come from Vercel project settings — these are build-time only.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}

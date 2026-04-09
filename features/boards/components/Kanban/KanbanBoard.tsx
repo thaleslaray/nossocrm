@@ -180,15 +180,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   );
 
   // Handler to confirm move to a new stage
-  const handleConfirmMoveToStage = (dealId: string, newStageId: string) => {
+  const handleConfirmMoveToStage = useCallback((dealId: string, newStageId: string) => {
     if (onMoveDealToStage) {
       onMoveDealToStage(dealId, newStageId);
     }
     setMoveToStageModal(null);
-  };
+  }, [onMoveDealToStage]);
 
   return (
-    <div className="flex gap-4 h-full overflow-x-auto pb-2 w-full">
+    <div role="list" aria-label="Colunas do pipeline" className="flex gap-4 h-full overflow-x-auto pb-2 w-full">
       {stages.map(stage => {
         const stageDeals = dealsByStageId.map.get(stage.id) ?? [];
         const stageValue = dealsByStageId.totals.get(stage.id) ?? 0;
@@ -203,6 +203,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         return (
           <div
             key={stage.id}
+            role="listitem"
+            aria-label={`Coluna ${stage.label}: ${stageDeals.length} negócio${stageDeals.length !== 1 ? 's' : ''}`}
             onDragOver={(e) => {
               handleDragOver(e);
               setDragOverStage(stage.id);
@@ -257,6 +259,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             </div>
 
             <div
+              role="list"
+              aria-label={`Negócios em ${stage.label}`}
               className={`flex-1 p-2 overflow-y-auto space-y-2 bg-slate-100/50 dark:bg-black/20 scrollbar-thin min-h-[100px]`}
             >
               {/* Skeleton: exibido durante carregamento inicial */}
@@ -289,26 +293,27 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               )}
 
               {!isLoading && stageDeals.map(deal => (
-                <DealCard
-                  key={deal.id}
-                  deal={deal}
-                  isRotting={
-                    isDealRotting(deal) &&
-                    !deal.isWon &&
-                    !deal.isLost
-                  }
-                  activityStatus={getActivityStatus(deal)}
-                  isDragging={draggingId === deal.id}
-                  onDragStart={handleDragStart}
-                  onSelect={handleSelectDeal}
-                  // Performance: avoid passing openMenuId (string) to all cards.
-                  // Only 1–2 cards will flip `isMenuOpen` when the menu is toggled.
-                  isMenuOpen={openActivityMenuId === deal.id}
-                  setOpenMenuId={setOpenActivityMenuId}
-                  onQuickAddActivity={handleQuickAddActivity}
-                  setLastMouseDownDealId={setLastMouseDownDealId}
-                  onMoveToStage={onMoveDealToStage ? handleOpenMoveToStage : undefined}
-                />
+                <div key={deal.id} role="listitem">
+                  <DealCard
+                    deal={deal}
+                    isRotting={
+                      isDealRotting(deal) &&
+                      !deal.isWon &&
+                      !deal.isLost
+                    }
+                    activityStatus={getActivityStatus(deal)}
+                    isDragging={draggingId === deal.id}
+                    onDragStart={handleDragStart}
+                    onSelect={handleSelectDeal}
+                    // Performance: avoid passing openMenuId (string) to all cards.
+                    // Only 1–2 cards will flip `isMenuOpen` when the menu is toggled.
+                    isMenuOpen={openActivityMenuId === deal.id}
+                    setOpenMenuId={setOpenActivityMenuId}
+                    onQuickAddActivity={handleQuickAddActivity}
+                    setLastMouseDownDealId={setLastMouseDownDealId}
+                    onMoveToStage={onMoveDealToStage ? handleOpenMoveToStage : undefined}
+                  />
+                </div>
               ))}
             </div>
           </div>

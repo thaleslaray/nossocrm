@@ -13,7 +13,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "smoke:integrations": "node scripts/smoke-integrations.mjs"
+    "smoke:integrations": "node scripts/smoke-integrations.mjs",
+    "release:prepare": "node scripts/release.mjs prepare",
+    "release:draft": "node scripts/release.mjs draft",
+    "release:tag": "node scripts/release.mjs tag"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.55",
