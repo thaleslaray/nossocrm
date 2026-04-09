@@ -290,7 +290,7 @@ const ORIGEM_KEYWORDS: Array<[string, string[]]> = [
   ["site", ["site", "website", "landing"]],
   ["whatsapp", ["whatsapp", "wpp", "whats"]],
   ["indicacao", ["indicacao", "referral", "indicad", "amigo"]],
-  ["outro", ["outro", "other"]],
+  ["outro", ["outro", "other", "widget", "chat", "bot", "ia", "ai", "gptmaker"]],
 ];
 
 function normalizeOrigemLead(input: string | null | undefined): string | null {
