@@ -29,15 +29,17 @@ function formatDateBR(dateStr: string | null): string | null {
 function classifyLead({
   data_ida,
   data_volta,
+  data_viagem,
   urgencia_viagem,
   categoria_viagem,
 }: {
   data_ida: string | null;
   data_volta: string | null;
+  data_viagem?: string | null;
   urgencia_viagem: string | null;
   categoria_viagem: string | null;
 }) {
-  const hasDates = !!data_ida || !!data_volta;
+  const hasDates = !!data_ida || !!data_volta || !!data_viagem;
   const highUrgency =
     ["alta", "urgente", "urgencia alta", "imediato", "curto_prazo"].includes(
       (urgencia_viagem || "").toLowerCase()
