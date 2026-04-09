@@ -13,6 +13,7 @@
  *
  * Autenticação:
  * - Svix headers: svix-id, svix-timestamp, svix-signature
+ * - HMAC-SHA256 verification against channel webhookSecret
  *
  * @see https://resend.com/docs/webhooks
  */
@@ -105,6 +106,111 @@ function generateStableEventId(payload: ResendWebhookPayload): string {
 }
 
 // =============================================================================
+// SVIX SIGNATURE VERIFICATION
+// =============================================================================
+
+/** Maximum allowed age for webhook timestamps (5 minutes). */
+const SVIX_TIMESTAMP_TOLERANCE_SECONDS = 300;
+
+/**
+ * Decode a Svix webhook signing secret.
+ * Svix secrets are base64-encoded and prefixed with "whsec_".
+ */
+function decodeSvixSecret(secret: string): Uint8Array {
+  const raw = secret.startsWith("whsec_") ? secret.slice(6) : secret;
+  // Deno has atob built-in; convert base64 → Uint8Array
+  const binaryStr = atob(raw);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Timing-safe comparison of two Uint8Arrays.
+ * Uses crypto.subtle.timingSafeEqual when available (Deno 1.38+),
+ * otherwise falls back to a constant-time XOR loop.
+ */
+async function timingSafeEqual(a: Uint8Array, b: Uint8Array): Promise<boolean> {
+  if (a.length !== b.length) return false;
+  // Deno exposes crypto.subtle.timingSafeEqual since 1.38
+  if (typeof (crypto.subtle as Record<string, unknown>).timingSafeEqual === "function") {
+    return (crypto.subtle as unknown as { timingSafeEqual: (a: BufferSource, b: BufferSource) => boolean }).timingSafeEqual(a, b);
+  }
+  // Fallback: constant-time XOR comparison
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a[i] ^ b[i];
+  }
+  return diff === 0;
+}
+
+/**
+ * Verify Svix webhook signature.
+ *
+ * @param rawBody - The raw request body as a string
+ * @param headers - Object with svix-id, svix-timestamp, svix-signature
+ * @param secret - The webhook signing secret from channel credentials
+ * @returns true if signature is valid, false otherwise
+ */
+async function verifySvixSignature(
+  rawBody: string,
+  headers: { svixId: string; svixTimestamp: string; svixSignature: string },
+  secret: string
+): Promise<boolean> {
+  const { svixId, svixTimestamp, svixSignature } = headers;
+
+  // 1. Validate timestamp is not too old (replay attack prevention)
+  const timestampSeconds = parseInt(svixTimestamp, 10);
+  if (isNaN(timestampSeconds)) return false;
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSeconds - timestampSeconds) > SVIX_TIMESTAMP_TOLERANCE_SECONDS) {
+    return false;
+  }
+
+  // 2. Compute expected signature: HMAC-SHA256(secret, "${svixId}.${svixTimestamp}.${rawBody}")
+  const secretBytes = decodeSvixSecret(secret);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    secretBytes,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signPayload = `${svixId}.${svixTimestamp}.${rawBody}`;
+  const encoder = new TextEncoder();
+  const signatureBytes = new Uint8Array(
+    await crypto.subtle.sign("HMAC", key, encoder.encode(signPayload))
+  );
+
+  // 3. Encode expected signature as base64
+  const expectedB64 = btoa(String.fromCharCode(...signatureBytes));
+
+  // 4. Parse provided signatures (format: "v1,<base64>" — may contain multiple)
+  const providedSignatures = svixSignature.split(" ");
+  for (const sig of providedSignatures) {
+    const parts = sig.split(",");
+    // Only support v1 signatures
+    if (parts[0] !== "v1" || !parts[1]) continue;
+
+    const providedB64 = parts[1];
+
+    // Decode both to Uint8Array for timing-safe comparison
+    const expectedBytes = encoder.encode(expectedB64);
+    const providedBytes = encoder.encode(providedB64);
+
+    if (await timingSafeEqual(expectedBytes, providedBytes)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// =============================================================================
 // MAIN HANDLER
 // =============================================================================
 
@@ -123,6 +229,9 @@ Deno.serve(async (req) => {
   if (!channelId) {
     return json(404, { error: "channel_id ausente na URL" });
   }
+
+  // Read raw body BEFORE parsing JSON — needed for signature verification
+  const rawBody = await req.text();
 
   // Setup Supabase client
   const supabaseUrl =
@@ -155,10 +264,37 @@ Deno.serve(async (req) => {
     return json(404, { error: "Canal não encontrado" });
   }
 
-  // Parse payload
+  // =========================================================================
+  // SVIX SIGNATURE VERIFICATION
+  // =========================================================================
+  const webhookSecret = (channel.credentials as Record<string, string>)?.webhookSecret;
+  const svixId = req.headers.get("svix-id");
+  const svixTimestamp = req.headers.get("svix-timestamp");
+  const svixSignature = req.headers.get("svix-signature");
+
+  if (webhookSecret) {
+    // If the channel has a webhookSecret configured, enforce Svix verification
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      console.warn(`[Webhook/Resend] Missing Svix headers for channel ${channelId}`);
+      return json(401, { error: "Svix headers ausentes" });
+    }
+
+    const isValid = await verifySvixSignature(rawBody, { svixId, svixTimestamp, svixSignature }, webhookSecret);
+    if (!isValid) {
+      console.warn(`[Webhook/Resend] Invalid Svix signature for channel ${channelId}`);
+      return json(401, { error: "Assinatura Svix inválida" });
+    }
+  } else {
+    // No webhookSecret configured — log a warning but still process
+    // This allows gradual migration: channels without a secret still work,
+    // but operators should configure webhookSecret for production security.
+    console.warn(`[Webhook/Resend] No webhookSecret configured for channel ${channelId} — skipping signature verification`);
+  }
+
+  // Parse payload from raw body
   let payload: ResendWebhookPayload;
   try {
-    payload = (await req.json()) as ResendWebhookPayload;
+    payload = JSON.parse(rawBody) as ResendWebhookPayload;
   } catch {
     return json(400, { error: "JSON inválido" });
   }

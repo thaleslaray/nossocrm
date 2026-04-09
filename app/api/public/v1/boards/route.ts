@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { authPublicApi } from '@/lib/public-api/auth';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public-api/cursor';
+import { sanitizePostgrestValue } from '@/lib/utils/sanitize';
 
 export const runtime = 'nodejs';
 
@@ -27,7 +28,10 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: true });
 
   if (key) query = query.eq('key', key);
-  if (q) query = query.or(`name.ilike.%${q}%,key.ilike.%${q}%`);
+  if (q) {
+    const safeQ = sanitizePostgrestValue(q)
+    if (safeQ) query = query.or(`name.ilike.%${safeQ}%,key.ilike.%${safeQ}%`);
+  }
 
   const { data, count, error } = await query.range(from, to);
   if (error) {

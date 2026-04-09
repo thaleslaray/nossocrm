@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
 import type { CRMCallOptions } from '@/types/ai';
+import { sanitizePostgrestValue } from '@/lib/utils/sanitize';
 
 /**
  * Creates all CRM tools with context injection
@@ -129,7 +130,7 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
             .select('id, name, label')
             .eq('organization_id', organizationId)
             .eq('board_id', params.boardId)
-            .or(`name.ilike.%${stageName}%,label.ilike.%${stageName}%`)
+            .or(`name.ilike.%${sanitizePostgrestValue(stageName)}%,label.ilike.%${sanitizePostgrestValue(stageName)}%`)
             .limit(5);
 
         if (error) return { ok: false as const, error: formatSupabaseFailure(error) };
@@ -297,12 +298,12 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
                     .filter(Boolean);
 
                 if (terms.length <= 1) {
-                    queryBuilder = queryBuilder.ilike('title', `%${effectiveQuery}%`);
+                    queryBuilder = queryBuilder.ilike('title', `%${sanitizePostgrestValue(effectiveQuery)}%`);
                 } else {
                     // OR: title contém qualquer termo (mais robusto do que exigir a frase inteira)
                     // Ex.: "deal Nike" -> encontra "Nike"
                     queryBuilder = queryBuilder.or(
-                        terms.map((t) => `title.ilike.%${t}%`).join(',')
+                        terms.map((t) => `title.ilike.%${sanitizePostgrestValue(t)}%`).join(',')
                     );
                 }
 
@@ -355,7 +356,7 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
                     .from('contacts')
                     .select('id, name, email, phone, company_name')
                     .eq('organization_id', organizationId)
-                    .or(`name.ilike.%${query}%,email.ilike.%${query}%`)
+                    .or(`name.ilike.%${sanitizePostgrestValue(query)}%,email.ilike.%${sanitizePostgrestValue(query)}%`)
                     .limit(limit);
 
                 return {
@@ -442,7 +443,7 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
                         .select('id, name, label')
                         .eq('organization_id', organizationId)
                         .eq('board_id', targetBoardId)
-                        .or(`name.ilike.%${effectiveStageName}%,label.ilike.%${effectiveStageName}%`);
+                        .or(`name.ilike.%${sanitizePostgrestValue(effectiveStageName)}%,label.ilike.%${sanitizePostgrestValue(effectiveStageName)}%`);
 
                     console.log('[AI] 📋 Stage search by name:', {
                         stageName: effectiveStageName,

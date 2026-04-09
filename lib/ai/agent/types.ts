@@ -138,6 +138,8 @@ export interface AgentDecision {
   tokens_used?: number;
   /** Modelo usado */
   model_used?: string;
+  /** Latência da geração de resposta em ms */
+  latency_ms?: number;
 }
 
 export interface AgentProcessResult {

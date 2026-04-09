@@ -215,6 +215,50 @@ function mapNumericStatus(status: number): string | null {
 }
 
 /**
+ * Generate stable event ID for audit logging and deduplication.
+ * Produces unique, deterministic IDs per event type:
+ * - messages.upsert: evo_msg_{messageId}
+ * - messages.update: evo_status_{messageId}_{numericStatus}
+ * - connection.update: evo_conn_{channelId}_{state}
+ * - other: evo_{event}_{timestamp}
+ */
+function generateStableEventId(
+  payload: EvolutionPayload,
+  channelId: string,
+  eventNorm: string
+): string {
+  if (eventNorm === "messages.upsert") {
+    const data = (payload as EvolutionUpsertPayload).data;
+    return `evo_msg_${data.key.id}`;
+  }
+
+  if (eventNorm === "messages.update") {
+    const updates = (payload as EvolutionUpdatePayload).data;
+    if (Array.isArray(updates) && updates.length > 0) {
+      const first = updates[0];
+      const status = first.update?.status ?? "unknown";
+      return `evo_status_${first.key.id}_${status}`;
+    }
+    return `evo_status_unknown_${Date.now()}`;
+  }
+
+  if (eventNorm === "connection.update") {
+    const state = (payload as EvolutionConnectionUpdatePayload).data?.state ?? "unknown";
+    return `evo_conn_${channelId}_${state}`;
+  }
+
+  // Fallback for unhandled events
+  return `evo_${eventNorm.replace(/\./g, "_")}_${Date.now()}`;
+}
+
+/**
+ * Determine event type string for audit logging.
+ */
+function determineEventType(eventNorm: string): string {
+  return eventNorm || "unknown";
+}
+
+/**
  * Trigger AI Agent processing for inbound message.
  * Fire-and-forget: errors are logged but don't fail the webhook.
  */
@@ -342,6 +386,32 @@ Deno.serve(async (req) => {
   // Normalize event name: Evolution v2 sends UPPERCASE, some versions use lowercase
   const eventNorm = payload.event?.toLowerCase().replace(/_/g, ".");
 
+  // =========================================================================
+  // AUDIT LOGGING & DEDUPLICATION
+  // =========================================================================
+  const externalEventId = generateStableEventId(payload, channelId, eventNorm);
+
+  const { error: eventInsertErr } = await supabase
+    .from("messaging_webhook_events")
+    .insert({
+      channel_id: channelId,
+      event_type: determineEventType(eventNorm),
+      external_event_id: externalEventId,
+      payload: payload as unknown as Record<string, unknown>,
+      processed: false,
+    });
+
+  // If duplicate (already processed), return early with success
+  if (eventInsertErr?.message?.toLowerCase().includes("duplicate")) {
+    console.log(`[Evolution] Duplicate event ignored: ${externalEventId}`);
+    return json(200, { ok: true, duplicate: true, event_id: externalEventId });
+  }
+
+  if (eventInsertErr) {
+    // Log but don't fail — audit logging is best-effort
+    console.error("[Evolution] Error logging webhook event:", eventInsertErr);
+  }
+
   try {
     if (eventNorm === "messages.upsert") {
       await handleMessagesUpsert(supabase, channel, payload as EvolutionUpsertPayload);
@@ -353,9 +423,28 @@ Deno.serve(async (req) => {
       console.log(`[Evolution] Unhandled event: ${payload.event} instance: ${instanceName.slice(0, 64)}`);
     }
 
+    // Mark event as processed
+    await supabase
+      .from("messaging_webhook_events")
+      .update({ processed: true, processed_at: new Date().toISOString() })
+      .eq("channel_id", channelId)
+      .eq("external_event_id", externalEventId);
+
     return json(200, { ok: true, event: payload.event });
   } catch (error) {
     console.error("[Evolution] Webhook processing error:", error);
+
+    // Log error in webhook event
+    await supabase
+      .from("messaging_webhook_events")
+      .update({
+        processed: true,
+        processed_at: new Date().toISOString(),
+        error: error instanceof Error ? error.message : "Unknown error",
+      })
+      .eq("channel_id", channelId)
+      .eq("external_event_id", externalEventId);
+
     // Always return 200 to avoid retry storms
     return json(200, {
       ok: false,

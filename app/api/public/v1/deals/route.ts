@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authPublicApi } from '@/lib/public-api/auth';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public-api/cursor';
+import { sanitizePostgrestValue } from '@/lib/utils/sanitize';
 import { resolveBoardIdFromKey, resolveFirstStageId } from '@/lib/public-api/resolve';
 import { normalizeEmail, normalizePhone, normalizeText } from '@/lib/public-api/sanitize';
 import { isValidUUID, sanitizeUUID } from '@/lib/supabase/utils';
@@ -63,7 +64,10 @@ export async function GET(request: Request) {
   if (contactId) query = query.eq('contact_id', contactId);
   if (clientCompanyId) query = query.eq('client_company_id', clientCompanyId);
   if (updatedAfter) query = query.gte('updated_at', updatedAfter);
-  if (q) query = query.ilike('title', `%${q}%`);
+  if (q) {
+    const safeQ = sanitizePostgrestValue(q)
+    if (safeQ) query = query.ilike('title', `%${safeQ}%`);
+  }
 
   if (status === 'open') query = query.eq('is_won', false).eq('is_lost', false);
   if (status === 'won') query = query.eq('is_won', true);

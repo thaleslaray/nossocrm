@@ -344,6 +344,9 @@ Deno.serve(async (req) => {
     if (String(channelSecret) !== String(secretHeader)) {
       return json(401, { error: "Secret inválido" });
     }
+  } else {
+    // Default-deny: reject unauthenticated requests when no secret is configured
+    return json(401, { error: "Webhook secret não configurado para este canal" });
   }
 
   // Presence events — broadcast only, no DB write
@@ -638,26 +641,30 @@ async function handleInboundMessage(
     }
   }
 
-  // Insert message
-  const { error: msgErr } = await supabase.from("messaging_messages").insert({
-    conversation_id: conversationId,
-    external_id: externalMessageId,
-    direction: "inbound",
-    content_type: content.type,
-    content: content,
-    status: "delivered", // Inbound messages are already delivered
-    delivered_at: timestamp.toISOString(),
-    sender_name: payload.senderName,
-    sender_profile_url: payload.senderPhoto,
-    metadata: {
-      zapi_message_id: payload.zapiMessageId,
-      moment: payload.moment,
-    },
-  });
+  // Insert message — capture internal UUID for AI processing
+  const { data: insertedMsg, error: msgErr } = await supabase
+    .from("messaging_messages")
+    .insert({
+      conversation_id: conversationId,
+      external_id: externalMessageId,
+      direction: "inbound",
+      content_type: content.type,
+      content: content,
+      status: "delivered", // Inbound messages are already delivered
+      delivered_at: timestamp.toISOString(),
+      sender_name: payload.senderName,
+      sender_profile_url: payload.senderPhoto,
+      metadata: {
+        zapi_message_id: payload.zapiMessageId,
+        moment: payload.moment,
+      },
+    })
+    .select("id")
+    .maybeSingle();
 
   if (msgErr) {
-    // Ignore duplicate messages
-    if (!msgErr.message.toLowerCase().includes("duplicate")) {
+    // Ignore duplicate messages (SQLSTATE 23505)
+    if (msgErr.code !== "23505" && !msgErr.message.toLowerCase().includes("duplicate")) {
       throw msgErr;
     }
   }
@@ -677,12 +684,12 @@ async function handleInboundMessage(
 
   // Trigger AI Agent processing (async, fire-and-forget)
   // Only process text messages for AI response
-  if (content.type === "text" && content.text) {
+  if (content.type === "text" && content.text && insertedMsg?.id) {
     triggerAIProcessing({
       conversationId,
       organizationId: channel.organization_id,
       messageText: content.text,
-      messageId: externalMessageId,
+      messageId: insertedMsg.id, // Use internal UUID, not external Z-API ID
     }).catch((err) => {
       // Log but don't fail the webhook
       console.error("[Webhook] AI processing trigger error:", err);

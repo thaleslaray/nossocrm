@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authPublicApi } from '@/lib/public-api/auth';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public-api/cursor';
+import { sanitizePostgrestValue } from '@/lib/utils/sanitize';
 import { normalizeText, normalizeUrl } from '@/lib/public-api/sanitize';
 
 export const runtime = 'nodejs';
@@ -34,7 +35,10 @@ export async function GET(request: Request) {
 
   if (website) query = query.eq('website', website);
   if (name) query = query.ilike('name', name);
-  if (q) query = query.or(`name.ilike.%${q}%,website.ilike.%${q}%`);
+  if (q) {
+    const safeQ = sanitizePostgrestValue(q)
+    if (safeQ) query = query.or(`name.ilike.%${safeQ}%,website.ilike.%${safeQ}%`);
+  }
 
   const from = offset;
   const to = offset + limit - 1;

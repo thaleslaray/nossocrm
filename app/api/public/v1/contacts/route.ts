@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authPublicApi } from '@/lib/public-api/auth';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public-api/cursor';
+import { sanitizePostgrestValue } from '@/lib/utils/sanitize';
 import { normalizeEmail, normalizePhone, normalizeText } from '@/lib/public-api/sanitize';
 import { sanitizeUUID } from '@/lib/supabase/utils';
 
@@ -93,7 +94,8 @@ export async function GET(request: Request) {
   if (email) query = query.eq('email', email);
   if (phone) query = query.eq('phone', phone);
   if (q) {
-    query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`);
+    const safeQ = sanitizePostgrestValue(q)
+    if (safeQ) query = query.or(`name.ilike.%${safeQ}%,email.ilike.%${safeQ}%,phone.ilike.%${safeQ}%`);
   }
 
   const from = offset;
