@@ -236,6 +236,7 @@ Deno.serve(async (req) => {
     const auto = classifyLead({
       data_ida: data_ida_raw,
       data_volta: data_volta_raw,
+      data_viagem: data_viagem_raw,
       urgencia_viagem,
       categoria_viagem,
     });
