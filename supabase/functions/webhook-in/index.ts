@@ -33,6 +33,8 @@ type LeadPayload = {
   email?: string;
   /** Telefone do contato */
   phone?: string;
+  /** Alias PT-BR de phone */
+  telefone?: string;
   source?: string;
   notes?: string;
   /** Nome da empresa (cliente) */
