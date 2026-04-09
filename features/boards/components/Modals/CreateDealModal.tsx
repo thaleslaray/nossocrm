@@ -158,7 +158,6 @@ export const CreateDealModal: React.FC<CreateDealModalProps> = ({
                 isLost: false,
             };
 
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { id: _id, createdAt: _createdAt, ...dealWithoutId } = deal;
 
             // Se selecionou contato existente

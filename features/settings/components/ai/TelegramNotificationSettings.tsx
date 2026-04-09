@@ -127,7 +127,6 @@ export function TelegramNotificationSettings() {
 
     startPolling();
     return stopPolling;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAwaiting]);
 
   function startPolling() {

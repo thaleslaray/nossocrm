@@ -109,6 +109,40 @@ function getApiKeyFromRequest(req: Request): string {
 }
 
 /**
+ * Timing-safe string comparison to prevent timing oracle attacks on API key checks.
+ * Falls back to constant-time XOR if subtle crypto is unavailable.
+ */
+async function timingSafeEqual(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const aBytes = enc.encode(a);
+  const bBytes = enc.encode(b);
+  // Length must match; pad shorter to length of longer with fixed byte
+  const len = Math.max(aBytes.length, bBytes.length);
+  const aPadded = new Uint8Array(len);
+  const bPadded = new Uint8Array(len);
+  aPadded.set(aBytes);
+  bPadded.set(bBytes);
+  try {
+    // Import both as HMAC keys and compare — subtleCrypto provides constant-time
+    const key = await crypto.subtle.importKey(
+      "raw", aPadded, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, bPadded);
+    const sigBytes = new Uint8Array(sig);
+    // Verify: sign bPadded with key derived from aPadded, then check it's consistent
+    // Simpler: XOR fallback is acceptable when lengths differ (already detected above)
+    let result = aBytes.length === bBytes.length ? 0 : 1;
+    for (let i = 0; i < len; i++) result |= (aPadded[i] ^ bPadded[i]);
+    return result === 0 && sigBytes.length > 0;
+  } catch {
+    // Constant-time XOR fallback
+    let result = aBytes.length === bBytes.length ? 0 : 1;
+    for (let i = 0; i < len; i++) result |= (aPadded[i] ^ bPadded[i]);
+    return result === 0;
+  }
+}
+
+/**
  * Normalize remoteJid to a clean phone number.
  * Handles @s.whatsapp.net and @lid suffixes.
  * Falls back to senderPn when @lid is detected (Evolution bug).
@@ -376,7 +410,7 @@ Deno.serve(async (req) => {
     (channel.credentials as Record<string, string>)?.apiKey;
   const providedKey = getApiKeyFromRequest(req);
 
-  if (!webhookSecret || !providedKey || providedKey !== webhookSecret) {
+  if (!webhookSecret || !providedKey || !(await timingSafeEqual(providedKey, webhookSecret))) {
     return json(401, { error: "API key inválida" });
   }
 

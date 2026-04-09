@@ -87,7 +87,6 @@ export const CreateDealModalV2: React.FC<CreateDealModalV2Props> = ({ isOpen, on
       isLost: false,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _id, createdAt: _createdAt, ...dealWithoutId } = deal;
     createDealWithContact.mutate({
       deal: dealWithoutId,

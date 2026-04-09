@@ -257,7 +257,6 @@ export const useBoardsController = () => {
     // Note: Removed setContext from dependencies - it has internal guards to prevent loops
     // Note: Removed clearContext cleanup to prevent infinite loop with AIContext default setter
     // Dependencies: only primitives to avoid re-execution when object reference changes but content is same
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeBoard?.id, activeBoard?.name, activeBoard?.stages?.length, deals.length, statusFilter, ownerFilter, searchTerm, dateRange.start, dateRange.end]);
 
   // Get lifecycle stages for automations (TanStack Query)
