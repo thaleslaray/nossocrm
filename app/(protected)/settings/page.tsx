@@ -1,17 +1,8 @@
-'use client'
+import type { Metadata } from 'next';
+import SettingsPage from '@/features/settings/SettingsPage'
 
-import dynamic from 'next/dynamic'
-import { PageLoader } from '@/components/PageLoader'
+export const metadata: Metadata = { title: 'Configurações | NossoCRM' };
 
-const SettingsPage = dynamic(
-    () => import('@/features/settings/SettingsPage'),
-    { loading: () => <PageLoader />, ssr: false }
-)
-
-/**
- * Componente React `Settings`.
- * @returns {Element} Retorna um valor do tipo `Element`.
- */
 export default function Settings() {
     return <SettingsPage />
 }

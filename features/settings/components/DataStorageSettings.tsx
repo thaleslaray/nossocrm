@@ -4,7 +4,10 @@
 
 import React, { useState } from 'react';
 import { Database, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
-import { useCRM } from '@/context/CRMContext';
+import { useDeals } from '@/lib/query/hooks/useDealsQuery';
+import { useContacts } from '@/lib/query/hooks/useContactsQuery';
+import { useActivities } from '@/lib/query/hooks/useActivitiesQuery';
+import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase';
@@ -16,7 +19,10 @@ import { queryKeys } from '@/lib/query';
  * @returns {Element} Retorna um valor do tipo `Element`.
  */
 export const DataStorageSettings: React.FC = () => {
-    const { deals, contacts, companies, activities, boards, refresh } = useCRM();
+    const { data: deals = [] } = useDeals();
+    const { data: contacts = [] } = useContacts();
+    const { data: activities = [] } = useActivities();
+    const { data: boards = [] } = useBoards();
     const { profile } = useAuth();
     const { addToast } = useToast();
     const queryClient = useQueryClient();
@@ -31,7 +37,7 @@ export const DataStorageSettings: React.FC = () => {
 
     // Estatísticas
     const stats = {
-        companies: companies.length,
+        companies: 0,
         contacts: contacts.length,
         deals: deals.length,
         activities: activities.length,
@@ -154,9 +160,6 @@ export const DataStorageSettings: React.FC = () => {
             queryClient.removeQueries({ queryKey: [...queryKeys.boards.all, 'default'] as const });
             // Also clear deals cache because /boards renders deals for active board.
             queryClient.removeQueries({ queryKey: queryKeys.deals.all });
-
-            // Força refresh de todos os contexts (Activities, Deals, etc.)
-            await refresh();
 
             addToast('🔥 Database zerado com sucesso!', 'success');
             setConfirmText('');

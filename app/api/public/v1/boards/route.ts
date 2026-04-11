@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { authPublicApi } from '@/lib/public-api/auth';
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public-api/cursor';
-import { escapePostgrestFilter } from '@/lib/security/escapePostgrest';
 
 export const runtime = 'nodejs';
 
@@ -28,14 +27,12 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: true });
 
   if (key) query = query.eq('key', key);
-  if (q) {
-    const safeQ = escapePostgrestFilter(q);
-    query = query.or(`name.ilike.%${safeQ}%,key.ilike.%${safeQ}%`);
-  }
+  if (q) query = query.or(`name.ilike.%${q}%,key.ilike.%${q}%`);
 
   const { data, count, error } = await query.range(from, to);
   if (error) {
-    return NextResponse.json({ error: error.message, code: 'DB_ERROR' }, { status: 500 });
+    console.error('[API] Database error:', error)
+    return NextResponse.json({ error: 'Internal server error', code: 'DB_ERROR' }, { status: 500 });
   }
 
   const total = count ?? 0;

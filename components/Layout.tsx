@@ -37,6 +37,7 @@ import {
   Moon,
   BarChart3,
   Inbox,
+  MessageSquare,
   Sparkles,
   LogOut,
   User,
@@ -45,26 +46,51 @@ import {
   PanelLeftClose,
   PanelLeftOpen
 } from 'lucide-react';
-import { useCRM } from '../context/CRMContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useUIState } from '@/store/uiState';
 import { prefetchRoute, RouteName } from '@/lib/prefetch';
 import { isDebugMode, enableDebugMode, disableDebugMode } from '@/lib/debug';
 import { SkipLink } from '@/lib/a11y';
 import { useResponsiveMode } from '@/hooks/useResponsiveMode';
 import { BottomNav, MoreMenuSheet, NavigationRail } from '@/components/navigation';
+import { useUnreadCount } from '@/lib/query/hooks/useConversationsQuery';
 
 // Lazy load AI Assistant (deprecated - using UIChat now)
 // const AIAssistant = lazy(() => import('./AIAssistant'));
 import { UIChat } from './ai/UIChat';
 
 import { NotificationPopover } from './notifications/NotificationPopover';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 /**
  * Props do componente Layout
  * @interface LayoutProps
  * @property {React.ReactNode} children - Conteúdo da página
  */
+const PAGE_TITLES: Record<string, string> = {
+  '/inbox': 'Inbox',
+  '/messaging': 'Mensagens',
+  '/dashboard': 'Visão Geral',
+  '/boards': 'Boards',
+  '/pipeline': 'Boards',
+  '/contacts': 'Contatos',
+  '/activities': 'Atividades',
+  '/decisions': 'Decisões',
+  '/reports': 'Relatórios',
+  '/settings': 'Configurações',
+  '/profile': 'Perfil',
+  '/ai': 'Assistente IA',
+};
+
+const getPageTitle = (pathname: string): string => {
+  // Exact match first
+  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
+  // Prefix match (e.g., /settings/ai → Configurações)
+  const prefix = Object.keys(PAGE_TITLES).find(key => pathname.startsWith(key + '/'));
+  return prefix ? PAGE_TITLES[prefix] : '';
+};
+
 interface LayoutProps {
   children: React.ReactNode;
 }
@@ -79,6 +105,7 @@ interface LayoutProps {
  * @param props.prefetch - Nome da rota para prefetch
  * @param props.clickedPath - Path que foi clicado (para manter highlight durante transição)
  * @param props.onItemClick - Callback quando o item é clicado
+ * @param props.badge - Badge count to display
  */
 const NavItem = ({
   to,
@@ -87,6 +114,7 @@ const NavItem = ({
   prefetch,
   clickedPath,
   onItemClick,
+  badge,
 }: {
   to: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -94,6 +122,7 @@ const NavItem = ({
   prefetch?: RouteName;
   clickedPath?: string;
   onItemClick?: (path: string) => void;
+  badge?: number;
 }) => {
   const pathname = usePathname();
   const isActive = pathname === to || (to === '/boards' && pathname === '/pipeline');
@@ -116,7 +145,14 @@ const NavItem = ({
           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
         }`}
     >
-      <Icon size={20} className={isActuallyActive ? 'text-primary-500' : ''} aria-hidden="true" />
+      <div className="relative">
+        <Icon size={20} className={isActuallyActive ? 'text-primary-500' : ''} aria-hidden="true" />
+        {(badge ?? 0) > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-bold text-white bg-red-500 rounded-full shadow-sm">
+            {badge! > 99 ? '99+' : badge}
+          </span>
+        )}
+      </div>
       <span className="font-display tracking-wide">{label}</span>
     </Link>
   );
@@ -134,7 +170,7 @@ const NavItem = ({
  */
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { darkMode, toggleDarkMode } = useTheme();
-  const { isGlobalAIOpen, setIsGlobalAIOpen, sidebarCollapsed, setSidebarCollapsed } = useCRM();
+  const { isGlobalAIOpen, setIsGlobalAIOpen, sidebarCollapsed, setSidebarCollapsed } = useUIState();
   const { user, loading, profile, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -147,6 +183,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // Hydration safety: `isDebugMode()` reads localStorage. On SSR it is always false.
   // Initialize deterministically and sync on mount to avoid hydration mismatch warnings.
   const [debugEnabled, setDebugEnabled] = useState(false);
+
+  // Messaging unread count for notification badge
+  const { data: unreadMessagesCount = 0 } = useUnreadCount();
 
   useEffect(() => {
     setDebugEnabled(isDebugMode());
@@ -261,36 +300,49 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         <nav className={`flex-1 p-4 space-y-2 flex flex-col ${sidebarCollapsed ? 'items-center px-2' : ''}`} aria-label="Navegação do sistema">
           {[
-            { to: '/inbox', icon: Inbox, label: 'Inbox', prefetch: 'inbox' as const },
-            { to: '/dashboard', icon: LayoutDashboard, label: 'Visão Geral', prefetch: 'dashboard' as const },
-            { to: '/boards', icon: KanbanSquare, label: 'Boards', prefetch: 'boards' as const },
-            { to: '/contacts', icon: Users, label: 'Contatos', prefetch: 'contacts' as const },
-            { to: '/activities', icon: CheckSquare, label: 'Atividades', prefetch: 'activities' as const },
-            { to: '/reports', icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const },
-            { to: '/settings', icon: Settings, label: 'Configurações', prefetch: 'settings' as const },
+            { to: '/inbox', icon: Inbox, label: 'Inbox', prefetch: 'inbox' as const, badge: undefined },
+            { to: '/messaging', icon: MessageSquare, label: 'Mensagens', prefetch: undefined, badge: unreadMessagesCount },
+            { to: '/dashboard', icon: LayoutDashboard, label: 'Visão Geral', prefetch: 'dashboard' as const, badge: undefined },
+            { to: '/boards', icon: KanbanSquare, label: 'Boards', prefetch: 'boards' as const, badge: undefined },
+            { to: '/contacts', icon: Users, label: 'Contatos', prefetch: 'contacts' as const, badge: undefined },
+            { to: '/activities', icon: CheckSquare, label: 'Atividades', prefetch: 'activities' as const, badge: undefined },
+            { to: '/reports', icon: BarChart3, label: 'Relatórios', prefetch: 'reports' as const, badge: undefined },
+            { to: '/settings', icon: Settings, label: 'Configurações', prefetch: 'settings' as const, badge: undefined },
           ].map((item) => {
             if (sidebarCollapsed) {
               return (
-                <Link
-                  key={item.to}
-                  href={item.to}
-                  onMouseEnter={() => prefetchRoute(item.prefetch)}
-                  onClick={() => setClickedPath(item.to)}
-                  className={(() => {
-                    const isActive = pathname === item.to || (item.to === '/boards' && pathname === '/pipeline');
-                    const wasJustClicked = clickedPath === item.to;
-                    // If user clicked on a DIFFERENT item, immediately deactivate this one
-                    const anotherItemWasClicked = clickedPath && clickedPath !== item.to;
-                    const isActuallyActive = anotherItemWasClicked ? false : (isActive || wasJustClicked);
-                    return `w-10 h-10 rounded-lg flex items-center justify-center ${isActuallyActive
-                      ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
-                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
-                      }`;
-                  })()}
-                  title={item.label}
-                >
-                  <item.icon size={20} />
-                </Link>
+                <TooltipProvider key={item.to} delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link
+                        href={item.to}
+                        onMouseEnter={() => item.prefetch && prefetchRoute(item.prefetch)}
+                        onClick={() => setClickedPath(item.to)}
+                        className={(() => {
+                          const isActive = pathname === item.to || (item.to === '/boards' && pathname === '/pipeline');
+                          const wasJustClicked = clickedPath === item.to;
+                          // If user clicked on a DIFFERENT item, immediately deactivate this one
+                          const anotherItemWasClicked = clickedPath && clickedPath !== item.to;
+                          const isActuallyActive = anotherItemWasClicked ? false : (isActive || wasJustClicked);
+                          return `relative w-10 h-10 rounded-lg flex items-center justify-center ${isActuallyActive
+                            ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-900/50'
+                            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
+                            }`;
+                        })()}
+                      >
+                        <item.icon size={20} />
+                        {(item.badge ?? 0) > 0 && (
+                          <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] flex items-center justify-center px-0.5 text-[9px] font-bold text-white bg-red-500 rounded-full shadow-sm">
+                            {item.badge! > 99 ? '99+' : item.badge}
+                          </span>
+                        )}
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {item.label}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               );
             }
 
@@ -303,6 +355,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 prefetch={item.prefetch}
                 clickedPath={clickedPath}
                 onItemClick={setClickedPath}
+                badge={item.badge}
               />
             );
           })}
@@ -419,7 +472,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           {/* Header */}
-          <header className="h-16 glass border-b border-[var(--color-border-subtle)] flex items-center justify-end px-6 z-40 shrink-0" role="banner">
+          <header className="h-16 glass border-b border-[var(--color-border-subtle)] flex items-center justify-between px-6 z-40 shrink-0" role="banner">
+            <h1 className="text-lg font-semibold font-display text-slate-900 dark:text-white">
+              {getPageTitle(pathname)}
+            </h1>
             <div className="flex items-center gap-4">
               <button
                 type="button"
@@ -432,16 +488,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <Sparkles size={20} aria-hidden="true" />
               </button>
 
-              <button
-                type="button"
-                onClick={toggleDebugMode}
-                className={`p-2 rounded-full transition-all active:scale-95 focus-visible-ring ${debugEnabled
-                  ? 'text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30 ring-2 ring-purple-400/50'
-                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10'
-                  }`}
-              >
-                <Bug size={20} aria-hidden="true" />
-              </button>
+              {process.env.NODE_ENV === 'development' && (
+                <button
+                  type="button"
+                  onClick={toggleDebugMode}
+                  className={`p-2 rounded-full transition-all active:scale-95 focus-visible-ring ${debugEnabled
+                    ? 'text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30 ring-2 ring-purple-400/50'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10'
+                    }`}
+                >
+                  <Bug size={20} aria-hidden="true" />
+                </button>
+              )}
 
               <NotificationPopover />
               <button
@@ -456,7 +514,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           <main
             id="main-content"
-            className="flex-1 overflow-auto p-6 pb-[calc(1.5rem+var(--app-bottom-nav-height,0px)+var(--app-safe-area-bottom,0px))] relative scroll-smooth"
+            className={`flex-1 overflow-auto relative scroll-smooth ${
+              pathname === '/messaging' || pathname.startsWith('/messaging/')
+                ? 'p-0'
+                : 'p-6 pb-[calc(1.5rem+var(--app-bottom-nav-height,0px)+var(--app-safe-area-bottom,0px))]'
+            }`}
             tabIndex={-1}
           >
             {children}

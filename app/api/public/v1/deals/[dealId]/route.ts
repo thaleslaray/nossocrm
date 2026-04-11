@@ -33,7 +33,10 @@ export async function GET(request: Request, ctx: { params: Promise<{ dealId: str
     .eq('id', dealId)
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message, code: 'DB_ERROR' }, { status: 500 });
+  if (error) {
+    console.error('[API] Database error:', error)
+    return NextResponse.json({ error: 'Internal server error', code: 'DB_ERROR' }, { status: 500 })
+  }
   if (!data) return NextResponse.json({ error: 'Deal not found', code: 'NOT_FOUND' }, { status: 404 });
 
   return NextResponse.json({ data });
@@ -71,7 +74,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ dealId: s
     .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at')
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message, code: 'DB_ERROR' }, { status: 500 });
+  if (error) {
+    console.error('[API] Database error:', error)
+    return NextResponse.json({ error: 'Internal server error', code: 'DB_ERROR' }, { status: 500 })
+  }
   if (!data) return NextResponse.json({ error: 'Deal not found', code: 'NOT_FOUND' }, { status: 404 });
 
   return NextResponse.json({ data });

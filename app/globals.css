@@ -1,4 +1,4 @@
-@config "../tailwind.config.mjs";
+@config "../tailwind.config.js";
 @import "tailwindcss";
 
 /* ========================================
@@ -28,6 +28,23 @@
   --color-dark-card: #0f172a;
   --color-dark-border: #1e293b;
   --color-dark-hover: #334155;
+
+  /* shadcn semantic tokens */
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-text-primary);
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-text-primary);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-text-primary);
+  --color-primary: var(--color-primary-500);
+  --color-primary-foreground: #ffffff;
+  --color-muted-foreground: var(--color-text-secondary);
+  --color-accent: var(--color-muted);
+  --color-accent-foreground: var(--color-text-primary);
+  --color-destructive: var(--color-error);
+  --color-border: var(--color-border);
+  --color-input: var(--color-border);
+  --color-ring: var(--color-primary-500);
 }
 
 /* ========================================
@@ -106,6 +123,42 @@ svg.lucide {
   --chart-tooltip-bg: #0f172a;
   --chart-tooltip-border: rgba(255, 255, 255, 0.1);
   --chart-tooltip-text: #f8fafc;
+
+  /* ========================================
+   * Messaging Design Tokens - Light Mode
+   * ======================================== */
+
+  /* Channel Colors */
+  --channel-whatsapp: oklch(65% 0.20 145);
+  --channel-whatsapp-bg: oklch(65% 0.20 145 / 0.1);
+  --channel-instagram: oklch(60% 0.25 330);
+  --channel-instagram-bg: oklch(60% 0.25 330 / 0.1);
+  --channel-email: oklch(60% 0.18 240);
+  --channel-email-bg: oklch(60% 0.18 240 / 0.1);
+  --channel-sms: oklch(65% 0.15 55);
+  --channel-sms-bg: oklch(65% 0.15 55 / 0.1);
+
+  /* Message Bubbles - Light */
+  --bubble-inbound-bg: oklch(96% 0.008 260);
+  --bubble-inbound-border: oklch(90% 0.01 260);
+  --bubble-outbound-bg: oklch(55% 0.18 240);
+  --bubble-outbound-text: oklch(100% 0 0);
+
+  /* Message Status Colors */
+  --msg-status-pending: oklch(65% 0.02 260);
+  --msg-status-sent: oklch(60% 0.15 240);
+  --msg-status-delivered: oklch(60% 0.15 240);
+  --msg-status-read: oklch(65% 0.17 145);
+  --msg-status-failed: oklch(62% 0.25 25);
+
+  /* Conversation List */
+  --conversation-hover: oklch(95% 0.008 260);
+  --conversation-active: oklch(92% 0.015 240);
+  --conversation-unread-dot: oklch(55% 0.18 240);
+
+  /* Window Expiry */
+  --window-expiring: oklch(70% 0.15 55);
+  --window-expired: oklch(62% 0.25 25);
 }
 
 /* Avoid accidental horizontal scroll on small screens (mobile/tablet). */
@@ -166,6 +219,42 @@ html, body {
   --chart-tooltip-bg: #1e293b;
   --chart-tooltip-border: rgba(255, 255, 255, 0.1);
   --chart-tooltip-text: #f8fafc;
+
+  /* ========================================
+   * Messaging Design Tokens - Dark Mode
+   * ======================================== */
+
+  /* Channel Colors (same, slightly brighter for dark) */
+  --channel-whatsapp: oklch(70% 0.20 145);
+  --channel-whatsapp-bg: oklch(70% 0.20 145 / 0.15);
+  --channel-instagram: oklch(65% 0.25 330);
+  --channel-instagram-bg: oklch(65% 0.25 330 / 0.15);
+  --channel-email: oklch(65% 0.18 240);
+  --channel-email-bg: oklch(65% 0.18 240 / 0.15);
+  --channel-sms: oklch(70% 0.15 55);
+  --channel-sms-bg: oklch(70% 0.15 55 / 0.15);
+
+  /* Message Bubbles - Dark */
+  --bubble-inbound-bg: oklch(22% 0.015 260);
+  --bubble-inbound-border: oklch(28% 0.012 260);
+  --bubble-outbound-bg: oklch(50% 0.16 240);
+  --bubble-outbound-text: oklch(100% 0 0);
+
+  /* Message Status Colors (same, slightly adjusted) */
+  --msg-status-pending: oklch(60% 0.02 260);
+  --msg-status-sent: oklch(65% 0.15 240);
+  --msg-status-delivered: oklch(65% 0.15 240);
+  --msg-status-read: oklch(70% 0.17 145);
+  --msg-status-failed: oklch(68% 0.24 25);
+
+  /* Conversation List */
+  --conversation-hover: oklch(18% 0.015 260);
+  --conversation-active: oklch(22% 0.02 240);
+  --conversation-unread-dot: oklch(60% 0.18 240);
+
+  /* Window Expiry */
+  --window-expiring: oklch(75% 0.15 55);
+  --window-expired: oklch(68% 0.24 25);
 }
 
 /* ========================================

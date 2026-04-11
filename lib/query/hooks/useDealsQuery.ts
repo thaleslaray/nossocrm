@@ -7,18 +7,37 @@
  * - Automatic cache invalidation
  * - Ready for Realtime integration
  */
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys, DEALS_VIEW_KEY } from '../index';
 import { dealsService, contactsService, companiesService, boardStagesService } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import type { Deal, DealView, DealItem } from '@/types';
+import type { Deal, DealView, DealItem, Contact } from '@/types';
 
-// ============ STANDALONE QUERY FN (used by prefetch) ============
+// ============ QUERY HOOKS ============
 
-export const dealsViewQueryFn = async (): Promise<DealView[]> => {
+// Stable selector factory — must be at module level to avoid new reference per render
+const makeSelectByBoard = (boardId: string) => (data: DealView[]) => {
+  if (!boardId || boardId.startsWith('temp-')) return [];
+  return data.filter(d => d.boardId === boardId);
+};
+
+/**
+ * Base queryFn para DEALS_VIEW_KEY.
+ *
+ * Extraída ao nível de módulo para ser reutilizada em:
+ * - useDealsView (sem filtros)
+ * - useDealsByBoard (filtra via select)
+ * - usePrefetchRoute (prefetch antecipado na navegação)
+ *
+ * Sempre produz DealView[] completo; filtragem é responsabilidade do caller.
+ */
+export const dealsViewQueryFn = async (
+  { signal }: { signal?: AbortSignal } = {}
+): Promise<DealView[]> => {
   const [dealsResult, stagesResult] = await Promise.all([
-    dealsService.getAll(),
-    boardStagesService.getAll(),
+    dealsService.getAll({ signal }),
+    boardStagesService.getAll({ signal }),
   ]);
 
   if (dealsResult.error) throw dealsResult.error;
@@ -30,8 +49,8 @@ export const dealsViewQueryFn = async (): Promise<DealView[]> => {
   const companyIds = deals.map(d => d.clientCompanyId).filter(Boolean) as string[];
 
   const [contactsResult, companiesResult] = await Promise.all([
-    contactsService.getByIds(contactIds),
-    companiesService.getByIds(companyIds),
+    contactsService.getByIds(contactIds, { signal }),
+    companiesService.getByIds(companyIds, { signal }),
   ]);
 
   const contactMap = new Map((contactsResult.data || []).map(c => [c.id, c]));
@@ -51,8 +70,6 @@ export const dealsViewQueryFn = async (): Promise<DealView[]> => {
   });
 };
 
-// ============ QUERY HOOKS ============
-
 export interface DealsFilters {
   boardId?: string;
   /** Stage id (UUID) do board_stages */
@@ -66,15 +83,16 @@ export interface DealsFilters {
  * Hook to fetch all deals with optional filters
  * Waits for auth to be ready before fetching to ensure RLS works correctly
  */
-export const useDeals = (filters?: DealsFilters) => {
+export const useDeals = (filters?: DealsFilters, options?: { enabled?: boolean }) => {
   const { user, loading: authLoading } = useAuth();
+  const externalEnabled = options?.enabled ?? true;
 
   return useQuery({
     queryKey: filters
       ? queryKeys.deals.list(filters as Record<string, unknown>)
       : queryKeys.deals.lists(),
-    queryFn: async () => {
-      const { data, error } = await dealsService.getAll();
+    queryFn: async ({ signal }) => {
+      const { data, error } = await dealsService.getAll({ signal });
       if (error) throw error;
 
       let deals = data || [];
@@ -97,7 +115,7 @@ export const useDeals = (filters?: DealsFilters) => {
       return deals;
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
-    enabled: !authLoading && !!user, // Only fetch when auth is ready
+    enabled: !authLoading && !!user && externalEnabled,
   });
 };
 
@@ -112,69 +130,25 @@ export const useDealsView = (filters?: DealsFilters) => {
     queryKey: filters
       ? [...queryKeys.deals.list(filters as Record<string, unknown>), 'view']
       : [...queryKeys.deals.lists(), 'view'],
-    queryFn: async () => {
-      // Step 1: Fetch deals and stages first (always needed)
-      const [dealsResult, stagesResult] = await Promise.all([
-        dealsService.getAll(),
-        boardStagesService.getAll(),
-      ]);
+    queryFn: async ({ signal }) => {
+      const deals = await dealsViewQueryFn({ signal });
+      if (!filters) return deals;
 
-      if (dealsResult.error) throw dealsResult.error;
-
-      const deals = dealsResult.data || [];
-      const stages = stagesResult.data || [];
-
-      // Step 2: Extract unique IDs referenced by deals (avoid fetching unused data)
-      const contactIds = deals.map(d => d.contactId).filter(Boolean);
-      const companyIds = deals.map(d => d.clientCompanyId).filter(Boolean) as string[];
-
-      // Step 3: Fetch only referenced contacts and companies in parallel
-      const [contactsResult, companiesResult] = await Promise.all([
-        contactsService.getByIds(contactIds),
-        companiesService.getByIds(companyIds),
-      ]);
-
-      const contacts = contactsResult.data || [];
-      const companies = companiesResult.data || [];
-
-      // Create lookup maps
-      const contactMap = new Map(contacts.map(c => [c.id, c]));
-      const companyMap = new Map(companies.map(c => [c.id, c]));
-      const stageMap = new Map(stages.map(s => [s.id, s.label || s.name]));
-
-      // Enrich deals with company/contact names and stageLabel
-      let enrichedDeals: DealView[] = deals.map(deal => {
-        const contact = contactMap.get(deal.contactId);
-        const company = deal.clientCompanyId ? companyMap.get(deal.clientCompanyId) : undefined;
-        return {
-          ...deal,
-          companyName: company?.name || 'Sem empresa',
-          contactName: contact?.name || 'Sem contato',
-          contactEmail: contact?.email || '',
-          stageLabel: stageMap.get(deal.status) || 'Estágio não identificado',
-        };
+      return deals.filter(deal => {
+        if (filters.boardId && deal.boardId !== filters.boardId) return false;
+        if (filters.status && deal.status !== filters.status) return false;
+        if (filters.minValue && deal.value < filters.minValue) return false;
+        if (filters.maxValue && deal.value > filters.maxValue) return false;
+        if (filters.search) {
+          const search = filters.search.toLowerCase();
+          if (
+            !(deal.title || '').toLowerCase().includes(search) &&
+            !(deal.companyName || '').toLowerCase().includes(search)
+          )
+            return false;
+        }
+        return true;
       });
-
-      // Apply client-side filters
-      if (filters) {
-        enrichedDeals = enrichedDeals.filter(deal => {
-          if (filters.boardId && deal.boardId !== filters.boardId) return false;
-          if (filters.status && deal.status !== filters.status) return false;
-          if (filters.minValue && deal.value < filters.minValue) return false;
-          if (filters.maxValue && deal.value > filters.maxValue) return false;
-          if (filters.search) {
-            const search = filters.search.toLowerCase();
-            if (
-              !(deal.title || '').toLowerCase().includes(search) &&
-              !(deal.companyName || '').toLowerCase().includes(search)
-            )
-              return false;
-          }
-          return true;
-        });
-      }
-
-      return enrichedDeals;
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
     enabled: !authLoading && !!user, // Only fetch when auth is ready
@@ -207,58 +181,13 @@ export const useDeal = (id: string | undefined) => {
  */
 export const useDealsByBoard = (boardId: string) => {
   const { user, loading: authLoading } = useAuth();
+  const selectForBoard = useMemo(() => makeSelectByBoard(boardId), [boardId]);
   return useQuery<DealView[], Error, DealView[]>({
     // CRÍTICO: Usar a mesma query key que useDealsView para compartilhar cache
     queryKey: [...queryKeys.deals.lists(), 'view'],
-    queryFn: async () => {
-      // Step 1: Fetch deals and stages first
-      const [dealsResult, stagesResult] = await Promise.all([
-        dealsService.getAll(),
-        boardStagesService.getAll(),
-      ]);
-
-      if (dealsResult.error) throw dealsResult.error;
-
-      const deals = dealsResult.data || [];
-      const stages = stagesResult.data || [];
-
-      // Step 2: Extract unique IDs referenced by deals
-      const contactIds = deals.map(d => d.contactId).filter(Boolean);
-      const companyIds = deals.map(d => d.clientCompanyId).filter(Boolean) as string[];
-
-      // Step 3: Fetch only referenced contacts and companies
-      const [contactsResult, companiesResult] = await Promise.all([
-        contactsService.getByIds(contactIds),
-        companiesService.getByIds(companyIds),
-      ]);
-
-      const contacts = contactsResult.data || [];
-      const companies = companiesResult.data || [];
-
-      // Create lookup maps
-      const contactMap = new Map(contacts.map(c => [c.id, c]));
-      const companyMap = new Map(companies.map(c => [c.id, c]));
-      const stageMap = new Map(stages.map(s => [s.id, s.label || s.name]));
-
-      // Enrich ALL deals (filtering happens in select)
-      const enrichedDeals: DealView[] = deals.map(deal => {
-        const contact = contactMap.get(deal.contactId);
-        const company = deal.clientCompanyId ? companyMap.get(deal.clientCompanyId) : undefined;
-        return {
-          ...deal,
-          companyName: company?.name || 'Sem empresa',
-          contactName: contact?.name || 'Sem contato',
-          contactEmail: contact?.email || '',
-          stageLabel: stageMap.get(deal.status) || 'Estágio não identificado',
-        };
-      });
-      return enrichedDeals;
-    },
+    queryFn: ({ signal }) => dealsViewQueryFn({ signal }),
     // Filtrar por boardId no cliente (compartilha cache mas retorna só os deals do board)
-    select: (data) => {
-      if (!boardId || boardId.startsWith('temp-')) return [];
-      return data.filter(d => d.boardId === boardId);
-    },
+    select: selectForBoard,
     staleTime: 2 * 60 * 1000, // 2 minutes (same as useDealsView)
     enabled: !authLoading && !!user && !!boardId && !boardId.startsWith('temp-'),
   });
@@ -293,7 +222,6 @@ export const useCreateDeal = () => {
       if (process.env.NODE_ENV !== 'production') {
         const logData = { title: deal.title, status: deal.status?.slice(0, 8) || 'null' };
         console.log(`[useCreateDeal] 📤 Sending create to server`, logData);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:230',message:'Sending create to server',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD1'})}).catch(()=>{});
       }
       // #endregion
 
@@ -306,7 +234,6 @@ export const useCreateDeal = () => {
       if (process.env.NODE_ENV !== 'production') {
         const logData = { dealId: data?.id?.slice(0, 8) || 'null', title: data?.title };
         console.log(`[useCreateDeal] ✅ Server confirmed creation`, logData);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:240',message:'Server confirmed creation',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD2'})}).catch(()=>{});
       }
       // #endregion
       
@@ -339,7 +266,6 @@ export const useCreateDeal = () => {
       if (process.env.NODE_ENV !== 'production') {
         const logData = { tempId: tempId.slice(0, 15), title: newDeal.title, status: newDeal.status?.slice(0, 8) || 'null' };
         console.log(`[useCreateDeal] 🔄 Optimistic insert with temp ID`, logData);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:260',message:'Optimistic insert with temp ID',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD3'})}).catch(()=>{});
       }
       // #endregion
 
@@ -356,7 +282,6 @@ export const useCreateDeal = () => {
       if (process.env.NODE_ENV !== 'production') {
         const logData = { tempId: tempId?.slice(0, 15) || 'null', realId: data.id?.slice(0, 8) || 'null', title: data.title };
         console.log(`[useCreateDeal] 🔄 Replacing temp deal with real one`, logData);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:280',message:'Replacing temp deal with real one',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD4'})}).catch(()=>{});
       }
       // #endregion
       
@@ -381,7 +306,6 @@ export const useCreateDeal = () => {
           // #region agent log
           if (process.env.NODE_ENV !== 'production') {
             console.log(`[useCreateDeal] ⚠️ Deal already exists in cache (Realtime beat us)`, { dealId: data.id?.slice(0, 8) });
-            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:290',message:'Deal already exists in cache',data:{dealId:data.id?.slice(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD5'})}).catch(()=>{});
           }
           // #endregion
           return old; // Não sobrescreve - Realtime já tem dados enriquecidos
@@ -393,7 +317,6 @@ export const useCreateDeal = () => {
           // #region agent log
           if (process.env.NODE_ENV !== 'production') {
             console.log(`[useCreateDeal] ✅ Swapped temp for real deal`, { tempId: tempId.slice(0, 15), realId: data.id?.slice(0, 8), cacheSize: withoutTemp.length + 1 });
-            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDealsQuery.ts:300',message:'Swapped temp for real deal',data:{tempId:tempId.slice(0,15),realId:data.id?.slice(0,8),cacheSize:withoutTemp.length+1},timestamp:Date.now(),sessionId:'debug-session',runId:'create-deal',hypothesisId:'CD6'})}).catch(()=>{});
           }
           // #endregion
           return [dealAsView, ...withoutTemp];
@@ -646,4 +569,99 @@ export const usePrefetchDeal = () => {
       staleTime: 5 * 60 * 1000,
     });
   };
+};
+
+/**
+ * Hook to create a deal together with an optional contact and/or company.
+ * Performs an optimistic insert into DEALS_VIEW_KEY cache and replaces the
+ * temporary entry with the real server response on success.
+ */
+export const useCreateDealWithContact = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      deal,
+      relatedData,
+    }: {
+      deal: Omit<Deal, 'id' | 'createdAt'>;
+      relatedData?: { contact?: Partial<Contact>; companyName?: string };
+    }) => {
+      let finalCompanyId = deal.companyId;
+      let finalContactId = deal.contactId;
+
+      // Create company if name provided
+      if (relatedData?.companyName) {
+        const { data: company, error: companyError } = await companiesService.create({ name: relatedData.companyName });
+        if (companyError) throw companyError;
+        if (company) finalCompanyId = company.id;
+      }
+
+      // Create contact if provided
+      if (relatedData?.contact?.name) {
+        const { data: contact, error: contactError } = await contactsService.create({
+          name: relatedData.contact.name,
+          email: relatedData.contact.email || '',
+          phone: relatedData.contact.phone || '',
+          companyId: finalCompanyId,
+          status: 'ACTIVE',
+          stage: 'LEAD',
+        });
+        if (contactError) throw contactError;
+        if (contact) finalContactId = contact.id;
+      }
+
+      const { data: createdDeal, error } = await dealsService.create({
+        ...deal,
+        companyId: finalCompanyId,
+        contactId: finalContactId,
+      });
+      if (error) throw error;
+      return createdDeal!;
+    },
+    onMutate: async ({ deal, relatedData }) => {
+      await queryClient.cancelQueries({ queryKey: DEALS_VIEW_KEY });
+      const tempId = `temp-${Date.now()}`;
+      const tempDeal: DealView = {
+        ...(deal as any),
+        id: tempId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        contactName: relatedData?.contact?.name || 'Sem contato',
+        contactEmail: relatedData?.contact?.email || '',
+        contactPhone: '',
+        companyName: relatedData?.companyName || 'Sem empresa',
+        clientCompanyName: relatedData?.companyName || 'Sem empresa',
+        stageLabel: 'Novo',
+        isWon: false,
+        isLost: false,
+      } as DealView;
+      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) => [tempDeal, ...old]);
+      return { tempId };
+    },
+    onSuccess: (data, _vars, context) => {
+      const { tempId } = context as { tempId: string };
+      const dealAsView: DealView = {
+        ...data,
+        companyName: '',
+        contactName: '',
+        contactEmail: '',
+        contactPhone: '',
+        stageLabel: '',
+      } as DealView;
+      queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) => {
+        const withoutTemp = old.filter((d) => d.id !== tempId);
+        return [dealAsView, ...withoutTemp];
+      });
+    },
+    onError: (_err, _vars, context) => {
+      const tempId = (context as any)?.tempId as string | undefined;
+      if (tempId) {
+        queryClient.setQueryData<DealView[]>(DEALS_VIEW_KEY, (old = []) => old.filter(d => d.id !== tempId));
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.deals.all });
+    },
+  });
 };

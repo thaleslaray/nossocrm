@@ -734,12 +734,12 @@ export const BoardCreationWizard: React.FC<BoardCreationWizardProps> = ({
         ...finalStrategy.agentPersona,
         name: randomName,
         // Replace occurrences of the old name in behavior and role
-        behavior: finalStrategy.agentPersona.behavior.replace(
-          new RegExp(finalStrategy.agentPersona.name, 'g'),
+        behavior: finalStrategy.agentPersona.behavior.replaceAll(
+          finalStrategy.agentPersona.name,
           randomName
         ),
-        role: finalStrategy.agentPersona.role.replace(
-          new RegExp(finalStrategy.agentPersona.name, 'g'),
+        role: finalStrategy.agentPersona.role.replaceAll(
+          finalStrategy.agentPersona.name,
           randomName
         ),
       }

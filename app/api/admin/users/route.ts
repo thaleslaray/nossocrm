@@ -38,7 +38,10 @@ export async function GET() {
     .limit(200)
     .order('created_at', { ascending: false });
 
-  if (error) return json({ error: error.message }, 500);
+  if (error) {
+    console.error('[API] Database error:', error)
+    return json({ error: 'Internal server error' }, 500)
+  }
 
   const users = (profiles || []).map((p) => ({
     id: p.id,

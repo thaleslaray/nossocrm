@@ -1,7 +1,9 @@
 import React from 'react';
-import { PenTool, Pencil, Check, Plus, List, Tag, Trash2 } from 'lucide-react';
+import { PenTool, Pencil, Check, Plus, Tag, Trash2 } from 'lucide-react';
 import { SettingsSection } from './SettingsSection';
 import { CustomFieldDefinition, CustomFieldType } from '@/types';
+import { Button } from '@/components/ui/button';
+import { InputField, SelectField } from '@/components/ui/FormField';
 
 interface CustomFieldsManagerProps {
   customFieldDefinitions: CustomFieldDefinition[];
@@ -77,63 +79,59 @@ export const CustomFieldsManager: React.FC<CustomFieldsManagerProps> = ({
           </div>
         )}
         <div className="flex gap-3 items-end mb-3">
-          <div className="flex-1">
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome do Campo</label>
-            <input
-              type="text"
-              value={newFieldLabel}
-              onChange={(e) => setNewFieldLabel(e.target.value)}
-              placeholder="Ex: Data de Validade"
-              className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
-            />
-          </div>
-          <div className="w-40">
-            <label htmlFor="custom-field-type" className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo</label>
-            <select
-              id="custom-field-type"
-              value={newFieldType}
-              onChange={(e) => setNewFieldType(e.target.value as CustomFieldType)}
-              className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
-            >
-              <option value="text">Texto</option>
-              <option value="number">Número</option>
-              <option value="date">Data</option>
-              <option value="select">Seleção</option>
-            </select>
-          </div>
+          <InputField
+            label="Nome do Campo"
+            containerClassName="flex-1"
+            type="text"
+            value={newFieldLabel}
+            onChange={(e) => setNewFieldLabel(e.target.value)}
+            placeholder="Ex: Data de Validade"
+          />
+          <SelectField
+            label="Tipo"
+            id="custom-field-type"
+            containerClassName="w-40"
+            options={[
+              { value: 'text', label: 'Texto' },
+              { value: 'number', label: 'Número' },
+              { value: 'date', label: 'Data' },
+              { value: 'select', label: 'Seleção' },
+            ]}
+            value={newFieldType}
+            onChange={(e) => setNewFieldType(e.target.value as CustomFieldType)}
+          />
           <div className="flex gap-2">
             {editingId && (
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={onCancelEditing}
-                className="bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 px-3 py-2 rounded-lg text-sm font-bold transition-colors h-[38px] border border-slate-200 dark:border-white/10"
               >
                 Cancelar
-              </button>
+              </Button>
             )}
-            <button
+            <Button
+              size="sm"
               onClick={onSaveField}
               disabled={!newFieldLabel.trim()}
-              className={`${editingId ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20' : 'bg-primary-600 hover:bg-primary-500 shadow-primary-600/20'} text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors h-[38px] shadow-lg`}
+              className={editingId ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/20' : undefined}
             >
               {editingId ? <Check size={16} /> : <Plus size={16} />}
               {editingId ? 'Salvar' : 'Criar'}
-            </button>
+            </Button>
           </div>
         </div>
 
         {newFieldType === 'select' && (
           <div className="animate-in slide-in-from-top-2 fade-in duration-200">
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-2">
-              <List size={12} /> Opções (Separadas por vírgula)
-            </label>
-            <input
+            <InputField
+              label="Opções (Separadas por vírgula)"
               type="text"
               value={newFieldOptions}
               onChange={(e) => setNewFieldOptions(e.target.value)}
               placeholder="Ex: Google, Facebook, Instagram, Indicação"
-              className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+              hint="Essas opções aparecerão em um menu dropdown no detalhe do negócio."
             />
-            <p className="text-[10px] text-slate-400 mt-1">Essas opções aparecerão em um menu dropdown no detalhe do negócio.</p>
           </div>
         )}
       </div>
@@ -161,20 +159,24 @@ export const CustomFieldsManager: React.FC<CustomFieldsManagerProps> = ({
               </div>
             </div>
             <div className="flex gap-1">
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => onStartEditing(field)}
-                className="text-slate-400 hover:text-amber-500 p-2 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
                 title="Editar campo"
+                className="text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20"
               >
                 <Pencil size={16} />
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => onRemoveField(field.id)}
-                className="text-slate-400 hover:text-red-500 p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 title="Remover campo"
+                className="text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
               >
                 <Trash2 size={16} />
-              </button>
+              </Button>
             </div>
           </div>
         ))}

@@ -1,21 +1,8 @@
-'use client'
+import type { Metadata } from 'next';
+import DashboardPage from '@/features/dashboard/DashboardPage'
 
-import dynamic from 'next/dynamic'
-import { PageLoader } from '@/components/PageLoader'
+export const metadata: Metadata = { title: 'Dashboard | NossoCRM' };
 
-// Dynamic import with loading state
-const DashboardPage = dynamic(
-    () => import('@/features/dashboard/DashboardPage'),
-    {
-        loading: () => <PageLoader />,
-        ssr: false
-    }
-)
-
-/**
- * Componente React `Dashboard`.
- * @returns {Element} Retorna um valor do tipo `Element`.
- */
 export default function Dashboard() {
     return <DashboardPage />
 }

@@ -129,6 +129,30 @@ export const CRM_TOOL_CATALOG = {
     description:
       'Writes data. Updates mutable contact fields within the authenticated organization.',
   },
+  findDuplicateContacts: {
+    name: 'crm.contacts.find_duplicates',
+    title: 'Find duplicate contacts',
+    description:
+      'Read-only. Finds potential duplicate contacts by matching email or phone within the authenticated organization. Returns groups sharing the same email or phone.',
+  },
+  mergeContacts: {
+    name: 'crm.contacts.merge',
+    title: 'Merge contacts',
+    description:
+      'Writes data. Merges two contacts: moves all deals and conversation links from the source to the target, then deletes the source. Scoped to the authenticated organization.',
+  },
+  exportContacts: {
+    name: 'crm.contacts.export',
+    title: 'Export contacts',
+    description:
+      'Read-only. Exports contacts as a JSON array with optional filters (source, dateRange). Capped at 1000 records. Scoped to the authenticated organization.',
+  },
+  importContacts: {
+    name: 'crm.contacts.import',
+    title: 'Import contacts',
+    description:
+      'Writes data. Imports an array of contacts (max 500 per call). Skips records whose email already exists in the org. Returns imported/skipped/error counts. Scoped to the authenticated organization.',
+  },
   linkDealToContact: {
     name: 'crm.deals.link_contact',
     title: 'Link deal to contact',
@@ -197,6 +221,137 @@ export const CRM_TOOL_CATALOG = {
     title: 'Reorder stages',
     description:
       'Writes data. Reorders stages for a board (ordered list of stage IDs) within the authenticated organization.',
+  },
+  // ── Messaging ────────────────────────────────────────────────────────────
+
+  listChannels: {
+    name: 'crm.channels.list',
+    title: 'List channels',
+    description:
+      'Read-only. Lists messaging channels (WhatsApp, Instagram, Email, etc.) for the authenticated organization. Credentials are never returned.',
+  },
+  listConversations: {
+    name: 'crm.conversations.list',
+    title: 'List conversations',
+    description:
+      'Read-only. Lists messaging conversations with optional filters (channelId, contactId, status). Includes contact name via join. Scoped to the authenticated organization.',
+  },
+  getConversation: {
+    name: 'crm.conversations.get',
+    title: 'Get conversation',
+    description:
+      'Read-only. Returns a single conversation with its most recent messages, contact, and channel info. Scoped to the authenticated organization.',
+  },
+  sendMessage: {
+    name: 'crm.messages.send',
+    title: 'Send message',
+    description:
+      'Writes data. Queues a text message for sending in an existing conversation. The message is inserted as "pending" and dispatched by the messaging worker. Scoped to the authenticated organization.',
+  },
+  searchMessages: {
+    name: 'crm.messages.search',
+    title: 'Search messages',
+    description:
+      'Read-only. Full-text search over message content within the authenticated organization. Joins through conversations to enforce org scoping.',
+  },
+  retryMessage: {
+    name: 'crm.messages.retry',
+    title: 'Retry failed message',
+    description:
+      'Writes data. Resets a failed message back to "pending" status so it will be retried by the messaging worker. Scoped to the authenticated organization.',
+  },
+  listTemplates: {
+    name: 'crm.templates.list',
+    title: 'List message templates',
+    description:
+      'Read-only. Lists HSM (WhatsApp) message templates, optionally filtered by channel. Scoped to the authenticated organization via channel ownership.',
+  },
+  syncTemplates: {
+    name: 'crm.templates.sync',
+    title: 'Sync message templates',
+    description:
+      'Initiates a template sync with the provider (Meta). Requires Meta API credentials — must be done via the web UI.',
+  },
+
+  // ── AI & HITL ─────────────────────────────────────────────────────────────
+
+  listHITL: {
+    name: 'crm.ai.hitl.list',
+    title: 'List HITL pending stage advances',
+    description:
+      'Read-only. Lists AI-suggested stage advances awaiting human review. Defaults to status="pending". Joins deals for title. Scoped to the authenticated organization.',
+  },
+  countHITL: {
+    name: 'crm.ai.hitl.count',
+    title: 'Count HITL pending stage advances',
+    description:
+      'Read-only. Returns the count of AI-suggested stage advances filtered by status (default: "pending"). Scoped to the authenticated organization.',
+  },
+  resolveHITL: {
+    name: 'crm.ai.hitl.resolve',
+    title: 'Resolve HITL pending stage advance',
+    description:
+      'Writes data. Approves or rejects an AI-suggested stage advance. On approval, moves the deal to the target stage. Scoped to the authenticated organization.',
+  },
+  aiDailyBriefing: {
+    name: 'crm.ai.daily_briefing',
+    title: 'Get daily AI briefing',
+    description:
+      'Read-only. Aggregates a daily operations briefing: overdue activities, recent open deals, and pending HITL count. Scoped to the authenticated organization.',
+  },
+  aiMeetingBriefing: {
+    name: 'crm.ai.meeting_briefing',
+    title: 'Generate meeting briefing',
+    description:
+      'Calls AI. Generates a pre-meeting briefing for a deal using the BANT framework. Analyzes conversation history and returns actionable insights. Scoped to the authenticated organization.',
+  },
+  aiPatternsList: {
+    name: 'crm.ai.patterns.list',
+    title: 'List AI learned patterns',
+    description:
+      'Read-only. Lists few-shot learned patterns for the authenticated organization. Used to improve AI response quality.',
+  },
+  aiMetrics: {
+    name: 'crm.ai.metrics',
+    title: 'Get AI conversation metrics',
+    description:
+      'Read-only. Aggregates AI conversation logs for the last 30 days: count by action, total tokens, breakdown by model, and daily activity. Scoped to the authenticated organization.',
+  },
+
+  // ── Admin ─────────────────────────────────────────────────────────────────
+
+  listUsers: {
+    name: 'crm.admin.users.list',
+    title: 'List team members',
+    description:
+      'Read-only. Lists all team members (profiles) for the authenticated organization. Returns id, email, name, role, avatar_url, created_at.',
+  },
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+
+  getAiSettings: {
+    name: 'crm.settings.ai.get',
+    title: 'Get AI settings',
+    description:
+      'Read-only. Returns AI configuration for the authenticated organization. API keys are never returned — only boolean flags indicate whether keys are configured.',
+  },
+  updateAiSettings: {
+    name: 'crm.settings.ai.update',
+    title: 'Update AI settings',
+    description:
+      'Writes data. Updates non-sensitive AI configuration fields. API keys cannot be updated via MCP.',
+  },
+  listAiTemplates: {
+    name: 'crm.settings.ai_templates.list',
+    title: 'List AI qualification templates',
+    description:
+      'Read-only. Lists AI qualification templates (system and org-specific) available to the authenticated organization.',
+  },
+  getAiFeatures: {
+    name: 'crm.settings.ai_features.get',
+    title: 'Get AI feature flags',
+    description:
+      'Read-only. Returns the current AI feature flag state (ai_enabled, ai_auto_respond, ai_qualification_mode) for the authenticated organization.',
   },
 } as const satisfies Record<string, CrmToolCatalogEntry>;
 

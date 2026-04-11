@@ -27,9 +27,10 @@
  * ```
  */
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { queryClient } from '../lib/query';
 import type { OrganizationId } from '../types';
 
 /**
@@ -121,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // O app real exige Supabase configurado, mas este guard evita falha no build.
     const sb = supabase;
 
-    const checkInitialization = async () => {
+    const checkInitialization = useCallback(async () => {
         try {
             if (!sb) {
                 setIsInitialized(true);
@@ -135,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.error('Error checking initialization:', error);
             setIsInitialized(true);
         }
-    };
+    }, [sb]);
 
     const fetchProfile = async (userId: string) => {
         try {
@@ -148,10 +149,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 .from('profiles')
                 .select('*')
                 .eq('id', userId)
-                .single();
+                .maybeSingle();
 
             if (error) {
                 console.error('Error fetching profile:', error);
+            } else if (data === null) {
+                console.warn('Profile not found for user:', userId);
+                setProfile(null);
             } else {
                 setProfile(data);
             }
@@ -160,11 +164,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    const refreshProfile = async () => {
+    const refreshProfile = useCallback(async () => {
         if (user?.id) {
             await fetchProfile(user.id);
         }
-    };
+    }, [user?.id]);
 
     useEffect(() => {
         if (!sb) {
@@ -179,11 +183,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         checkInitialization();
 
-        sb.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            if (session?.user) {
-                fetchProfile(session.user.id);
+        sb.auth.getUser().then(({ data: { user }, error }) => {
+            if (error) {
+                console.error('Error getting user:', error);
+                setLoading(false);
+                return;
+            }
+            setUser(user);
+            if (user) {
+                fetchProfile(user.id);
             } else {
                 setLoading(false);
             }
@@ -203,14 +211,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => subscription.unsubscribe();
     }, []);
 
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         if (sb) await sb.auth.signOut();
+        // Clear TanStack Query cache to prevent data leakage between sessions/tenants
+        queryClient.clear();
         setProfile(null);
         setUser(null);
         setSession(null);
-    };
+    }, [sb]);
 
-    const value = {
+    const value = useMemo(() => ({
         session,
         user,
         profile,
@@ -220,7 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         checkInitialization,
         signOut,
         refreshProfile,
-    };
+    }), [session, user, profile, loading, isInitialized, checkInitialization, signOut, refreshProfile]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

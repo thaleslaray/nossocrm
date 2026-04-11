@@ -1,4 +1,4 @@
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { requireAITaskContext, AITaskHttpError } from '@/lib/ai/tasks/server';
 import { RefineBoardInputSchema, RefineBoardOutputSchema } from '@/lib/ai/tasks/schemas';
@@ -42,14 +42,14 @@ export async function POST(req: Request) {
       historyContext,
     });
 
-    const result = await generateObject({
+    const result = await generateText({
       model,
       maxRetries: 3,
-      schema: RefineBoardOutputSchema,
+      output: Output.object({ schema: RefineBoardOutputSchema }),
       prompt,
     });
 
-    return json(result.object);
+    return json(result.output);
   } catch (err: unknown) {
     if (err instanceof AITaskHttpError) return err.toResponse();
     if (err instanceof z.ZodError) {

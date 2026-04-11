@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useInboxController } from './hooks/useInboxController';

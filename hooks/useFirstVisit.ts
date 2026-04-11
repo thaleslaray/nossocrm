@@ -51,6 +51,7 @@ const ONBOARDING_KEY = 'crm_onboarding_completed';
  */
 export const useFirstVisit = () => {
     const [isFirstVisit, setIsFirstVisit] = useState<boolean>(() => {
+        if (typeof window === 'undefined') return false;
         const completed = localStorage.getItem(ONBOARDING_KEY);
         return completed !== 'true';
     });

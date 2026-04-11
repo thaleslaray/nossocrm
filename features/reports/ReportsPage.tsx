@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -6,7 +8,7 @@ import { useDashboardMetrics, PeriodFilter, COMPARISON_LABELS } from '../dashboa
 import { PeriodFilterSelect } from '@/components/filters/PeriodFilterSelect';
 import { LazyRevenueTrendChart, ChartWrapper } from '@/components/charts';
 import { generateReportPDF } from './utils/generateReportPDF';
-import { useCRM } from '@/context/CRMContext';
+import { useBoards } from '@/lib/query/hooks';
 import { useAuth } from '@/context/AuthContext';
 
 /**
@@ -15,7 +17,7 @@ import { useAuth } from '@/context/AuthContext';
  */
 const ReportsPage: React.FC = () => {
   const router = useRouter();
-  const { boards } = useCRM();
+  const { data: boards = [] } = useBoards();
   const { profile } = useAuth();
   const [period, setPeriod] = useState<PeriodFilter>('this_month');
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');

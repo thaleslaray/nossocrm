@@ -1,6 +1,20 @@
+import path from "path";
+import { fileURLToPath } from "url";
 import type { NextConfig } from "next";
 
+const configDir = path.dirname(fileURLToPath(import.meta.url));
+// When running from a git worktree inside .claude/worktrees/, node_modules live
+// 3 levels up at the repo root. Turbopack needs an explicit root to resolve them.
+const repoRoot = configDir.includes('/.claude/worktrees/')
+  ? path.resolve(configDir, '../../../')
+  : configDir;
+
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: '*.supabase.co' },
+    ],
+  },
   // Otimiza imports de bibliotecas com barrel files (index.js que re-exporta tudo)
   // Isso evita carregar módulos não utilizados, reduzindo o bundle em 15-25KB
   // Ref: https://vercel.com/blog/how-we-optimized-package-imports-in-next-js
@@ -13,33 +27,12 @@ const nextConfig: NextConfig = {
     ],
   },
   turbopack: {
-    root: process.cwd(),
+    root: repoRoot,
+  },
+  async rewrites() {
+    return [{ source: '/api/chat', destination: '/api/ai/chat' }];
   },
   async headers() {
-    const securityHeaders = [
-      { key: "X-Frame-Options",           value: "DENY" },
-      { key: "X-Content-Type-Options",    value: "nosniff" },
-      { key: "Referrer-Policy",           value: "strict-origin-when-cross-origin" },
-      { key: "Permissions-Policy",        value: "camera=(), microphone=(), geolocation=()" },
-      {
-        key: "Strict-Transport-Security",
-        value: "max-age=63072000; includeSubDomains; preload",
-      },
-      {
-        key: "Content-Security-Policy",
-        // frame-ancestors replaces X-Frame-Options for modern browsers
-        value: [
-          "default-src 'self'",
-          "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-          "style-src 'self' 'unsafe-inline'",
-          "img-src 'self' data: https:",
-          "font-src 'self' data:",
-          "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-          "frame-ancestors 'none'",
-        ].join("; "),
-      },
-    ];
-
     return [
       {
         source: "/sw.js",
@@ -49,8 +42,12 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/(.*)",
-        headers: securityHeaders,
+        source: "/api/mcp",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET, POST, OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Authorization, Content-Type, X-Api-Key" },
+        ],
       },
     ];
   },

@@ -1,129 +1,47 @@
-import React, { useState, useEffect } from 'react';
-import { useCRM } from '@/context/CRMContext';
-import { Bot, Key, Cpu, CheckCircle, AlertCircle, Loader2, Save, Trash2, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useOrgSettings, useUpdateAISettings, useUpdateUserSettings } from '@/lib/query/hooks/useOrgSettingsQuery';
+import { Bot, Key, CheckCircle, AlertCircle, Loader2, Save, Trash2, ChevronDown, ChevronUp, Shield, RefreshCw } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
+import type { AIModelInfo } from '@/app/api/ai/models/route';
 
-// Performance: keep provider/model catalog outside the component to avoid reallocations on every render.
-const AI_PROVIDERS = [
-    {
-        id: 'google',
-        name: 'Google Gemini',
-        models: [
-            { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Recomendado - Best value', price: '$0.15 / $0.60' },
-            { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', description: 'Most intelligent', price: '$1.25 / $10' },
-        ]
-    },
-    {
-        id: 'anthropic',
-        name: 'Anthropic Claude',
-        models: [
-            { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', description: 'Recomendado - Best balance', price: '$3 / $15' },
-            { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', description: 'Fastest', price: '$1 / $5' },
-            { id: 'claude-opus-4-5', name: 'Claude Opus 4.5', description: 'Premium intelligence', price: '$5 / $25' },
-        ]
-    },
-    {
-        id: 'openai',
-        name: 'OpenAI',
-        models: [
-            { id: 'gpt-5.2', name: 'GPT-5.2 (Preview)', description: 'Preview', price: '$1.75 / $14' },
-            { id: 'gpt-5.2-pro', name: 'GPT-5.2 Pro', description: 'Premium', price: '$21 / $168' },
-            { id: 'gpt-5.2-chat-latest', name: 'GPT-5.2 Chat Latest', description: 'Latest chat', price: '$1.75 / $14' },
-            { id: 'gpt-5-mini', name: 'GPT-5 Mini', description: 'Fast & efficient', price: '$0.25 / $2' },
-            { id: 'gpt-5-nano', name: 'GPT-5 Nano', description: 'Ultra fast', price: '$0.05 / $0.40' },
-            { id: 'gpt-4o', name: 'GPT-4o', description: 'Legacy flagship', price: '$2.50 / $10' },
-        ]
-    },
-] as const;
-
-// Função para validar API key fazendo uma chamada real à API
-async function validateApiKey(provider: string, apiKey: string, model: string): Promise<{ valid: boolean; error?: string }> {
+// Função para validar API key Gemini fazendo uma chamada real à API
+async function validateApiKey(apiKey: string, model: string): Promise<{ valid: boolean; error?: string }> {
     if (!apiKey || apiKey.trim().length < 10) {
         return { valid: false, error: 'Chave muito curta' };
     }
 
     try {
-        if (provider === 'google') {
-            // Gemini API validation - usa endpoint generateContent com texto mínimo
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: 'Hi' }] }],
-                        generationConfig: { maxOutputTokens: 1 }
-                    })
-                }
-            );
-
-            if (response.ok) {
-                return { valid: true };
-            }
-
-            const error = await response.json();
-            if (response.status === 400 && error?.error?.message?.includes('API key not valid')) {
-                return { valid: false, error: 'Chave de API inválida' };
-            }
-            if (response.status === 403) {
-                return { valid: false, error: 'Chave sem permissão para este modelo' };
-            }
-            if (response.status === 429) {
-                // Rate limit = key é válida, só está no limite
-                return { valid: true };
-            }
-            return { valid: false, error: error?.error?.message || 'Erro desconhecido' };
-
-        } else if (provider === 'openai') {
-            // OpenAI validation
-            const response = await fetch('https://api.openai.com/v1/models', {
-                headers: { 'Authorization': `Bearer ${apiKey}` }
-            });
-
-            if (response.ok) {
-                return { valid: true };
-            }
-            if (response.status === 401) {
-                return { valid: false, error: 'Chave de API inválida' };
-            }
-            return { valid: false, error: 'Erro ao validar chave' };
-
-        } else if (provider === 'anthropic') {
-            // Anthropic validation - não tem endpoint de validação simples
-            // Fazemos uma chamada mínima
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+            {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': apiKey,
-                    'anthropic-version': '2023-06-01'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: model,
-                    max_tokens: 1,
-                    messages: [{ role: 'user', content: 'Hi' }]
+                    contents: [{ parts: [{ text: 'Hi' }] }],
+                    generationConfig: { maxOutputTokens: 1 }
                 })
-            });
+            }
+        );
 
-            if (response.ok) {
-                return { valid: true };
-            }
-            if (response.status === 401) {
-                return { valid: false, error: 'Chave de API inválida' };
-            }
-            if (response.status === 429) {
-                return { valid: true }; // Rate limit = key válida
-            }
-            return { valid: false, error: 'Erro ao validar chave' };
+        if (response.ok) return { valid: true };
+
+        const error = await response.json();
+        if (response.status === 400 && error?.error?.message?.includes('API key not valid')) {
+            return { valid: false, error: 'Chave de API inválida' };
         }
-
-        return { valid: false, error: 'Provedor não suportado' };
-    } catch (error) {
-        console.error('API Key validation error:', error);
+        if (response.status === 403) {
+            return { valid: false, error: 'Chave sem permissão para este modelo' };
+        }
+        if (response.status === 429) {
+            return { valid: true }; // rate limit = key válida
+        }
+        return { valid: false, error: error?.error?.message || 'Erro desconhecido' };
+    } catch {
         return { valid: false, error: 'Erro de conexão. Verifique sua internet.' };
     }
 }
+
 
 /**
  * Componente React `AIConfigSection`.
@@ -133,15 +51,50 @@ export const AIConfigSection: React.FC = () => {
     const { profile } = useAuth();
     const isAdmin = profile?.role === 'admin';
 
-    const {
-        aiProvider, setAiProvider,
-        aiApiKey, setAiApiKey,
-        aiModel, setAiModel,
-        aiKeyConfigured,
-        aiThinking, setAiThinking,
-        aiSearch, setAiSearch,
-        aiAnthropicCaching, setAiAnthropicCaching
-    } = useCRM();
+    const { data: orgSettings } = useOrgSettings();
+    const updateAISettings = useUpdateAISettings();
+    const updateUserSettings = useUpdateUserSettings();
+
+    // Derived values from TanStack Query data
+    const aiModel = orgSettings?.aiModel ?? '';
+    const aiKeyConfigured = orgSettings?.aiKeyConfigured ?? false;
+    const aiThinking = orgSettings?.aiThinking ?? true;
+    const aiSearch = orgSettings?.aiSearch ?? true;
+    const aiApiKey = orgSettings?.aiGoogleKey ?? '';
+
+    const [localModel, setLocalModel] = useState<string | null>(null);
+
+    // Dynamic model list fetched from the provider's API
+    const [dynamicModels, setDynamicModels] = useState<AIModelInfo[]>([]);
+    const [modelsLoading, setModelsLoading] = useState(false);
+
+    const fetchModels = useCallback(async () => {
+        setModelsLoading(true);
+        try {
+            const res = await fetch('/api/ai/models');
+            if (res.ok) {
+                const data = await res.json() as { models?: AIModelInfo[] };
+                setDynamicModels(data.models ?? []);
+            }
+        } catch {
+            // silencioso — usa lista vazia
+        } finally {
+            setModelsLoading(false);
+        }
+    }, []);
+
+    const setAiApiKey = async (key: string) => {
+        await updateAISettings.mutateAsync({ aiGoogleKey: key });
+    };
+    const setAiModel = async (model: string) => {
+        await updateAISettings.mutateAsync({ aiModel: model });
+    };
+    const setAiThinking = async (enabled: boolean) => {
+        await updateUserSettings.mutateAsync({ aiThinking: enabled });
+    };
+    const setAiSearch = async (enabled: boolean) => {
+        await updateUserSettings.mutateAsync({ aiSearch: enabled });
+    };
 
     const { showToast } = useToast();
 
@@ -184,13 +137,7 @@ export const AIConfigSection: React.FC = () => {
         setIsValidating(true);
         setValidationError(null);
 
-        // If user is typing a custom model ID, validate against the draft (even before persisting it).
-        const modelForValidation =
-            modelSelectValue === 'custom' && customModelDraft.trim()
-                ? customModelDraft.trim()
-                : aiModel;
-
-        const result = await validateApiKey(aiProvider, localApiKey, modelForValidation);
+        const result = await validateApiKey(localApiKey, aiModel);
 
         setIsValidating(false);
 
@@ -225,61 +172,15 @@ export const AIConfigSection: React.FC = () => {
 
     const hasUnsavedChanges = localApiKey !== aiApiKey;
 
-    // Preços exibidos: input / output (por 1M tokens), apenas como referência na UI.
-    // Fontes oficiais (podem mudar):
-    // - OpenAI: https://platform.openai.com/docs/pricing
-    // - Google Gemini API: https://ai.google.dev/gemini-api/docs/pricing
-    // - Anthropic (model comparison / pricing): https://platform.claude.com/docs/en/about-claude/models
-    // Observação: alguns provedores têm preço em faixas (ex.: Gemini por tamanho de contexto) e/ou “cached input” (OpenAI).
-    const currentProvider = AI_PROVIDERS.find(p => p.id === aiProvider);
-    const isCatalogModel = !!currentProvider?.models.some(m => m.id === aiModel);
-
-    /**
-     * UX: the <select> needs its own UI state.
-     * If we keep it controlled solely by `aiModel`, choosing "custom" would "do nothing"
-     * because we intentionally do NOT persist `aiModel=''` (backend requires min(1)).
-     */
-    const [modelSelectValue, setModelSelectValue] = useState<string>(isCatalogModel ? aiModel : 'custom');
-
     useEffect(() => {
-        // Keep select in sync when aiModel changes externally (initial load / provider auto-pick / save custom).
-        setModelSelectValue(isCatalogModel ? aiModel : 'custom');
-    }, [aiProvider, aiModel]);
-
-    // UX: for "Outro (Digitar ID)" we keep a local draft and only persist on explicit save.
-    // This avoids POST /api/settings/ai failing (aiModel has z.string().min(1)).
-    const [customModelDraft, setCustomModelDraft] = useState('');
-    const [customModelDirty, setCustomModelDirty] = useState(false);
-    const [isSavingModel, setIsSavingModel] = useState(false);
-
-    useEffect(() => {
-        // Sync draft when entering custom mode or when a saved custom model is loaded.
-        if (modelSelectValue !== 'custom') {
-            setCustomModelDraft('');
-            setCustomModelDirty(false);
-            return;
+        if (aiKeyConfigured) {
+            void fetchModels();
+        } else {
+            setDynamicModels([]);
         }
-        if (!customModelDirty) {
-            setCustomModelDraft(!isCatalogModel ? aiModel : '');
-        }
-    }, [modelSelectValue, aiModel, customModelDirty, isCatalogModel]);
+    }, [aiKeyConfigured, fetchModels]);
 
-    const handleProviderChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const newProviderId = e.target.value as 'google' | 'openai' | 'anthropic';
-        try {
-            await setAiProvider(newProviderId);
-
-            // Auto-set recommended model (first one in list usually, or one marked recommended)
-            const providerData = AI_PROVIDERS.find(p => p.id === newProviderId);
-            if (providerData && providerData.models.length > 0) {
-                // Prefer models with "Recomendado" in description, else first one
-                const recommended = providerData.models.find(m => m.description.includes('Recomendado')) || providerData.models[0];
-                await setAiModel(recommended.id);
-            }
-        } catch (err) {
-            showToast(err instanceof Error ? err.message : 'Falha ao atualizar provedor de IA', 'error');
-        }
-    };
+    const isCatalogModel = dynamicModels.some(m => m.id === aiModel);
 
     return (
         <div id="ai-config" className="mt-6 border-t border-slate-200 dark:border-white/10 pt-6 scroll-mt-8">
@@ -302,7 +203,7 @@ export const AIConfigSection: React.FC = () => {
                             <span className="font-semibold">Status:</span> Configurado pela organização
                         </div>
                         <div className="text-sm text-slate-700 dark:text-slate-200 mt-1">
-                            <span className="font-semibold">Provedor:</span> {aiProvider}
+                            <span className="font-semibold">Provedor:</span> Google Gemini
                         </div>
                         <div className="text-sm text-slate-700 dark:text-slate-200 mt-1">
                             <span className="font-semibold">Modelo:</span> {aiModel}
@@ -317,138 +218,66 @@ export const AIConfigSection: React.FC = () => {
                 {!isAdmin ? null : (
                     <>
 
-                {/* Provider Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <label htmlFor="ai-provider-select" className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                            <Cpu size={14} /> Provedor de IA
-                        </label>
-                        <div className="relative">
-                            <select
-                                id="ai-provider-select"
-                                value={aiProvider}
-                                onChange={handleProviderChange}
-                                className="w-full appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
-                            >
-                                {AI_PROVIDERS.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                            </select>
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Model Selection */}
+                {/* Model Selection */}
+                <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-2">
                         <label htmlFor="ai-model-select" className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
                             <Bot size={14} /> Modelo
+                            {modelsLoading && <Loader2 size={12} className="animate-spin text-purple-500" />}
+                            {!modelsLoading && aiKeyConfigured && (
+                                <button
+                                    type="button"
+                                    onClick={() => fetchModels()}
+                                    className="ml-auto text-slate-400 hover:text-purple-500 transition-colors"
+                                    title="Recarregar modelos"
+                                >
+                                    <RefreshCw size={12} />
+                                </button>
+                            )}
                         </label>
                         <div className="relative">
                             <select
                                 id="ai-model-select"
-                                value={modelSelectValue}
+                                value={localModel ?? (isCatalogModel ? aiModel : '')}
+                                disabled={modelsLoading}
                                 onChange={async (e) => {
                                     const next = e.target.value;
-                                    if (next === 'custom') {
-                                        // Do NOT persist empty model. Show input and let user save explicitly.
-                                        setModelSelectValue('custom');
-                                        setCustomModelDraft(!isCatalogModel ? aiModel : '');
-                                        setCustomModelDirty(false);
-                                        return;
-                                    }
-                                    setModelSelectValue(next);
+                                    if (!next) return;
+                                    setLocalModel(next);
                                     try {
                                         await setAiModel(next);
-                                        setCustomModelDraft('');
-                                        setCustomModelDirty(false);
+                                        showToast('Modelo salvo!', 'success');
                                     } catch (err) {
+                                        setLocalModel(null);
                                         showToast(err instanceof Error ? err.message : 'Falha ao atualizar modelo', 'error');
                                     }
                                 }}
-                                className="w-full appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
+                                className="w-full appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all disabled:opacity-50"
                             >
-                                {currentProvider?.models.map(m => (
-                                    <option key={m.id} value={m.id}>
-                                        {m.name} - {m.description} ({m.price})
+                                {dynamicModels.length === 0 ? (
+                                    <option value="" disabled>
+                                        {modelsLoading ? 'Carregando...' : aiKeyConfigured ? 'Nenhum modelo encontrado' : 'Configure a chave de API primeiro'}
                                     </option>
-                                ))}
-                                <option value="custom">Outro (Digitar ID)</option>
+                                ) : (
+                                    <>
+                                        {!(localModel ?? isCatalogModel) && <option value="" disabled>Selecione um modelo</option>}
+                                        {dynamicModels.map(m => (
+                                            <option key={m.id} value={m.id}>
+                                                {m.isAlias ? `★ ${m.name}` : m.name} ({m.id})
+                                            </option>
+                                        ))}
+                                    </>
+                                )}
                             </select>
                             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                             </div>
                         </div>
-
-                        {modelSelectValue === 'custom' && (
-                            <div className="mt-2 animate-in fade-in slide-in-from-top-2">
-                                <input
-                                    type="text"
-                                    value={customModelDraft}
-                                    onChange={(e) => {
-                                        setCustomModelDraft(e.target.value);
-                                        setCustomModelDirty(true);
-                                    }}
-                                    placeholder="Digite o ID do modelo (ex: gemini-3-pro-preview)"
-                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
-                                />
-                                <p className="text-xs text-slate-500 mt-1">
-                                    Consulte a documentação do provedor para obter o ID correto.
-                                </p>
-
-                                <div className="mt-2 flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={async () => {
-                                            const trimmed = customModelDraft.trim();
-                                            if (!trimmed) {
-                                                showToast('Digite o ID do modelo', 'error');
-                                                return;
-                                            }
-                                            setIsSavingModel(true);
-                                            try {
-                                                await setAiModel(trimmed);
-                                                // Keep UX consistent: if the saved ID matches a catalog option, select it;
-                                                // otherwise stay in custom mode.
-                                                const matchesCatalog = !!currentProvider?.models.some(m => m.id === trimmed);
-                                                setModelSelectValue(matchesCatalog ? trimmed : 'custom');
-                                                setCustomModelDirty(false);
-                                                showToast('Modelo salvo!', 'success');
-                                            } catch (err) {
-                                                showToast(err instanceof Error ? err.message : 'Falha ao salvar modelo', 'error');
-                                            } finally {
-                                                setIsSavingModel(false);
-                                            }
-                                        }}
-                                        disabled={isSavingModel || !customModelDraft.trim()}
-                                        className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${isSavingModel || !customModelDraft.trim()
-                                            ? 'bg-slate-200 dark:bg-white/10 text-slate-400 cursor-not-allowed'
-                                            : 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
-                                            }`}
-                                    >
-                                        {isSavingModel ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                        Salvar modelo
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setCustomModelDraft(aiModel);
-                                            setCustomModelDirty(false);
-                                        }}
-                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 transition-colors"
-                                    >
-                                        Reset
-                                    </button>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
 
                 {/* Google Thinking Config */}
-                {aiProvider === 'google' && (
+                {(
                     <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-500/20 rounded-lg p-3 animate-in fade-in slide-in-from-top-2">
                         <div className="flex items-center justify-between">
                             <div>
@@ -473,39 +302,13 @@ export const AIConfigSection: React.FC = () => {
                     </div>
                 )}
 
-                {/* Anthropic Prompt Caching Config */}
-                {aiProvider === 'anthropic' && (
-                    <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-500/20 rounded-lg p-3 animate-in fade-in slide-in-from-top-2">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="font-medium text-orange-900 dark:text-orange-100 flex items-center gap-2">
-                                    <span className="text-lg">⚡</span> Prompt Caching
-                                </h3>
-                                <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
-                                    Cacheia o contexto para economizar tokens e acelerar respostas (ideal para conversas longas).
-                                </p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={aiAnthropicCaching}
-                                    onChange={(e) => setAiAnthropicCaching(e.target.checked)}
-                                    className="sr-only peer"
-                                    aria-label="Ativar Prompt Caching"
-                                />
-                                <div className="w-11 h-6 bg-red-500 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 dark:peer-focus:ring-red-800 rounded-full peer dark:bg-red-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-500 dark:peer-checked:bg-green-600"></div>
-                            </label>
-                        </div>
-                    </div>
-                )}
-
-                {/* Search Config (Google & Anthropic) */}
-                {(aiProvider === 'google' || aiProvider === 'anthropic') && (
+                {/* Search Config */}
+                {(
                     <div className="bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-500/20 rounded-lg p-3 animate-in fade-in slide-in-from-top-2">
                         <div className="flex items-center justify-between">
                             <div>
                                 <h3 className="font-medium text-green-900 dark:text-green-100 flex items-center gap-2">
-                                    <span className="text-lg">🌍</span> {aiProvider === 'google' ? 'Google Search Grounding' : 'Web Search'}
+                                    <span className="text-lg">🌍</span> Google Search Grounding
                                 </h3>
                                 <p className="text-sm text-green-700 dark:text-green-300 mt-1">
                                     Conecta o modelo à internet para buscar informações atualizadas.
@@ -528,7 +331,7 @@ export const AIConfigSection: React.FC = () => {
                 {/* API Key */}
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <Key size={14} /> Chave de API ({AI_PROVIDERS.find(p => p.id === aiProvider)?.name})
+                        <Key size={14} /> Chave de API (Google Gemini)
                     </label>
                     <div className="flex gap-2">
                         <div className="relative flex-1">
@@ -536,7 +339,7 @@ export const AIConfigSection: React.FC = () => {
                                 type="password"
                                 value={localApiKey}
                                 onChange={(e) => handleKeyChange(e.target.value)}
-                                placeholder={`Cole sua chave ${aiProvider === 'google' ? 'AIza...' : 'sk-...'}`}
+                                placeholder="Cole sua chave AIza..."
                                 className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono ${validationStatus === 'invalid'
                                         ? 'border-red-300 dark:border-red-500/50'
                                         : validationStatus === 'valid'
@@ -634,7 +437,7 @@ export const AIConfigSection: React.FC = () => {
                                 <div className="pt-2 border-t border-amber-200 dark:border-amber-500/20">
                                     <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
                                         <strong>Base legal:</strong> Consentimento do titular (Art. 7º, I e Art. 11, I da LGPD).
-                                        Seus dados são enviados diretamente ao provedor de IA que você escolheu ({AI_PROVIDERS.find(p => p.id === aiProvider)?.name}).
+                                        Seus dados são enviados diretamente ao Google Gemini.
                                         Nós não armazenamos ou intermediamos essas comunicações.
                                     </p>
                                 </div>
@@ -672,7 +475,7 @@ export const AIConfigSection: React.FC = () => {
                         </p>
                         <p className="opacity-90 mt-1">
                             {validationStatus === 'valid' && localApiKey
-                                ? `O sistema está configurado para usar o ${AI_PROVIDERS.find(p => p.id === aiProvider)?.name} (${aiModel}).`
+                                ? `O sistema está configurado para usar o Google Gemini (${aiModel}).`
                                 : validationStatus === 'invalid'
                                     ? 'Verifique sua chave de API e tente novamente.'
                                     : 'Insira uma chave de API válida e clique em Salvar para usar o assistente.'}

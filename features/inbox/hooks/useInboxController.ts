@@ -139,14 +139,10 @@ export const useInboxController = () => {
       else upcoming.push({ a, ts });
     }
 
-    overdue.sort((x, y) => x.ts - y.ts);
-    todayList.sort((x, y) => x.ts - y.ts);
-    upcoming.sort((x, y) => x.ts - y.ts);
-
     return {
-      overdue: overdue.map(x => x.a),
-      today: todayList.map(x => x.a),
-      upcoming: upcoming.map(x => x.a),
+      overdue: overdue.toSorted((x, y) => x.ts - y.ts).map(x => x.a),
+      today: todayList.toSorted((x, y) => x.ts - y.ts).map(x => x.a),
+      upcoming: upcoming.toSorted((x, y) => x.ts - y.ts).map(x => x.a),
     };
   }, [activities, today, tomorrow]);
 
@@ -543,6 +539,7 @@ export const useInboxController = () => {
         name: seedContact.name,
         email: seedContact.email,
         phone: seedContact.phone,
+        role: seedContact.role,
         companyId: '',
         status: 'ACTIVE',
         stage: 'CUSTOMER',

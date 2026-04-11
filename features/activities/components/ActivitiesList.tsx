@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { Activity, Deal, Contact, Company } from '@/types';
 import { ActivityRow } from './ActivityRow';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { CheckSquare } from 'lucide-react';
 
 interface ActivitiesListProps {
     activities: Activity[];
@@ -12,6 +14,7 @@ interface ActivitiesListProps {
     onDelete: (id: string) => void;
     selectedActivities?: Set<string>;
     onSelectActivity?: (id: string, selected: boolean) => void;
+    onAddActivity?: () => void;
 }
 
 /**
@@ -45,7 +48,8 @@ export const ActivitiesList: React.FC<ActivitiesListProps> = ({
     onEdit,
     onDelete,
     selectedActivities = new Set(),
-    onSelectActivity
+    onSelectActivity,
+    onAddActivity,
 }) => {
     // Performance: Activities pode ser uma lista grande; evitamos `find` por linha (O(N*M)).
     const dealById = useMemo(() => {
@@ -68,8 +72,13 @@ export const ActivitiesList: React.FC<ActivitiesListProps> = ({
 
     if (activities.length === 0) {
         return (
-            <div className="text-center py-12 bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-white/5 border-dashed">
-                <p className="text-slate-500 dark:text-slate-400">Nenhuma atividade encontrada</p>
+            <div className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-white/5 border-dashed">
+                <EmptyState
+                    icon={CheckSquare}
+                    title="Nenhuma atividade encontrada"
+                    description="Crie uma atividade para começar a acompanhar seu trabalho."
+                    action={onAddActivity ? { label: 'Nova Atividade', onClick: onAddActivity } : undefined}
+                />
             </div>
         );
     }

@@ -1,9 +1,11 @@
 import React, { useMemo, useState, useId } from 'react';
-import { Plus, GripVertical, Trash2, ChevronDown, Settings, Copy } from 'lucide-react';
+import { Plus, GripVertical, Trash2, ChevronDown, Settings, Copy, Bot } from 'lucide-react';
 import { Board, BoardStage, ContactStage } from '@/types';
 import { BOARD_TEMPLATES, BoardTemplateType } from '@/lib/templates/board-templates';
 import { LifecycleSettingsModal } from '@/features/settings/components/LifecycleSettingsModal';
-import { useCRM } from '@/context/CRMContext';
+import { BoardAIConfigModal } from './BoardAIConfigModal';
+import { useLifecycleStages } from '@/lib/query/hooks/useLifecycleStagesQuery';
+import { useActiveProducts } from '@/lib/query/hooks/useProductsQuery';
 import { useToast } from '@/context/ToastContext';
 import { Modal } from '@/components/ui/Modal';
 import { MODAL_FOOTER_CLASS } from '@/components/ui/modalStyles';
@@ -118,7 +120,8 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
   React.useEffect(() => {
   }, [isOpen]);
 
-  const { lifecycleStages, products } = useCRM();
+  const { data: lifecycleStages = [] } = useLifecycleStages();
+  const { data: products = [] } = useActiveProducts();
   const { addToast } = useToast();
   const [name, setName] = useState('');
   const [boardKey, setBoardKey] = useState('');
@@ -134,6 +137,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
   const [selectedTemplate, setSelectedTemplate] = useState<BoardTemplateType | ''>('');
   const [stages, setStages] = useState<BoardStage[]>([]);
   const [isLifecycleModalOpen, setIsLifecycleModalOpen] = useState(false);
+  const [isAIConfigModalOpen, setIsAIConfigModalOpen] = useState(false);
   const [draggingStageId, setDraggingStageId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
 
@@ -375,7 +379,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                         const next = availableBoards.find(b => b.id === e.target.value);
                         if (next) onSwitchEditingBoard(next);
                       }}
-                      className="w-full appearance-none px-4 py-2.5 pr-10 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full appearance-none px-4 py-2.5 pr-10 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:[color-scheme:dark]"
                       aria-label="Selecionar board para editar"
                     >
                       {availableBoards.map(b => (
@@ -468,7 +472,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                   <select
                     value={selectedTemplate}
                     onChange={(e) => handleTemplateSelect(e.target.value as BoardTemplateType | '')}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:[color-scheme:dark]"
                   >
                     <option value="">Board em branco</option>
                     <option value="PRE_SALES">🎯 Pré-venda (Lead → MQL)</option>
@@ -492,7 +496,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                 <select
                   value={linkedLifecycleStage}
                   onChange={(e) => setLinkedLifecycleStage(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:[color-scheme:dark]"
                 >
                   <option value="">Nenhum (board genérico)</option>
                   {lifecycleStages.map(stage => (
@@ -512,7 +516,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                 <select
                   value={defaultProductId}
                   onChange={(e) => setDefaultProductId(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:[color-scheme:dark]"
                 >
                   <option value="">Nenhum</option>
                   {products
@@ -536,7 +540,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                 <select
                   value={nextBoardId}
                   onChange={(e) => setNextBoardId(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:[color-scheme:dark]"
                 >
                   <option value="">Nenhum (Finalizar aqui)</option>
                   {validNextBoards.map(board => (
@@ -567,7 +571,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                         setWonStageId(e.target.value);
                       }
                     }}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:[color-scheme:dark]"
                   >
                     <option value="">Automático (pelo ciclo)</option>
                     <option value="archive">Arquivar (Manter na etapa)</option>
@@ -594,7 +598,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                         setLostStageId(e.target.value);
                       }
                     }}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:[color-scheme:dark]"
                   >
                     <option value="">Automático</option>
                     <option value="archive">Arquivar (Manter na etapa)</option>
@@ -622,6 +626,15 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                       <Plus size={14} />
                       Adicionar etapa
                     </button>
+                    {editingBoard && (
+                      <button
+                        onClick={() => setIsAIConfigModalOpen(true)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                      >
+                        <Bot size={14} />
+                        Configurar AI
+                      </button>
+                    )}
                     <button
                       onClick={() => setIsLifecycleModalOpen(true)}
                       className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors"
@@ -732,7 +745,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                           <select
                             value={stage.linkedLifecycleStage || ''}
                             onChange={(e) => handleUpdateStage(stage.id, { linkedLifecycleStage: e.target.value || undefined })}
-                            className={`w-full pl-3 pr-10 py-2 text-sm rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all appearance-none cursor-pointer
+                            className={`w-full pl-3 pr-10 py-2 text-sm rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all appearance-none cursor-pointer dark:[color-scheme:dark]
                             ${stage.linkedLifecycleStage ? 'font-semibold text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700' : ''}
                           `}
                           >
@@ -776,6 +789,14 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
         isOpen={isLifecycleModalOpen}
         onClose={() => setIsLifecycleModalOpen(false)}
       />
+
+      {editingBoard && (
+        <BoardAIConfigModal
+          isOpen={isAIConfigModalOpen}
+          onClose={() => setIsAIConfigModalOpen(false)}
+          board={editingBoard}
+        />
+      )}
     </>
   );
 };

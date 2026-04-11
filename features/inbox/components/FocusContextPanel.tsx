@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import {
     User,
     Phone,
@@ -37,11 +38,28 @@ import { useDealNotes } from '../hooks/useDealNotes';
 import { useDealFiles } from '../hooks/useDealFiles';
 import { useQuickScripts } from '../hooks/useQuickScripts';
 import { useAI } from '@/context/AIContext';
-import { CallModal, CallLogData } from './CallModal';
-import { ScriptEditorModal, ScriptFormData } from './ScriptEditorModal';
-import { ScheduleModal, ScheduleData, ScheduleType } from './ScheduleModal';
+import type { CallLogData } from './CallModal';
+import type { ScriptFormData } from './ScriptEditorModal';
+import type { ScheduleData, ScheduleType } from './ScheduleModal';
 import { generateSalesScript } from '@/lib/ai/tasksClient';
-import { MessageComposerModal, type MessageChannel } from './MessageComposerModal';
+import type { MessageChannel } from './MessageComposerModal';
+
+const CallModal = dynamic(
+    () => import('./CallModal').then(m => ({ default: m.CallModal })),
+    { ssr: false }
+);
+const ScriptEditorModal = dynamic(
+    () => import('./ScriptEditorModal').then(m => ({ default: m.ScriptEditorModal })),
+    { ssr: false }
+);
+const ScheduleModal = dynamic(
+    () => import('./ScheduleModal').then(m => ({ default: m.ScheduleModal })),
+    { ssr: false }
+);
+const MessageComposerModal = dynamic(
+    () => import('./MessageComposerModal').then(m => ({ default: m.MessageComposerModal })),
+    { ssr: false }
+);
 import { callAIProxy } from '@/lib/supabase/ai-proxy';
 import type { ScriptCategory } from '@/lib/supabase/quickScripts';
 
@@ -148,6 +166,7 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                     companyName: (deal as any).companyName,
                     currentProbability: deal.probability,
                     contactName: contact?.name,
+                    contactRole: contact?.role,
                     recentHistory: recentHistory // Inject History
                 }
             }
@@ -475,6 +494,7 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
             ? {
                 id: contact.id,
                 name: contact.name,
+                role: contact.role,
                 email: contact.email,
                 phone: contact.phone,
                 avatar: contact.avatar,
@@ -1009,7 +1029,10 @@ export const FocusContextPanel: React.FC<FocusContextPanelProps> = ({
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <h4 className="text-sm font-semibold text-white truncate">{contact.name}</h4>
-                                                        </div>
+                                            {contact.role && (
+                                                <span className="text-[10px] px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded">{contact.role}</span>
+                                            )}
+                                        </div>
 
                                         {/* Contact details grid */}
                                         <div className="mt-2 grid grid-cols-1 gap-1.5">

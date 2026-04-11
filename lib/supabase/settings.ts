@@ -13,12 +13,9 @@ export interface DbUserSettings {
   ai_provider: string;
   ai_api_key: string | null; // Legacy - keep for backward compatibility
   ai_google_key: string | null;
-  ai_openai_key: string | null;
-  ai_anthropic_key: string | null;
   ai_model: string;
   ai_thinking: boolean;
   ai_search: boolean;
-  ai_anthropic_caching: boolean;
   dark_mode: boolean;
   default_route: string;
   active_board_id: string | null;
@@ -38,15 +35,12 @@ export interface DbLifecycleStage {
 }
 
 export interface UserSettings {
-  aiProvider: 'google' | 'openai' | 'anthropic';
-  aiApiKey: string; // Current active key (based on provider)
+  aiProvider: 'google';
+  aiApiKey: string;
   aiGoogleKey: string;
-  aiOpenaiKey: string;
-  aiAnthropicKey: string;
   aiModel: string;
   aiThinking: boolean;
   aiSearch: boolean;
-  aiAnthropicCaching: boolean;
   darkMode: boolean;
   defaultRoute: string;
   activeBoardId: string | null;
@@ -56,26 +50,13 @@ export interface UserSettings {
 
 // Transform DB -> App
 const transformSettings = (db: DbUserSettings): UserSettings => {
-  // Get the key for the current provider
-  const getActiveKey = () => {
-    switch (db.ai_provider) {
-      case 'google': return db.ai_google_key || db.ai_api_key || '';
-      case 'openai': return db.ai_openai_key || '';
-      case 'anthropic': return db.ai_anthropic_key || '';
-      default: return db.ai_api_key || '';
-    }
-  };
-
   return {
-    aiProvider: db.ai_provider as UserSettings['aiProvider'],
-    aiApiKey: getActiveKey(),
+    aiProvider: 'google',
+    aiApiKey: db.ai_google_key || db.ai_api_key || '',
     aiGoogleKey: db.ai_google_key || '',
-    aiOpenaiKey: db.ai_openai_key || '',
-    aiAnthropicKey: db.ai_anthropic_key || '',
     aiModel: db.ai_model,
     aiThinking: db.ai_thinking,
     aiSearch: db.ai_search,
-    aiAnthropicCaching: db.ai_anthropic_caching,
     darkMode: db.dark_mode,
     defaultRoute: db.default_route,
     activeBoardId: db.active_board_id,
@@ -129,7 +110,7 @@ export const settingsService = {
         .from('profiles')
         .select('id')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError || !profile) {
         console.warn('Profile not found, skipping user_settings creation');
@@ -164,7 +145,7 @@ export const settingsService = {
         .from('user_settings')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (error) return { data: null, error };
       return { data: transformSettings(data as DbUserSettings), error: null };
@@ -180,26 +161,16 @@ export const settingsService = {
 
       const dbUpdates: Partial<DbUserSettings> = {};
 
-      if (updates.aiProvider !== undefined) dbUpdates.ai_provider = updates.aiProvider;
       if (updates.aiModel !== undefined) dbUpdates.ai_model = updates.aiModel;
       if (updates.aiThinking !== undefined) dbUpdates.ai_thinking = updates.aiThinking;
       if (updates.aiSearch !== undefined) dbUpdates.ai_search = updates.aiSearch;
-      if (updates.aiAnthropicCaching !== undefined) dbUpdates.ai_anthropic_caching = updates.aiAnthropicCaching;
       if (updates.darkMode !== undefined) dbUpdates.dark_mode = updates.darkMode;
       if (updates.defaultRoute !== undefined) dbUpdates.default_route = updates.defaultRoute;
       if (updates.activeBoardId !== undefined) dbUpdates.active_board_id = sanitizeUUID(updates.activeBoardId);
       if (updates.inboxViewMode !== undefined) dbUpdates.inbox_view_mode = updates.inboxViewMode;
       if (updates.onboardingCompleted !== undefined) dbUpdates.onboarding_completed = updates.onboardingCompleted;
 
-      // Handle API keys per provider
       if (updates.aiGoogleKey !== undefined) dbUpdates.ai_google_key = updates.aiGoogleKey || null;
-      if (updates.aiOpenaiKey !== undefined) dbUpdates.ai_openai_key = updates.aiOpenaiKey || null;
-      if (updates.aiAnthropicKey !== undefined) dbUpdates.ai_anthropic_key = updates.aiAnthropicKey || null;
-
-      // Legacy: also update ai_api_key for backward compatibility
-      if (updates.aiApiKey !== undefined) {
-        dbUpdates.ai_api_key = updates.aiApiKey || null;
-      }
 
       dbUpdates.updated_at = new Date().toISOString();
 
@@ -301,7 +272,7 @@ export const lifecycleStagesService = {
         .from('lifecycle_stages')
         .select('is_default')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (stage?.is_default) {
         return { error: new Error('Cannot delete default lifecycle stage') };

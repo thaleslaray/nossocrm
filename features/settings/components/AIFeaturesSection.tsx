@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useCRM } from '@/context/CRMContext';
+import { useAIFeatureFlags, useSetAIFeatureFlag } from '@/lib/query/hooks/useOrgSettingsQuery';
 import { Copy, Loader2, Pencil, RotateCcw, SlidersHorizontal, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { Modal } from '@/components/ui/Modal';
@@ -35,7 +35,9 @@ const FEATURES: FeatureItem[] = [
 export const AIFeaturesSection: React.FC = () => {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
-  const { aiFeatureFlags, setAIFeatureFlag } = useCRM();
+  const { data: featureFlagsData } = useAIFeatureFlags();
+  const aiFeatureFlags = featureFlagsData?.flags ?? {};
+  const setAIFeatureFlagMut = useSetAIFeatureFlag();
   const { showToast } = useToast();
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
@@ -51,7 +53,7 @@ export const AIFeaturesSection: React.FC = () => {
     if (!isAdmin) return;
     setSavingKey(key);
     try {
-      await setAIFeatureFlag(key, enabled);
+      await setAIFeatureFlagMut.mutateAsync({ key, enabled });
       showToast(enabled ? 'Função ativada' : 'Função desativada', 'success');
     } catch (e: any) {
       showToast(e?.message || 'Falha ao salvar', 'error');

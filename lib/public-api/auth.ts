@@ -1,9 +1,8 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { checkRateLimit } from '@/lib/rateLimiter';
 
 export type PublicApiAuthResult =
   | { ok: true; organizationId: string; organizationName: string; apiKeyId: string; apiKeyPrefix: string }
-  | { ok: false; status: number; body: { error: string; code?: string; retryAfter?: number } };
+  | { ok: false; status: number; body: { error: string; code?: string } };
 
 function getAnonSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -46,15 +45,6 @@ export async function authPublicApi(request: Request): Promise<PublicApiAuthResu
     typeof row.api_key_prefix !== 'string'
   ) {
     return { ok: false, status: 401, body: { error: 'Invalid API key', code: 'AUTH_INVALID' } };
-  }
-
-  const rl = checkRateLimit(row.api_key_id);
-  if (!rl.allowed) {
-    return {
-      ok: false,
-      status: 429,
-      body: { error: 'Rate limit exceeded', code: 'RATE_LIMIT', retryAfter: rl.retryAfterSeconds },
-    };
   }
 
   return {

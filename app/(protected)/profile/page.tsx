@@ -1,17 +1,8 @@
-'use client'
+import type { Metadata } from 'next';
+import { ProfilePage } from '@/features/profile/ProfilePage'
 
-import dynamic from 'next/dynamic'
-import { PageLoader } from '@/components/PageLoader'
+export const metadata: Metadata = { title: 'Perfil | NossoCRM' };
 
-const ProfilePage = dynamic(
-    () => import('@/features/profile/ProfilePage').then(m => ({ default: m.ProfilePage })),
-    { loading: () => <PageLoader />, ssr: false }
-)
-
-/**
- * Componente React `Profile`.
- * @returns {Element} Retorna um valor do tipo `Element`.
- */
 export default function Profile() {
     return <ProfilePage />
 }

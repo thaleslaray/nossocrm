@@ -9,6 +9,15 @@ import { runStorySteps } from './storyRunner';
 // Story: US-001 — Abrir um deal no Boards
 // User Story: Abrir deal no Boards sem crash
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+  }),
+}));
+
 vi.mock('@/hooks/useResponsiveMode', () => ({
   useResponsiveMode: () => ({ mode: 'desktop' }),
 }));
@@ -56,6 +65,14 @@ vi.mock('@/lib/ai/tasksClient', () => ({
   analyzeLead: vi.fn(),
   generateEmailDraft: vi.fn(),
   generateObjectionResponse: vi.fn(),
+}));
+
+vi.mock('@/features/deals/components/BriefingDrawer', () => ({
+  BriefingDrawer: () => null,
+}));
+
+vi.mock('@/features/deals/components/AIExtractedFields', () => ({
+  AIExtractedFields: () => null,
 }));
 
 vi.mock('@/context/CRMContext', () => ({

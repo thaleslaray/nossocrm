@@ -4,7 +4,13 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { useCRM } from '@/context/CRMContext';
+import {
+  useDealsView,
+  useActivities,
+  useUpdateDeal,
+  useCreateActivity,
+  useUpdateActivity,
+} from '@/lib/query/hooks';
 import { Decision, DecisionStats, SuggestedAction, ActionPayload } from '../types';
 import decisionQueueService from '../services/decisionQueueService';
 import { runAllAnalyzers } from '../analyzers';
@@ -14,7 +20,14 @@ import { runAllAnalyzers } from '../analyzers';
  * @returns {{ decisions: Decision[]; stats: DecisionStats; lastAnalyzedAt: string | undefined; isAnalyzing: boolean; executingIds: Set<string>; runAnalyzers: () => Promise<{ ...; }>; ... 5 more ...; refreshDecisions: () => void; }} Retorna um valor do tipo `{ decisions: Decision[]; stats: DecisionStats; lastAnalyzedAt: string | undefined; isAnalyzing: boolean; executingIds: Set<string>; runAnalyzers: () => Promise<{ ...; }>; ... 5 more ...; refreshDecisions: () => void; }`.
  */
 export function useDecisionQueue() {
-  const { deals, activities, addActivity, updateActivity, updateDeal } = useCRM();
+  const { data: deals = [] } = useDealsView();
+  const { data: activities = [] } = useActivities();
+  const updateDealMutation = useUpdateDeal();
+  const createActivityMutation = useCreateActivity();
+  const updateActivityMutation = useUpdateActivity();
+  const updateDeal = (id: string, updates: Parameters<typeof updateDealMutation.mutateAsync>[0]['updates']) => updateDealMutation.mutateAsync({ id, updates });
+  const addActivity = (activity: Parameters<typeof createActivityMutation.mutateAsync>[0]['activity']) => createActivityMutation.mutateAsync({ activity });
+  const updateActivity = (id: string, updates: Parameters<typeof updateActivityMutation.mutateAsync>[0]['updates']) => updateActivityMutation.mutateAsync({ id, updates });
 
   const [decisions, setDecisions] = useState<Decision[]>(() =>
     decisionQueueService.getPendingDecisions()

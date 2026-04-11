@@ -12,7 +12,7 @@
 // POST { action: string, data: object }
 // -> 200 { result?: any, error?: string, consentType?: string, retryAfter?: number }
 
-import { generateObject, generateText } from 'ai';
+import { generateText, Output } from 'ai';
 import { getModel, type AIProvider } from '@/lib/ai/config';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
@@ -153,29 +153,6 @@ export async function POST(req: Request) {
     return json<AIActionResponse>({ error: 'Unauthorized' }, 401);
   }
 
-  // Quota diária por usuário (limite de custo de IA — Sprint 2)
-  const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_REQUEST_LIMIT ?? 100);
-  const today = new Date().toISOString().slice(0, 10);
-  const { data: usageRow } = await supabase
-    .from('user_ai_usage')
-    .select('request_count')
-    .eq('user_id', user.id)
-    .eq('usage_date', today)
-    .maybeSingle();
-
-  if ((usageRow?.request_count ?? 0) >= AI_DAILY_LIMIT) {
-    const secondsUntilMidnight = Math.ceil(
-      (new Date(today + 'T23:59:59Z').getTime() - Date.now()) / 1000
-    );
-    return json<AIActionResponse>({
-      error: `Limite diário de ${AI_DAILY_LIMIT} requisições de IA atingido. Tente novamente amanhã.`,
-      retryAfter: secondsUntilMidnight,
-    }, 200);
-  }
-
-  // Incrementa uso atomicamente (fire-and-forget — não bloqueia a resposta)
-  void supabase.rpc('increment_ai_usage', { p_user_id: user.id });
-
   const body = await req.json().catch(() => null);
   const action = body?.action as AIAction | undefined;
   const data = (body?.data ?? {}) as Record<string, unknown>;
@@ -194,9 +171,9 @@ export async function POST(req: Request) {
     return json<AIActionResponse>({ error: 'Profile not found' }, 404);
   }
 
-  const { data: orgSettings } = await supabase
+  const { data: orgSettings, error: orgError } = await supabase
     .from('organization_settings')
-    .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key')
+    .select('ai_enabled, ai_model, ai_google_key')
     .eq('organization_id', profile.organization_id)
     .single();
 
@@ -235,27 +212,14 @@ export async function POST(req: Request) {
   }
 
   // Frontend expects "AI consent required" as a *payload* error.
-  // Key resolution: env vars take priority over DB (security — keys not stored in plaintext DB).
-  const provider: AIProvider = (
-    (process.env.AI_PROVIDER as AIProvider | undefined) ??
-    (orgSettings?.ai_provider as AIProvider | undefined) ??
-    'google'
-  );
-  const envKey =
-    provider === 'google' ? (process.env.AI_GOOGLE_KEY || null) :
-    provider === 'openai' ? (process.env.AI_OPENAI_KEY || null) :
-    (process.env.AI_ANTHROPIC_KEY || null);
-  const dbKey =
-    provider === 'google' ? (orgSettings?.ai_google_key ?? null) :
-    provider === 'openai' ? (orgSettings?.ai_openai_key ?? null) :
-    (orgSettings?.ai_anthropic_key ?? null);
-  const apiKey: string | null = envKey || dbKey;
+  const provider: AIProvider = 'google';
+  const apiKey: string | null = orgSettings?.ai_google_key ?? null;
 
-  if (!apiKey) {
+  if (orgError || !apiKey) {
     return json<AIActionResponse>({ error: 'AI consent required', consentType: 'AI_CONSENT' }, 200);
   }
 
-  const modelId = process.env.AI_MODEL || orgSettings?.ai_model || '';
+  const modelId = orgSettings.ai_model || '';
   const model = getModel(provider, apiKey, modelId);
 
   try {
@@ -269,13 +233,13 @@ export async function POST(req: Request) {
           stageLabel: stageLabel || deal?.status || '',
           probability: deal?.probability || 50,
         });
-        const result = await generateObject({
+        const result = await generateText({
           model,
           maxRetries: 3,
-          schema: AnalyzeLeadSchema,
+          output: Output.object({ schema: AnalyzeLeadSchema }),
           prompt,
         });
-        return json<AIActionResponse>({ result: result.object });
+        return json<AIActionResponse>({ result: result.output });
       }
 
       case 'generateEmailDraft': {
@@ -308,10 +272,10 @@ export async function POST(req: Request) {
         const snapshotText = safeContextText(cockpitSnapshot);
         const nbaText = safeContextText(nextBestAction);
 
-        const result = await generateObject({
+        const result = await generateText({
           model,
           maxRetries: 3,
-          schema: RewriteMessageDraftSchema,
+          output: Output.object({ schema: RewriteMessageDraftSchema }),
           prompt: `Você é um vendedor sênior e copywriter.
 Sua tarefa é REESCREVER (melhorar) uma mensagem para enviar ao cliente.
 
@@ -347,7 +311,7 @@ REGRAS:
 Retorne APENAS no formato do schema (subject opcional, message obrigatório).`,
         });
 
-        return json<AIActionResponse>({ result: result.object });
+        return json<AIActionResponse>({ result: result.output });
       }
 
       case 'generateRescueMessage': {
@@ -381,14 +345,14 @@ Responda em português do Brasil.`,
           description,
           lifecycleJson: JSON.stringify(lifecycleList),
         });
-        const result = await generateObject({
+        const result = await generateText({
           model,
           maxRetries: 3,
-          schema: BoardStructureSchema,
+          output: Output.object({ schema: BoardStructureSchema }),
           prompt,
         });
 
-        return json<AIActionResponse>({ result: result.object });
+        return json<AIActionResponse>({ result: result.output });
       }
 
       case 'generateBoardStrategy': {
@@ -397,13 +361,13 @@ Responda em português do Brasil.`,
         const prompt = renderPromptTemplate(resolved?.content || '', {
           boardName: boardData?.boardName || '',
         });
-        const result = await generateObject({
+        const result = await generateText({
           model,
           maxRetries: 3,
-          schema: BoardStrategySchema,
+          output: Output.object({ schema: BoardStrategySchema }),
           prompt,
         });
-        return json<AIActionResponse>({ result: result.object });
+        return json<AIActionResponse>({ result: result.output });
       }
 
       case 'refineBoardWithAI': {
@@ -418,13 +382,13 @@ Responda em português do Brasil.`,
           boardContext,
           historyContext,
         });
-        const result = await generateObject({
+        const result = await generateText({
           model,
           maxRetries: 3,
-          schema: RefineBoardSchema,
+          output: Output.object({ schema: RefineBoardSchema }),
           prompt,
         });
-        return json<AIActionResponse>({ result: result.object });
+        return json<AIActionResponse>({ result: result.output });
       }
 
       case 'generateObjectionResponse': {
@@ -434,25 +398,25 @@ Responda em português do Brasil.`,
           objection,
           dealTitle: deal?.title || '',
         });
-        const result = await generateObject({
+        const result = await generateText({
           model,
           maxRetries: 3,
-          schema: ObjectionResponseSchema,
+          output: Output.object({ schema: ObjectionResponseSchema }),
           prompt,
         });
-        return json<AIActionResponse>({ result: result.object });
+        return json<AIActionResponse>({ result: result.output });
       }
 
       case 'parseNaturalLanguageAction': {
         const { text } = data as any;
-        const result = await generateObject({
+        const result = await generateText({
           model,
           maxRetries: 3,
-          schema: ParsedActionSchema,
+          output: Output.object({ schema: ParsedActionSchema }),
           prompt: `Parse para CRM Action: "${text}".
 Campos: title, type (CALL/MEETING/EMAIL/TASK), date, contactName, companyName, confidence.`,
         });
-        return json<AIActionResponse>({ result: result.object });
+        return json<AIActionResponse>({ result: result.output });
       }
 
       case 'chatWithCRM': {

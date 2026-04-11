@@ -1,17 +1,8 @@
-'use client'
+import type { Metadata } from 'next';
+import { BoardsPage } from '@/features/boards/BoardsPage'
 
-import dynamic from 'next/dynamic'
-import { PageLoader } from '@/components/PageLoader'
+export const metadata: Metadata = { title: 'Funis | NossoCRM' };
 
-const BoardsPage = dynamic(
-    () => import('@/features/boards/BoardsPage').then(m => ({ default: m.BoardsPage })),
-    { loading: () => <PageLoader />, ssr: false }
-)
-
-/**
- * Componente React `Boards`.
- * @returns {Element} Retorna um valor do tipo `Element`.
- */
 export default function Boards() {
     return <BoardsPage />
 }

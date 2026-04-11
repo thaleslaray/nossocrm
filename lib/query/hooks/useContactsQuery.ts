@@ -63,8 +63,9 @@ export interface ContactsFilters {
  * Hook to fetch all contacts with optional filters
  * Waits for auth to be ready before fetching to ensure RLS works correctly
  */
-export const useContacts = (filters?: ContactsFilters) => {
+export const useContacts = (filters?: ContactsFilters, options?: { enabled?: boolean }) => {
   const { user, loading: authLoading } = useAuth();
+  const externalEnabled = options?.enabled ?? true;
 
   return useQuery({
     queryKey: filters
@@ -97,7 +98,7 @@ export const useContacts = (filters?: ContactsFilters) => {
       return contacts;
     },
     staleTime: 2 * 60 * 1000,
-    enabled: !authLoading && !!user, // Only fetch when auth is ready
+    enabled: !authLoading && !!user && externalEnabled,
   });
 };
 
@@ -174,8 +175,8 @@ export const useContactsPaginated = (
   const { user, loading: authLoading } = useAuth();
   return useQuery({
     queryKey: queryKeys.contacts.paginated(pagination, filters),
-    queryFn: async () => {
-      const { data, error } = await contactsService.getAllPaginated(pagination, filters);
+    queryFn: async ({ signal }) => {
+      const { data, error } = await contactsService.getAllPaginated(pagination, filters, { signal });
       if (error) throw error;
       return data!;
     },
@@ -214,8 +215,9 @@ export const useContactStageCounts = () => {
 /**
  * Hook to fetch all CRM companies
  */
-export const useCompanies = () => {
+export const useCompanies = (options?: { enabled?: boolean }) => {
   const { user, loading: authLoading } = useAuth();
+  const externalEnabled = options?.enabled ?? true;
   return useQuery({
     queryKey: queryKeys.companies.lists(),
     queryFn: async () => {
@@ -224,7 +226,7 @@ export const useCompanies = () => {
       return data || [];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - companies change less frequently
-    enabled: !authLoading && !!user,
+    enabled: !authLoading && !!user && externalEnabled,
   });
 };
 

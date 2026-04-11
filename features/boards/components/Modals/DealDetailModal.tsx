@@ -1,12 +1,28 @@
 import React, { useState, useRef, useEffect, useId, useMemo } from 'react';
-import { useCRM } from '@/context/CRMContext';
+import { useQuery } from '@tanstack/react-query';
+import {
+  useContacts,
+  useActivities,
+  useBoards,
+  useLifecycleStages,
+  useUpdateDeal,
+  useDeleteDeal,
+  useAddDealItem,
+  useRemoveDealItem,
+  useCreateActivity,
+  useUpdateActivity,
+  useDeleteActivity,
+} from '@/lib/query/hooks';
+import { useUIState } from '@/store/uiState';
+import { useActiveProducts } from '@/lib/query/hooks/useProductsQuery';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import ConfirmModal from '@/components/ConfirmModal';
+import { ConfirmDialog as ConfirmModal } from '@/components/ui/confirm-dialog';
 import { LossReasonModal } from '@/components/ui/LossReasonModal';
 import { useMoveDealSimple } from '@/lib/query/hooks';
+import { DEALS_VIEW_KEY } from '@/lib/query';
 import { FocusTrap, useFocusReturn } from '@/lib/a11y';
-import { Activity } from '@/types';
+import { Activity, DealView } from '@/types';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { useResponsiveMode } from '@/hooks/useResponsiveMode';
 import { DealSheet } from '../DealSheet';
@@ -34,10 +50,15 @@ import {
   Bot,
   Tag as TagIcon,
   Plus,
+  MessageSquare,
+  FileText,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { StageProgressBar } from '../StageProgressBar';
 import { ActivityRow } from '@/features/activities/components/ActivityRow';
 import { formatPriorityPtBr } from '@/lib/utils/priority';
+import { BriefingDrawer } from '@/features/deals/components/BriefingDrawer';
+import { AIExtractedFields } from '@/features/deals/components/AIExtractedFields';
 
 interface DealDetailModalProps {
   dealId: string | null;
@@ -64,28 +85,45 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
   const { mode } = useResponsiveMode();
   const isMobile = mode === 'mobile';
 
-  const {
-    deals,
-    contacts,
-    updateDeal,
-    deleteDeal,
-    activities,
-    addActivity,
-    updateActivity,
-    deleteActivity,
-    products,
-    addItemToDeal,
-    removeItemFromDeal,
-    customFieldDefinitions,
-    activeBoard,
-    boards,
-    lifecycleStages,
-  } = useCRM();
+  const updateDealMutation = useUpdateDeal();
+  const deleteDealMutation = useDeleteDeal();
+  const addDealItemMutation = useAddDealItem();
+  const removeDealItemMutation = useRemoveDealItem();
+  const updateDeal = (id: string, updates: Partial<import('@/types').Deal>) => updateDealMutation.mutateAsync({ id, updates });
+  const deleteDeal = (id: string) => deleteDealMutation.mutateAsync(id);
+  const addItemToDeal = (dealId: string, item: Omit<import('@/types').DealItem, 'id'>) => addDealItemMutation.mutateAsync({ dealId, item });
+  const removeItemFromDeal = (dealId: string, itemId: string) => removeDealItemMutation.mutateAsync({ dealId, itemId });
+
+  const { data: contacts = [] } = useContacts();
+  const { data: activities = [] } = useActivities();
+  const { data: boards = [] } = useBoards();
+  const { activeBoardId } = useUIState();
+  const activeBoard = boards.find(b => b.id === activeBoardId) || boards.find(b => b.isDefault) || boards[0] || null;
+  const { data: lifecycleStages = [] } = useLifecycleStages();
+
+  const createActivityMutation = useCreateActivity();
+  const updateActivityMutation = useUpdateActivity();
+  const deleteActivityMutation = useDeleteActivity();
+  const addActivity = (activity: Omit<import('@/types').Activity, 'id' | 'createdAt'>) => createActivityMutation.mutateAsync({ activity });
+  const updateActivity = (id: string, updates: Partial<import('@/types').Activity>) => updateActivityMutation.mutateAsync({ id, updates });
+  const deleteActivity = (id: string) => deleteActivityMutation.mutateAsync(id);
+  const { data: products = [] } = useActiveProducts();
+  const customFieldDefinitions: import('@/types').CustomFieldDefinition[] = [];
   const { profile } = useAuth();
   const { addToast } = useToast();
+  const router = useRouter();
+
+  // Subscribe to the same cache the Kanban uses (DEALS_VIEW_KEY).
+  // This ensures newly-created deals (written there by the optimistic insert in CRMContext.addDeal)
+  // are immediately visible to the modal, without waiting for Realtime to update ['deals', 'list'].
+  const { data: allDeals = [] } = useQuery<DealView[]>({
+    queryKey: DEALS_VIEW_KEY,
+    queryFn: () => [] as DealView[], // never called — enabled: false; queryFn required by TanStack Query v5
+    enabled: false, // don't trigger a new fetch — data is always hydrated by the Kanban's useDealsByBoard
+  });
 
   // Performance: avoid repeated `find(...)` on large arrays.
-  const dealsById = useMemo(() => new Map(deals.map((d) => [d.id, d])), [deals]);
+  const dealsById = useMemo(() => new Map(allDeals.map((d) => [d.id, d])), [allDeals]);
   const contactsById = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
   const boardsById = useMemo(() => new Map(boards.map((b) => [b.id, b])), [boards]);
   const lifecycleStageById = useMemo(() => new Map(lifecycleStages.map((s) => [s.id, s])), [lifecycleStages]);
@@ -129,6 +167,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
   const [showLossReasonModal, setShowLossReasonModal] = useState(false);
   const [pendingLostStageId, setPendingLostStageId] = useState<string | null>(null);
   const [lossReasonOrigin, setLossReasonOrigin] = useState<'button' | 'stage'>('button');
+  const [showBriefingDrawer, setShowBriefingDrawer] = useState(false);
 
   // Tags suggestions (local for now; Settings UI writes to the same key)
   const [availableTags, setAvailableTags] = usePersistedState<string[]>('crm_tags', []);
@@ -156,6 +195,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
       setPendingLostStageId(null);
       setLossReasonOrigin('button');
       setTagQuery('');
+      setShowBriefingDrawer(false);
     }
   }, [isOpen, dealId]); // Depend on dealId to reset when switching deals
 
@@ -541,6 +581,14 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                   </>
                 )}
                 <button
+                  onClick={() => setShowBriefingDrawer(true)}
+                  className="ml-2 px-3 py-1.5 bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-500/30 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
+                  title="Preparar para a conversa com este lead"
+                >
+                  <FileText size={14} />
+                  <span className="hidden sm:inline">Preparar</span>
+                </button>
+                <button
                   onClick={() => setDeleteId(deal.id)}
                   className="ml-2 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                   title="Excluir Negócio"
@@ -605,7 +653,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                     <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold">
                       {(deal.contactName || '?').charAt(0)}
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-slate-900 dark:text-white font-medium text-sm flex items-center gap-2">
                         {deal.contactName || 'Sem contato'}
                         {contact?.stage &&
@@ -629,6 +677,28 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                       </p>
                       <p className="text-slate-500 text-xs">{deal.contactEmail}</p>
                     </div>
+                    {/* Send Message Button */}
+                    {contact?.phone && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Navigate to messaging with contact info for new conversation
+                          const params = new URLSearchParams({
+                            newConversation: 'true',
+                            contactId: contact.id,
+                            contactName: contact.name || '',
+                            contactPhone: contact.phone || '',
+                          });
+                          router.push(`/messaging?${params.toString()}`);
+                          onClose();
+                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 hover:bg-green-100 dark:hover:bg-green-500/20 rounded-lg transition-colors"
+                        title="Enviar mensagem via WhatsApp"
+                      >
+                        <MessageSquare size={14} />
+                        <span className="hidden sm:inline">Mensagem</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -730,6 +800,14 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* AI EXTRACTED FIELDS (Zero Config BANT) */}
+                <div className="pt-4 border-t border-slate-100 dark:border-white/5">
+                  <AIExtractedFields
+                    data={deal.aiExtracted as import('@/lib/ai/extraction/schemas').AIExtractedData | undefined}
+                    compact
+                  />
                 </div>
 
                 {/* DYNAMIC CUSTOM FIELDS INPUTS */}
@@ -1147,6 +1225,7 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
                     </div>
                   </div>
                 )}
+
               </div>
             </div>
           </div>
@@ -1207,6 +1286,13 @@ export const DealDetailModal: React.FC<DealDetailModalProps> = ({ dealId, isOpen
             if (lossReasonOrigin === 'button') onClose();
           }}
           dealTitle={deal.title}
+        />
+
+        <BriefingDrawer
+          dealId={deal.id}
+          dealTitle={deal.title}
+          isOpen={showBriefingDrawer}
+          onClose={() => setShowBriefingDrawer(false)}
         />
     </>
   );

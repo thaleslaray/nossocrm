@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { stringifyCsv, withUtf8Bom, type CsvDelimiter } from '@/lib/utils/csv';
+import { sanitizePostgrestValue } from '@/lib/utils/sanitize';
+
+export const maxDuration = 120;
 
 type SortBy = 'name' | 'created_at' | 'updated_at' | 'stage';
 type SortOrder = 'asc' | 'desc';
@@ -41,6 +44,24 @@ export async function GET(req: Request) {
 
     const supabase = await createClient();
 
+    // Auth check — must come before any data access
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile?.organization_id) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const orgId = profile.organization_id;
+
     const chunkSize = 1000;
     let page = 0;
     let allContacts: Array<any> = [];
@@ -54,12 +75,14 @@ export async function GET(req: Request) {
       let q = supabase
         .from('contacts')
         .select(
-          'id,name,email,phone,notes,status,stage,created_at,updated_at,client_company_id,last_purchase_date,destino_viagem,data_viagem,quantidade_adultos,quantidade_criancas,idade_criancas,categoria_viagem,urgencia_viagem,origem_lead,indicado_por,observacoes_viagem'
+          'id,name,email,phone,role,notes,status,stage,created_at,updated_at,client_company_id,last_purchase_date'
         )
+        .eq('organization_id', orgId)
         .is('deleted_at', null);
 
       if (search) {
-        q = q.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+        const safeSearch = sanitizePostgrestValue(search);
+        q = q.or(`name.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%`);
       }
       if (stage && stage !== 'ALL') {
         q = q.eq('stage', stage);
@@ -105,6 +128,7 @@ export async function GET(req: Request) {
           .from('crm_companies')
           .select('id,name')
           .in('id', ids)
+          .eq('organization_id', orgId)
           .is('deleted_at', null);
 
         if (companiesError) {
@@ -120,20 +144,11 @@ export async function GET(req: Request) {
       'name',
       'email',
       'phone',
+      'role',
       'company',
       'status',
       'stage',
       'notes',
-      'destino_viagem',
-      'data_viagem',
-      'quantidade_adultos',
-      'quantidade_criancas',
-      'idade_criancas',
-      'categoria_viagem',
-      'urgencia_viagem',
-      'origem_lead',
-      'indicado_por',
-      'observacoes_viagem',
       'created_at',
       'updated_at',
     ];
@@ -142,20 +157,11 @@ export async function GET(req: Request) {
       c.name || '',
       c.email || '',
       c.phone || '',
+      c.role || '',
       companyNameById.get(c.client_company_id) || '',
       c.status || '',
       c.stage || '',
       c.notes || '',
-      c.destino_viagem || '',
-      c.data_viagem || '',
-      c.quantidade_adultos ?? '',
-      c.quantidade_criancas ?? '',
-      c.idade_criancas || '',
-      c.categoria_viagem || '',
-      c.urgencia_viagem || '',
-      c.origem_lead || '',
-      c.indicado_por || '',
-      c.observacoes_viagem || '',
       c.created_at || '',
       c.updated_at || '',
     ]);

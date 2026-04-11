@@ -19,7 +19,7 @@ import { usePersistedState } from '@/hooks/usePersistedState';
 import { useRealtimeSyncKanban } from '@/lib/realtime/useRealtimeSync';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
-import { useCRM } from '@/context/CRMContext';
+import { useLifecycleStages } from '@/lib/query/hooks/useLifecycleStagesQuery';
 import { useAI } from '@/context/AIContext';
 
 /**
@@ -55,18 +55,6 @@ export const getActivityStatus = (deal: DealView) => {
  * @returns {{ boards: Board[]; boardsLoading: boolean; boardsFetched: boolean; activeBoard: Board | null; activeBoardId: string | null; handleSelectBoard: (boardId: string) => void; ... 45 more ...; handleLossReasonClose: () => void; }} Retorna um valor do tipo `{ boards: Board[]; boardsLoading: boolean; boardsFetched: boolean; activeBoard: Board | null; activeBoardId: string | null; handleSelectBoard: (boardId: string) => void; ... 45 more ...; handleLossReasonClose: () => void; }`.
  */
 export const useBoardsController = () => {
-  // #region agent log
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-      const isCursorBrowser = navigator.userAgent.includes('Cursor') || window.location.hostname === 'localhost';
-      const logData = {sessionId:'debug-session',runId:'boards-controller-init',hypothesisId:'BC1',location:'features/boards/hooks/useBoardsController.ts:useBoardsController',message:'useBoardsController initialized',data:{isCursorBrowser,userAgent:navigator.userAgent.slice(0,50),hostname:window.location.hostname},timestamp:Date.now()};
-      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{
-        // Fallback: log to console if fetch fails (CORS, server down, etc.)
-        console.log('[DEBUG]', logData);
-      });
-    }
-  }, []);
-  // #endregion
 
   // Toast for feedback
   const { addToast } = useToast();
@@ -161,7 +149,6 @@ export const useBoardsController = () => {
     if (!activeBoard || activeBoard.id.startsWith('temp-')) {
       // #region agent log
       if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-context-skip',hypothesisId:'CTX1',location:'features/boards/hooks/useBoardsController.ts:useEffect',message:'Skipping context for temp board',data:{hasActiveBoard:!!activeBoard,boardId8:activeBoard?.id?.slice(0,8)},timestamp:Date.now()})}).catch(()=>{});
       }
       // #endregion
       return;
@@ -211,7 +198,6 @@ export const useBoardsController = () => {
     if (lastContextSignatureRef.current === contextSignature) {
       // #region agent log
       if (process.env.NODE_ENV !== 'production') {
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'boards-context-skip-duplicate',hypothesisId:'CTX2',location:'features/boards/hooks/useBoardsController.ts:useEffect',message:'Skipping setContext - signature unchanged',data:{boardId8:activeBoard.id?.slice(0,8),signature:contextSignature.slice(0,50)},timestamp:Date.now()})}).catch(()=>{});
       }
       // #endregion
       return;
@@ -270,11 +256,12 @@ export const useBoardsController = () => {
     });
     // Note: Removed setContext from dependencies - it has internal guards to prevent loops
     // Note: Removed clearContext cleanup to prevent infinite loop with AIContext default setter
-    // Dependencies usam primitivos para evitar re-execução quando objeto muda mas valores são iguais
-  }, [activeBoard, deals, statusFilter, ownerFilter, searchTerm, dateRange.start, dateRange.end]);
+    // Dependencies: only primitives to avoid re-execution when object reference changes but content is same
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBoard?.id, activeBoard?.name, activeBoard?.stages?.length, deals.length, statusFilter, ownerFilter, searchTerm, dateRange.start, dateRange.end]);
 
-  // Get lifecycle stages from CRM context for automations
-  const { lifecycleStages } = useCRM();
+  // Get lifecycle stages for automations (TanStack Query)
+  const { data: lifecycleStages = [] } = useLifecycleStages();
 
   // Enable realtime sync for Kanban
   useRealtimeSyncKanban();

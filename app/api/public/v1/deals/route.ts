@@ -6,7 +6,6 @@ import { decodeOffsetCursor, encodeOffsetCursor, parseLimit } from '@/lib/public
 import { resolveBoardIdFromKey, resolveFirstStageId } from '@/lib/public-api/resolve';
 import { normalizeEmail, normalizePhone, normalizeText } from '@/lib/public-api/sanitize';
 import { isValidUUID, sanitizeUUID } from '@/lib/supabase/utils';
-import { escapePostgrestFilter } from '@/lib/security/escapePostgrest';
 
 export const runtime = 'nodejs';
 
@@ -14,6 +13,7 @@ const ContactInlineSchema = z.object({
   name: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
+  role: z.string().optional(),
   client_company_id: z.string().uuid().optional(),
 }).strict();
 
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
   if (contactId) query = query.eq('contact_id', contactId);
   if (clientCompanyId) query = query.eq('client_company_id', clientCompanyId);
   if (updatedAfter) query = query.gte('updated_at', updatedAfter);
-  if (q) query = query.ilike('title', `%${escapePostgrestFilter(q)}%`);
+  if (q) query = query.ilike('title', `%${q}%`);
 
   if (status === 'open') query = query.eq('is_won', false).eq('is_lost', false);
   if (status === 'won') query = query.eq('is_won', true);
@@ -72,7 +72,10 @@ export async function GET(request: Request) {
   const from = offset;
   const to = offset + limit - 1;
   const { data, count, error } = await query.range(from, to);
-  if (error) return NextResponse.json({ error: error.message, code: 'DB_ERROR' }, { status: 500 });
+  if (error) {
+    console.error('[API] Database error:', error)
+    return NextResponse.json({ error: 'Internal server error', code: 'DB_ERROR' }, { status: 500 })
+  }
 
   const total = count ?? 0;
   const nextOffset = to + 1;
@@ -127,6 +130,7 @@ async function upsertContactForDeal(opts: {
     organization_id: opts.organizationId,
     email,
     phone,
+    role: normalizeText(opts.contact.role),
     client_company_id: sanitizeUUID(opts.contact.client_company_id) || null,
     updated_at: now,
   };
@@ -212,7 +216,10 @@ export async function POST(request: Request) {
     .insert(insertPayload)
     .select('id,title,value,board_id,stage_id,contact_id,client_company_id,is_won,is_lost,loss_reason,closed_at,created_at,updated_at')
     .single();
-  if (error) return NextResponse.json({ error: error.message, code: 'DB_ERROR' }, { status: 500 });
+  if (error) {
+    console.error('[API] Database error:', error)
+    return NextResponse.json({ error: 'Internal server error', code: 'DB_ERROR' }, { status: 500 })
+  }
 
   return NextResponse.json({ data, action: 'created' }, { status: 201 });
 }

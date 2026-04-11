@@ -515,6 +515,12 @@ export async function cleanupSalesTeamFixtures(fx: SalesTeamFixtureBundle): Prom
       .delete()
       .eq('organization_id', fx.organizationId)
       .ilike('email', `%${fx.runId}%`);
+    // Contatos criados via tool (ex.: createDeal com contactName) têm o runId no nome, não no email.
+    await supabase
+      .from('contacts')
+      .delete()
+      .eq('organization_id', fx.organizationId)
+      .ilike('name', `%${fx.runId}%`);
   }
 
   // 3) Stages + boards criados no fixture

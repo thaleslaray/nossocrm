@@ -111,6 +111,22 @@ const handleMutationError = (error: unknown, _variables: unknown, _context: unkn
 // ============ QUERY CLIENT ============
 
 /**
+ * Política de staleTime por tipo de dado:
+ *
+ * | Tipo                       | staleTime | Justificativa                                     |
+ * |----------------------------|-----------|---------------------------------------------------|
+ * | Referência (boards, stages)| 5min      | Raramente muda, default global                    |
+ * | Deals                      | 2min      | Kanban precisa de dados relativamente frescos     |
+ * | Conversations (inbox)      | 30s       | Alta frequência de updates, near-realtime         |
+ * | AI metrics                 | 5min      | Dashboard, não requer refresh frequente           |
+ * | User profile               | 5min      | Default global                                    |
+ *
+ * Realtime (Supabase) invalida o cache automaticamente via queryClient.invalidateQueries
+ * quando eventos INSERT/UPDATE chegam — portanto staleTime alto é seguro para entidades
+ * cobertas pelo Realtime.
+ */
+
+/**
  * Cliente TanStack Query configurado para o NossoCRM.
  * 
  * Configurações:
@@ -196,78 +212,6 @@ export const QueryProvider: React.FC<QueryProviderProps> = ({ children }) => {
 // Re-export queryKeys
 export * from './queryKeys';
 import { queryKeys } from './queryKeys';
-
-// ============ HOOKS CUSTOMIZADOS ============
-
-/**
- * Hook para mutations com atualizações otimistas.
- * 
- * Fornece UX instantânea ao atualizar o cache antes da resposta do servidor.
- * Em caso de erro, faz rollback automático para o estado anterior.
- * 
- * @template TData Tipo dos dados retornados.
- * @template TVariables Tipo das variáveis da mutation.
- * @template TContext Tipo do contexto da mutation.
- * @param options - Configurações da mutation.
- * @returns Mutation configurada com updates otimistas.
- * 
- * @example
- * ```typescript
- * const updateDeal = useOptimisticMutation({
- *   mutationFn: (deal) => dealsService.update(deal.id, deal),
- *   queryKey: queryKeys.deals.all,
- *   optimisticUpdate: (old, newDeal) => 
- *     old?.map(d => d.id === newDeal.id ? { ...d, ...newDeal } : d) || [],
- * });
- * ```
- */
-export const useOptimisticMutation = <TData, TVariables, TContext>(options: {
-  /** Função de mutation a ser executada. */
-  mutationFn: (variables: TVariables) => Promise<TData>;
-  /** Query key para invalidação. */
-  queryKey: readonly unknown[];
-  /** Função para atualizar otimisticamente o cache. */
-  optimisticUpdate: (oldData: TData | undefined, variables: TVariables) => TData;
-  /** Callback de sucesso. */
-  onSuccess?: (data: TData, variables: TVariables, context: TContext) => void;
-  /** Callback de erro. */
-  onError?: (error: Error, variables: TVariables, context: TContext | undefined) => void;
-}) => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: options.mutationFn,
-    onMutate: async variables => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: options.queryKey });
-
-      // Snapshot previous value
-      const previousData = queryClient.getQueryData<TData>(options.queryKey);
-
-      // Optimistically update
-      queryClient.setQueryData<TData>(options.queryKey, old =>
-        options.optimisticUpdate(old, variables)
-      );
-
-      return { previousData } as TContext;
-    },
-    onError: (error, variables, context) => {
-      // Rollback on error
-      if (context && typeof context === 'object' && 'previousData' in context) {
-        queryClient.setQueryData(
-          options.queryKey,
-          (context as { previousData: TData }).previousData
-        );
-      }
-      options.onError?.(error, variables, context);
-    },
-    onSettled: () => {
-      // Refetch after mutation
-      queryClient.invalidateQueries({ queryKey: options.queryKey });
-    },
-    onSuccess: options.onSuccess,
-  });
-};
 
 // ============ PREFETCH HELPERS ============
 

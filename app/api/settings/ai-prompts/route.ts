@@ -36,7 +36,10 @@ export async function GET() {
     .eq('organization_id', me.organization_id)
     .order('updated_at', { ascending: false });
 
-  if (error) return json({ error: error.message }, 500);
+  if (error) {
+    console.error('[API] Database error:', error)
+    return json({ error: 'Internal server error' }, 500)
+  }
 
   // Map: key -> active version metadata (if any)
   const activeByKey: Record<string, { version: number; updatedAt: string }> = {};
@@ -96,7 +99,10 @@ export async function POST(req: Request) {
     .order('version', { ascending: false })
     .limit(1);
 
-  if (existingError) return json({ error: existingError.message }, 500);
+  if (existingError) {
+    console.error('[API] Database error:', existingError)
+    return json({ error: 'Internal server error' }, 500)
+  }
 
   const lastVersion = existing && existing.length > 0 ? (existing[0].version as number) : 0;
   const nextVersion = lastVersion + 1;
@@ -109,7 +115,10 @@ export async function POST(req: Request) {
     .eq('key', key)
     .eq('is_active', true);
 
-  if (deactivateError) return json({ error: deactivateError.message }, 500);
+  if (deactivateError) {
+    console.error('[API] Database error:', deactivateError)
+    return json({ error: 'Internal server error' }, 500)
+  }
 
   const { error: insertError } = await supabase.from('ai_prompt_templates').insert({
     organization_id: me.organization_id,
@@ -121,7 +130,10 @@ export async function POST(req: Request) {
     updated_at: new Date().toISOString(),
   });
 
-  if (insertError) return json({ error: insertError.message }, 500);
+  if (insertError) {
+    console.error('[API] Database error:', insertError)
+    return json({ error: 'Internal server error' }, 500)
+  }
 
   return json({ ok: true, key, version: nextVersion });
 }

@@ -32,13 +32,6 @@ export function createClient(): SupabaseClient | null {
     return _supabase
 }
 
-// Alias for backward compatibility
-// Importante: em ambientes devidamente configurados, `createClient()` nunca deve retornar null.
-// Mantemos o retorno `SupabaseClient | null` em `createClient` para permitir uma mensagem
-// amigável em dev quando o `.env` não está preenchido, mas exportamos o singleton como
-// não-nulo para simplificar o restante do código (e evitar checks repetitivos).
-export const supabase: SupabaseClient = createClient() as SupabaseClient
-
 /**
  * Get Supabase client with guaranteed non-null return.
  * Throws an error if Supabase is not configured.
@@ -51,3 +44,10 @@ export function getClient(): SupabaseClient {
     }
     return client
 }
+
+// Alias for backward compatibility
+// Importante: em ambientes devidamente configurados, `createClient()` nunca deve retornar null.
+// Mantemos o retorno `SupabaseClient | null` em `createClient` para permitir uma mensagem
+// amigável em dev quando o `.env` não está preenchido, mas exportamos o singleton como
+// não-nulo para simplificar o restante do código (e evitar checks repetitivos).
+export const supabase: SupabaseClient = createClient() as SupabaseClient

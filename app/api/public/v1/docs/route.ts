@@ -136,7 +136,13 @@ function html(specUrl: string) {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const specUrl = url.searchParams.get('spec') || '/api/public/v1/openapi.json';
+  const rawSpec = url.searchParams.get('spec');
+
+  // Prevent open redirect: only allow spec URLs that point to internal API paths.
+  const specUrl =
+    rawSpec && rawSpec.startsWith('/api/')
+      ? rawSpec
+      : '/api/public/v1/openapi.json';
 
   return new NextResponse(html(specUrl), {
     status: 200,

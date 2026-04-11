@@ -13,6 +13,7 @@ import {
   HeartPulse,
   Inbox,
   MessageCircle,
+  Mic,
   Phone,
   Search,
   Sparkles,
@@ -21,7 +22,10 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '@/context/AuthContext';
-import { useCRM } from '@/context/CRMContext';
+import { useDealsView, useUpdateDeal as useUpdateDealMut } from '@/lib/query/hooks/useDealsQuery';
+import { useContacts } from '@/lib/query/hooks/useContactsQuery';
+import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
+import { useActivities, useCreateActivity } from '@/lib/query/hooks/useActivitiesQuery';
 import { useMoveDealSimple } from '@/lib/query/hooks';
 import { normalizePhoneE164 } from '@/lib/phone';
 
@@ -587,17 +591,15 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
 
   const { profile, user } = useAuth();
 
-  const {
-    loading: crmLoading,
-    error: crmError,
-    refresh: refreshCRM,
-    deals,
-    contacts,
-    boards,
-    activities,
-    addActivity,
-    updateDeal,
-  } = useCRM();
+  const { data: deals = [], isLoading: crmLoading, error: crmErrorRaw, refetch: refreshCRM } = useDealsView();
+  const crmError = crmErrorRaw ? (crmErrorRaw instanceof Error ? crmErrorRaw.message : String(crmErrorRaw)) : null;
+  const { data: contacts = [] } = useContacts();
+  const { data: boards = [] } = useBoards();
+  const { data: activities = [] } = useActivities();
+  const createActivityMut = useCreateActivity();
+  const updateDealMut = useUpdateDealMut();
+  const addActivity = useCallback((activity: Omit<import('@/types').Activity, 'id' | 'createdAt'>) => createActivityMut.mutateAsync({ activity }), [createActivityMut]);
+  const updateDeal = useCallback((id: string, updates: Partial<import('@/types').Deal>) => updateDealMut.mutateAsync({ id, updates }), [updateDealMut]);
 
   const [tab, setTab] = useState<Tab>('chat');
   const [query, setQuery] = useState('');
@@ -806,6 +808,7 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
       ? {
           id: selectedContact.id,
           name: selectedContact.name,
+          role: selectedContact.role,
           email: selectedContact.email,
           phone: selectedContact.phone,
           avatar: selectedContact.avatar,
@@ -1624,7 +1627,7 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
                   Executar agora
                 </button>
 
-                <div className="grid w-full grid-cols-4 gap-2">
+                <div className="grid w-full grid-cols-5 gap-2">
                   <button
                     type="button"
                     className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/3 px-2 py-2 hover:bg-white/5"
@@ -1635,6 +1638,7 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
                     <Phone className="h-4 w-4 text-slate-200" />
                     <span className="text-[10px] font-semibold text-slate-300">Ligar</span>
                   </button>
+
 
                   <button
                     type="button"
@@ -1750,8 +1754,8 @@ export default function DealCockpitClient({ dealId }: { dealId?: string }) {
                     >
                       {humanizeTestLabel(contact?.name) || contact?.name || '—'}
                     </div>
-                    <div className="mt-1 text-xs text-slate-400 truncate">
-                      {selectedContact?.destino_viagem ?? ''}
+                    <div className="mt-1 text-xs text-slate-400 truncate" title={selectedContact?.role ?? ''}>
+                      {selectedContact?.role ?? ''}
                     </div>
                   </div>
                   <div className="mt-3 space-y-2 text-xs">

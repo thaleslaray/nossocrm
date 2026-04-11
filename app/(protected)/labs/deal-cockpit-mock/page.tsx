@@ -6,10 +6,10 @@ import DealCockpitClient from '@/features/deals/cockpit/DealCockpitClient';
  * Cockpit mock (high-density, everything in one place)
  * Access at: /labs/deal-cockpit-mock
  */
-export default function DealCockpitMockPage({
+export default async function DealCockpitMockPage({
   searchParams,
 }: {
-  searchParams?: { dealId?: string; mode?: string };
+  searchParams?: Promise<{ dealId?: string; mode?: string }>;
 }) {
   // Dev-only. Em dev, habilitado por padrão.
   const envFlag = process.env.ALLOW_UI_MOCKS_ROUTE;
@@ -21,7 +21,8 @@ export default function DealCockpitMockPage({
     notFound();
   }
 
-  const mode = (searchParams?.mode ?? '').toLowerCase();
+  const params = await searchParams;
+  const mode = (params?.mode ?? '').toLowerCase();
 
   // Default: versão "real" (plugada no CRMContext + Supabase hooks + chat real).
   // Fallback: ?mode=mock mantém o UI mock original.
@@ -31,9 +32,9 @@ export default function DealCockpitMockPage({
 
   // Se já temos um dealId, leva para a rota V2 (experimento).
   // Mantemos /labs como ponte/entrada para o cockpit V2 durante o rollout.
-  if (searchParams?.dealId) {
-    redirect(`/deals/${searchParams.dealId}/cockpit-v2`);
+  if (params?.dealId) {
+    redirect(`/deals/${params.dealId}/cockpit-v2`);
   }
 
-  return <DealCockpitClient dealId={searchParams?.dealId} />;
+  return <DealCockpitClient dealId={params?.dealId} />;
 }

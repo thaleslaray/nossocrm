@@ -18,8 +18,9 @@ import type { Board, BoardStage } from '@/types';
  * Hook to fetch all boards
  * Waits for auth to be ready before fetching to ensure RLS works correctly
  */
-export const useBoards = () => {
+export const useBoards = (options?: { enabled?: boolean }) => {
   const { user, loading: authLoading } = useAuth();
+  const externalEnabled = options?.enabled ?? true;
 
   return useQuery<Board[]>({
     queryKey: queryKeys.boards.lists(),
@@ -29,14 +30,10 @@ export const useBoards = () => {
       return data || [];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - boards don't change often
-    // Avoid "refetch storms" during UI focus/mount churn (especially in dev/StrictMode).
-    // Updates happen via mutations + optimistic cache updates + explicit invalidations.
     refetchOnWindowFocus: false,
-    // Refetch only when (a) never fetched or (b) explicitly invalidated.
-    // This avoids refetch storms while still preventing "stale forever" on navigation.
     refetchOnMount: (query) => query.state.dataUpdatedAt === 0 || query.state.isInvalidated,
     refetchOnReconnect: false,
-    enabled: !authLoading && !!user, // Only fetch when auth is ready
+    enabled: !authLoading && !!user && externalEnabled,
   });
 };
 

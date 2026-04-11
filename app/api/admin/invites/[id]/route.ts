@@ -43,7 +43,10 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     .eq('id', id)
     .eq('organization_id', me.organization_id);
 
-  if (error) return json({ error: error.message }, 500);
+  if (error) {
+    console.error('[API] Database error:', error)
+    return json({ error: 'Internal server error' }, 500)
+  }
 
   return json({ ok: true });
 }

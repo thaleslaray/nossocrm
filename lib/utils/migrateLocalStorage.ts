@@ -57,6 +57,7 @@ export const migrateLocalStorage = () => {
         name: lead.name,
         email: lead.email,
         phone: '',
+        role: lead.role,
         source: lead.source,
         status: 'ACTIVE',
         stage: ContactStage.LEAD, // Define como LEAD no funil

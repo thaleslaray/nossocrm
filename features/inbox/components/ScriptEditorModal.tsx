@@ -101,7 +101,7 @@ export function ScriptEditorModal({
     const applyVariables = (template: string): string => {
         let result = template;
         for (const [key, value] of Object.entries(previewVariables)) {
-            result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+            result = result.replaceAll(`{${key}}`, value);
         }
         return result;
     };

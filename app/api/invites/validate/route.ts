@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 
   if (error) {
     console.error('[invites/validate] Database error:', error);
-    return json({ valid: false, error: error.message }, 500);
+    return json({ valid: false, error: 'Internal server error' }, 500);
   }
   
   if (!invite) {

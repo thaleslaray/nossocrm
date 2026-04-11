@@ -113,7 +113,6 @@ export const useMoveDeal = () => {
           updates: { status: targetStageId.slice(0, 8), isWon, isLost },
         };
         console.log(`[useMoveDeal] 📤 Sending update to server`, logData);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:108',message:'Sending update to server',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'H'})}).catch(()=>{});
       }
       // #endregion
       
@@ -123,7 +122,6 @@ export const useMoveDeal = () => {
         if (process.env.NODE_ENV !== 'production') {
           const logData = { dealId: dealId.slice(0, 8), error: String(dealError) };
           console.log(`[useMoveDeal] ❌ Server update failed`, logData);
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:110',message:'Server update failed',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'I'})}).catch(()=>{});
         }
         // #endregion
         throw dealError;
@@ -133,7 +131,6 @@ export const useMoveDeal = () => {
       if (process.env.NODE_ENV !== 'production') {
         const logData = { dealId: dealId.slice(0, 8), targetStageId: targetStageId.slice(0, 8) };
         console.log(`[useMoveDeal] ✅ Server update confirmed`, logData);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:112',message:'Server update confirmed',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'J'})}).catch(()=>{});
       }
       // #endregion
 
@@ -243,7 +240,6 @@ export const useMoveDeal = () => {
           currentStatus: deal.status?.slice(0, 8) || 'null',
         };
         console.log(`[useMoveDeal] 🚀 Starting optimistic update`, logData);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:210',message:'Starting optimistic update',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'F'})}).catch(()=>{});
       }
       // #endregion
       
@@ -279,7 +275,6 @@ export const useMoveDeal = () => {
             currentStatus: dealInCache?.status?.slice(0, 8) || 'null',
           };
           console.log(`[useMoveDeal] 📊 Processing DEALS_VIEW_KEY cache`, logData);
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:280',message:'Processing cache for optimistic update',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'OPT'})}).catch(()=>{});
         }
         // #endregion
         
@@ -302,7 +297,6 @@ export const useMoveDeal = () => {
                 updatedAt: newDeal.updatedAt,
               };
               console.log(`[useMoveDeal] ✅ Optimistic update applied`, logData);
-              fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:235',message:'Optimistic update applied',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'G'})}).catch(()=>{});
             }
             // #endregion
             return newDeal;
@@ -347,7 +341,6 @@ export const useMoveDeal = () => {
       // #region agent log
       if (process.env.NODE_ENV !== 'production') {
         console.log(`[useMoveDeal] ⏸️ onSettled called (skipping invalidation, waiting for Realtime)`);
-        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMoveDeal.ts:276',message:'onSettled called',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'move-deal',hypothesisId:'K'})}).catch(()=>{});
       }
       // #endregion
       // Let Realtime handle synchronization - it will invalidate when the UPDATE event arrives

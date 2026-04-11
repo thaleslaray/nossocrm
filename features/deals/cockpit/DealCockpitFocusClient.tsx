@@ -2,8 +2,17 @@
 
 import React, { useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCRM } from '@/context/CRMContext';
-import { useMoveDealSimple } from '@/lib/query/hooks';
+import { useUIState } from '@/store/uiState';
+import {
+  useDealsView,
+  useContacts,
+  useBoards,
+  useActivities,
+  useUpdateDeal,
+  useCreateActivity,
+  useUpdateActivity,
+  useMoveDealSimple,
+} from '@/lib/query/hooks';
 import { FocusContextPanel } from '@/features/inbox/components/FocusContextPanel';
 import type { Activity, DealView } from '@/types';
 
@@ -17,16 +26,18 @@ import type { Activity, DealView } from '@/types';
 export default function DealCockpitFocusClient({ dealId }: { dealId: string }) {
   const router = useRouter();
 
-  const {
-    deals,
-    contacts,
-    boards,
-    activeBoard,
-    activities,
-    updateDeal,
-    addActivity,
-    updateActivity,
-  } = useCRM();
+  const { data: deals = [] } = useDealsView();
+  const { data: contacts = [] } = useContacts();
+  const { data: boards = [] } = useBoards();
+  const { data: activities = [] } = useActivities();
+  const { activeBoardId } = useUIState();
+  const activeBoard = boards.find(b => b.id === activeBoardId) || boards.find(b => b.isDefault) || boards[0] || null;
+  const updateDealMutation = useUpdateDeal();
+  const createActivityMutation = useCreateActivity();
+  const updateActivityMutation = useUpdateActivity();
+  const updateDeal = useCallback((id: string, updates: Partial<import('@/types').Deal>) => updateDealMutation.mutateAsync({ id, updates }), [updateDealMutation]);
+  const addActivity = useCallback((activity: Omit<import('@/types').Activity, 'id' | 'createdAt'>) => createActivityMutation.mutateAsync({ activity }), [createActivityMutation]);
+  const updateActivity = useCallback((id: string, updates: Partial<import('@/types').Activity>) => updateActivityMutation.mutateAsync({ id, updates }), [updateActivityMutation]);
 
   const dealsById = useMemo(() => new Map(deals.map((d) => [d.id, d])), [deals]);
   const contactsById = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);

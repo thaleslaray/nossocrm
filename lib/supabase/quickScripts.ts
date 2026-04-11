@@ -97,7 +97,7 @@ export const quickScriptsService = {
             .eq('id', scriptId)
             .eq('is_system', false) // Safety: cannot update system scripts
             .select()
-            .single();
+            .maybeSingle();
 
         return { data: data as QuickScript | null, error };
     },

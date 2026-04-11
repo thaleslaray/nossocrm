@@ -1,17 +1,8 @@
-'use client'
+import type { Metadata } from 'next';
+import { AIHubPage } from '@/features/ai-hub/AIHubPage'
 
-import dynamic from 'next/dynamic'
-import { PageLoader } from '@/components/PageLoader'
+export const metadata: Metadata = { title: 'AI Hub | NossoCRM' };
 
-const AIHubPage = dynamic(
-    () => import('@/features/ai-hub/AIHubPage').then(m => ({ default: m.AIHubPage })),
-    { loading: () => <PageLoader />, ssr: false }
-)
-
-/**
- * Componente React `AIHub`.
- * @returns {Element} Retorna um valor do tipo `Element`.
- */
 export default function AIHub() {
     return <AIHubPage />
 }

@@ -7,10 +7,6 @@ exports[`Cache Integrity - Snapshot > deve gerar um snapshot das query keys usad
     "[...queryKeys.deals.lists(",
     "[...queryKeys.deals.lists(",
   ],
-  "DealsContext.tsx": [
-    "DEALS_VIEW_KEY",
-    "DEALS_VIEW_KEY",
-  ],
   "useDealsQuery.ts": [
     "DEALS_VIEW_KEY",
     "DEALS_VIEW_KEY",

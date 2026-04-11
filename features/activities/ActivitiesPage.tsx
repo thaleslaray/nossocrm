@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useState } from 'react';
 import { useActivitiesController } from './hooks/useActivitiesController';
 import { ActivitiesHeader } from './components/ActivitiesHeader';
@@ -99,6 +101,7 @@ export const ActivitiesPage: React.FC = () => {
                         onDelete={handleDeleteActivity}
                         selectedActivities={selectedActivities}
                         onSelectActivity={handleSelectActivity}
+                        onAddActivity={handleNewActivity}
                     />
                 </>
             ) : (

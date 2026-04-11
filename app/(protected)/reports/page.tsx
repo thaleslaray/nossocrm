@@ -1,17 +1,8 @@
-'use client'
+import type { Metadata } from 'next';
+import ReportsPage from '@/features/reports/ReportsPage'
 
-import dynamic from 'next/dynamic'
-import { PageLoader } from '@/components/PageLoader'
+export const metadata: Metadata = { title: 'Relatórios | NossoCRM' };
 
-const ReportsPage = dynamic(
-    () => import('@/features/reports/ReportsPage'),
-    { loading: () => <PageLoader />, ssr: false }
-)
-
-/**
- * Componente React `Reports`.
- * @returns {Element} Retorna um valor do tipo `Element`.
- */
 export default function Reports() {
     return <ReportsPage />
 }

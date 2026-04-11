@@ -34,7 +34,10 @@ export async function GET() {
     .select('key, enabled, updated_at')
     .eq('organization_id', me.organization_id);
 
-  if (error) return json({ error: error.message }, 500);
+  if (error) {
+    console.error('[API] Database error:', error)
+    return json({ error: 'Internal server error' }, 500)
+  }
 
   const flags: Record<string, boolean> = {};
   for (const row of data || []) flags[row.key] = Boolean(row.enabled);
@@ -96,7 +99,10 @@ export async function POST(req: Request) {
       { onConflict: 'organization_id,key' }
     );
 
-  if (error) return json({ error: error.message }, 500);
+  if (error) {
+    console.error('[API] Database error:', error)
+    return json({ error: 'Internal server error' }, 500)
+  }
   return json({ ok: true });
 }
 

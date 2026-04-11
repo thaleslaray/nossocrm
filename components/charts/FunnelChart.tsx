@@ -31,7 +31,7 @@ export const FunnelChart: React.FC<FunnelChartProps> = ({ data }) => {
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" debounce={50}>
       <BarChart
         data={data}
         layout="vertical"

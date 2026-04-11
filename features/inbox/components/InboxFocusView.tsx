@@ -21,8 +21,17 @@ import {
 import { FocusItem, AISuggestion } from '../hooks/useInboxController';
 import { Activity, DealView } from '@/types';
 import { FocusContextPanel } from './FocusContextPanel';
-import { useCRM } from '@/context/CRMContext';
-import { useMoveDealSimple } from '@/lib/query/hooks';
+import { useUIState } from '@/store/uiState';
+import {
+  useDealsView,
+  useContacts,
+  useBoards,
+  useActivities,
+  useUpdateDeal,
+  useCreateActivity,
+  useUpdateActivity,
+  useMoveDealSimple,
+} from '@/lib/query/hooks';
 import { useAuth } from '@/context/AuthContext';
 import { InboxZeroState } from './InboxZeroState';
 
@@ -99,18 +108,19 @@ export const InboxFocusView: React.FC<InboxFocusViewProps> = ({
   const [showContext, setShowContext] = useState(false);
   const [manualDealId, setManualDealId] = useState('');
   const [contextSearch, setContextSearch] = useState('');
-  const {
-    deals,
-    contacts,
-    companies,
-    boards,
-    activeBoard,
-    activities,
-    updateDeal,
-    addActivity,
-    updateActivity,
-    setSidebarCollapsed,
-  } = useCRM();
+  const { data: deals = [] } = useDealsView();
+  const { data: contacts = [] } = useContacts();
+  const { data: boards = [] } = useBoards();
+  const { data: activities = [] } = useActivities();
+  const { activeBoardId } = useUIState();
+  const activeBoard = boards.find(b => b.id === activeBoardId) || boards.find(b => b.isDefault) || boards[0] || null;
+  const updateDealMutation = useUpdateDeal();
+  const createActivityMutation = useCreateActivity();
+  const updateActivityMutation = useUpdateActivity();
+  const updateDeal = (id: string, updates: Partial<import('@/types').Deal>) => updateDealMutation.mutateAsync({ id, updates });
+  const addActivity = (activity: Omit<import('@/types').Activity, 'id' | 'createdAt'>) => createActivityMutation.mutateAsync({ activity });
+  const updateActivity = (id: string, updates: Partial<import('@/types').Activity>) => updateActivityMutation.mutateAsync({ id, updates });
+  const { setSidebarCollapsed } = useUIState();
   const { profile } = useAuth();
 
   useEffect(() => {

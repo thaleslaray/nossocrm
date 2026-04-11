@@ -41,7 +41,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ key: string }>
     .order('version', { ascending: false })
     .limit(20);
 
-  if (error) return json({ error: error.message }, 500);
+  if (error) {
+    console.error('[API] Database error:', error)
+    return json({ error: 'Internal server error' }, 500)
+  }
 
   const active = (data || []).find((r) => r.is_active) || null;
   return json({ key, active, versions: data || [] });
@@ -81,7 +84,10 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ key: string 
     .eq('key', key)
     .eq('is_active', true);
 
-  if (error) return json({ error: error.message }, 500);
+  if (error) {
+    console.error('[API] Database error:', error)
+    return json({ error: 'Internal server error' }, 500)
+  }
 
   return json({ ok: true });
 }

@@ -8,12 +8,16 @@
  *   useRealtimeSync('deals');  // Subscribe to deals table changes
  *   useRealtimeSync(['deals', 'activities']);  // Multiple tables
  */
-import { useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { queryKeys, DEALS_VIEW_KEY } from '@/lib/query/queryKeys';
 import type { DealView } from '@/types';
+import type { MessagingMessage } from '@/lib/messaging';
+import { transformMessage } from '@/lib/messaging/types';
+import type { DbMessagingMessage, ConversationView } from '@/lib/messaging/types';
+import { pendingDeletionIds, removePendingDeletion } from '@/lib/query/hooks/useConversationsQuery';
 
 // Enable detailed Realtime logging in development or when DEBUG_REALTIME env var is set
 const DEBUG_REALTIME = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEBUG_REALTIME === 'true';
@@ -53,6 +57,8 @@ type RealtimeTable =
   | 'boards'
   | 'board_stages'
   | 'crm_companies'
+  // Messaging tables
+  | 'messaging_channels'
   | 'messaging_conversations'
   | 'messaging_messages';
 
@@ -65,7 +71,15 @@ const getTableQueryKeys = (table: RealtimeTable): readonly (readonly unknown[])[
     boards: [queryKeys.boards.all],
     board_stages: [queryKeys.boards.all], // stages invalidate boards
     crm_companies: [queryKeys.companies.all],
-    messaging_conversations: [queryKeys.messagingConversations.all],
+    // Messaging tables
+    messaging_channels: [queryKeys.messagingChannels.all],
+    messaging_conversations: [
+      queryKeys.messagingConversations.all,
+      queryKeys.messagingConversations.unreadCount(),
+    ],
+    // messaging_messages uses targeted invalidation via conversation_id
+    // (see handleMessagingMessageChange below). This fallback covers edge cases
+    // where payload doesn't contain conversation_id.
     messaging_messages: [queryKeys.messagingMessages.all],
   };
   return mapping[table];
@@ -90,7 +104,8 @@ export function useRealtimeSync(
   const { enabled = true, debounceMs = 100, onchange } = options;
   const queryClient = useQueryClient();
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const isConnectedRef = useRef(false);
+  const instanceIdRef = useRef(0);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingInvalidationsRef = useRef<Set<readonly unknown[]>>(new Set());
   const pendingInvalidateOnlyRef = useRef<Set<readonly unknown[]>>(new Set());
@@ -116,19 +131,21 @@ export function useRealtimeSync(
     }
 
     const tableList = Array.isArray(tables) ? tables : [tables];
-    const channelName = `realtime-sync-${tableList.join('-')}`;
+    // Use unique instance ID to avoid conflict with channel being disconnected
+    instanceIdRef.current += 1;
+    const channelName = `realtime-sync-${tableList.join('-')}-${instanceIdRef.current}`;
 
-    // Cleanup existing channel if any
+    // Cleanup existing channel if any (detach-and-forget pattern)
     if (channelRef.current) {
       if (DEBUG_REALTIME) {
-        console.log(`[Realtime] Cleaning up existing channel: ${channelName}`);
+        console.log(`[Realtime] Cleaning up existing channel`);
       }
-      sb.removeChannel(channelRef.current);
+      const oldChannel = channelRef.current;
       channelRef.current = null;
+      sb.removeChannel(oldChannel);
     }
 
-    // Create channel
-    // Note: Supabase Realtime handles reconnection automatically
+    // Create channel with unique name to avoid race condition with previous removal
     const channel = sb.channel(channelName);
 
     // Subscribe to each table
@@ -161,12 +178,247 @@ export function useRealtimeSync(
               oldUpdatedAt: oldData?.updated_at || oldData?.updatedAt || '',
             };
             console.log(`[Realtime] 📨 Event received: ${table} ${payload.eventType}`, logData);
-            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:117',message:'Event received',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-event',hypothesisId:'S'})}).catch(()=>{});
           }
           // #endregion
 
           // Call custom callback (if provided)
           onchangeRef.current?.(payload);
+
+          // Targeted handling for messaging_messages:
+          // - UPDATE: patch the message status in-cache (no refetch)
+          // - INSERT/DELETE: invalidate to sync new/removed messages
+          if (table === 'messaging_messages') {
+            const record = (payload.new || payload.old) as Record<string, unknown>;
+            const conversationId = record?.conversation_id as string | undefined;
+            if (conversationId) {
+              if (payload.eventType === 'UPDATE' && payload.new) {
+                const db = payload.new as Record<string, unknown>;
+                const messageId = db.id as string;
+                const patch: Partial<MessagingMessage> = {
+                  status: db.status as MessagingMessage['status'],
+                  ...(db.external_id != null && { externalId: db.external_id as string }),
+                  ...(db.sent_at != null && { sentAt: db.sent_at as string }),
+                  ...(db.delivered_at != null && { deliveredAt: db.delivered_at as string }),
+                  ...(db.read_at != null && { readAt: db.read_at as string }),
+                  ...(db.failed_at != null && { failedAt: db.failed_at as string }),
+                  ...(db.error_code != null && { errorCode: db.error_code as string }),
+                  ...(db.error_message != null && { errorMessage: db.error_message as string }),
+                  // Include metadata so reaction updates (metadata.reactions) propagate to the UI
+                  ...(db.metadata != null && { metadata: db.metadata as Record<string, unknown> }),
+                };
+
+                const applyPatch = (m: MessagingMessage) =>
+                  m.id === messageId ? { ...m, ...patch } : m;
+
+                // Update flat query cache
+                const flatKey = queryKeys.messagingMessages.byConversation(conversationId);
+                queryClient.setQueryData<MessagingMessage[]>(flatKey, (old) =>
+                  old ? old.map(applyPatch) : old
+                );
+
+                // Update infinite query cache (used by MessageThread)
+                const infiniteKey = [...flatKey, 'infinite'] as const;
+                queryClient.setQueryData<InfiniteData<{ messages: MessagingMessage[]; nextCursor: string | null }>>(
+                  infiniteKey,
+                  (old) => old
+                    ? { ...old, pages: old.pages.map(p => ({ ...p, messages: p.messages.map(applyPatch) })) }
+                    : old
+                );
+                return; // No invalidation for UPDATE
+              }
+
+              // INSERT: inject inbound messages directly into cache for instant delivery.
+              // Invalidate-then-refetch relies on RLS evaluation in Supabase Realtime,
+              // which can fail for complex JOIN-based policies — causing messages to not appear
+              // until the user manually refreshes. Direct cache injection bypasses that entirely.
+              if (payload.eventType === 'INSERT') {
+                const newRecord = payload.new as Record<string, unknown>;
+                const direction = newRecord?.direction;
+                if (direction === 'outbound') {
+                  // Check if this outbound message was already placed in cache by useSendMessage.
+                  // If it's already there (UI-sent), just refresh the conversations list.
+                  // If it's NOT there (sent from the phone/webhook), inject it like an inbound.
+                  const flatKey = queryKeys.messagingMessages.byConversation(conversationId);
+                  const infiniteKey = [...flatKey, 'infinite'] as const;
+                  const cachedData = queryClient.getQueryData<InfiniteData<{ messages: MessagingMessage[]; nextCursor: string | null }>>(infiniteKey);
+                  const messageId = newRecord.id as string;
+                  const alreadyInCache = cachedData?.pages.some((p) => p.messages.some((m) => m.id === messageId));
+
+                  if (!alreadyInCache) {
+                    // Outbound from phone/webhook — inject into cache just like inbound
+                    const newMessage = transformMessage(newRecord as unknown as DbMessagingMessage);
+                    queryClient.setQueryData<InfiniteData<{ messages: MessagingMessage[]; nextCursor: string | null }>>(
+                      infiniteKey,
+                      (old) => {
+                        if (!old) return old;
+                        const pages = old.pages.map((page, i) => {
+                          if (i !== old.pages.length - 1) return page;
+                          if (page.messages.some((m) => m.id === newMessage.id)) return page;
+                          return { ...page, messages: [...page.messages, newMessage] };
+                        });
+                        return { ...old, pages };
+                      }
+                    );
+                    if (DEBUG_REALTIME) {
+                      console.log('[Realtime] 📤 Outbound-from-phone injected into cache:', newMessage.id);
+                    }
+                  }
+
+                  // Refresh conversations list (last_message preview).
+                  pendingInvalidationsRef.current.add(queryKeys.messagingConversations.all);
+                  pendingInvalidationsRef.current.add(queryKeys.messagingConversations.unreadCount());
+                  if (!flushScheduledRef.current) {
+                    flushScheduledRef.current = true;
+                    queueMicrotask(() => {
+                      flushScheduledRef.current = false;
+                      const keysToFlush = Array.from(pendingInvalidationsRef.current);
+                      pendingInvalidationsRef.current.clear();
+                      keysToFlush.forEach((queryKey) => {
+                        // Skip conversations-list invalidation while a deletion is in-progress.
+                        // The shared ref may have been contaminated by a concurrent UPDATE event
+                        // (e.g. markAsRead). Flushing it here causes a refetch that returns the
+                        // conversation from DB before it's deleted, creating a flicker.
+                        if (pendingDeletionIds.size > 0 && queryKey === queryKeys.messagingConversations.all) {
+                          return;
+                        }
+                        queryClient.invalidateQueries({ queryKey, exact: false, refetchType: 'all' });
+                      });
+                    });
+                  }
+                  return;
+                }
+
+                // Inbound message: inject directly into the infinite query cache.
+                // This is instant and doesn't require a network roundtrip or RLS re-evaluation.
+                const newMessage = transformMessage(payload.new as unknown as DbMessagingMessage);
+                const flatKey = queryKeys.messagingMessages.byConversation(conversationId);
+                const infiniteKey = [...flatKey, 'infinite'] as const;
+
+                queryClient.setQueryData<InfiniteData<{ messages: MessagingMessage[]; nextCursor: string | null }>>(
+                  infiniteKey,
+                  (old) => {
+                    if (!old) return old;
+                    // Append to the last page (most recent messages page).
+                    // MessageThread reverses the order, so appending here is correct.
+                    const pages = old.pages.map((page, i) => {
+                      if (i !== old.pages.length - 1) return page;
+                      // Deduplicate: skip if message already in cache
+                      if (page.messages.some((m) => m.id === newMessage.id)) return page;
+                      return { ...page, messages: [...page.messages, newMessage] };
+                    });
+                    return { ...old, pages };
+                  }
+                );
+
+                if (DEBUG_REALTIME) {
+                  console.log('[Realtime] 💬 Inbound message injected into cache:', newMessage.id);
+                }
+
+                // Also refresh conversations list for last_message preview + unread count.
+                pendingInvalidationsRef.current.add(queryKeys.messagingConversations.all);
+                pendingInvalidationsRef.current.add(queryKeys.messagingConversations.unreadCount());
+                if (!flushScheduledRef.current) {
+                  flushScheduledRef.current = true;
+                  queueMicrotask(() => {
+                    flushScheduledRef.current = false;
+                    const keysToFlush = Array.from(pendingInvalidationsRef.current);
+                    pendingInvalidationsRef.current.clear();
+                    keysToFlush.forEach((queryKey) => {
+                      // Skip conversations-list invalidation while a deletion is in-progress.
+                      // Same guard as the outbound path — prevents an inbound message arriving
+                      // during the delete window from triggering a refetch that re-shows the
+                      // deleted conversation before the realtime DELETE event lowers the guard.
+                      if (pendingDeletionIds.size > 0 && queryKey === queryKeys.messagingConversations.all) {
+                        return;
+                      }
+                      queryClient.invalidateQueries({ queryKey, exact: false, refetchType: 'all' });
+                    });
+                  });
+                }
+                return;
+              }
+
+              // DELETE: invalidate to sync message thread only.
+              // Do NOT invalidate messagingConversations here — that causes a race condition
+              // when deleting a conversation: messages are deleted first, firing this event
+              // before the conversation is deleted. The queueMicrotask refetch (refetchType:'all')
+              // runs while the conversation still exists in DB, causing it to flash back into
+              // the list. The messaging_conversations DELETE event handles list invalidation.
+              const flatKey = queryKeys.messagingMessages.byConversation(conversationId);
+              const infiniteKey = [...flatKey, 'infinite'] as const;
+              pendingInvalidationsRef.current.add(flatKey);
+              pendingInvalidationsRef.current.add(infiniteKey);
+
+              if (!flushScheduledRef.current) {
+                flushScheduledRef.current = true;
+                queueMicrotask(() => {
+                  flushScheduledRef.current = false;
+                  const keysToFlush = Array.from(pendingInvalidationsRef.current);
+                  pendingInvalidationsRef.current.clear();
+                  keysToFlush.forEach((queryKey) => {
+                    // Skip conversations-list invalidation while a deletion is in-progress.
+                    // The shared ref may be contaminated by a concurrent UPDATE event (e.g.
+                    // markAsRead). Flushing messagingConversations.all here with refetchType:'all'
+                    // would return the conversation from DB before it's deleted — causing a flicker.
+                    if (pendingDeletionIds.size > 0 && queryKey === queryKeys.messagingConversations.all) {
+                      return;
+                    }
+                    queryClient.invalidateQueries({ queryKey, exact: false, refetchType: 'all' });
+                  });
+                });
+              }
+              return;
+            }
+            // If no conversation_id, fall through to generic invalidation
+          }
+
+          // Targeted handling for messaging_conversations DELETE:
+          // Instead of calling invalidateQueries (which triggers a refetch), remove the
+          // conversation from the cache directly. This prevents the flicker caused by
+          // the refetch returning stale data (conversation still in DB while messages
+          // are being deleted) overwriting the optimistic removal.
+          if (table === 'messaging_conversations' && payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as Record<string, unknown>)?.id as string | undefined;
+            if (deletedId) {
+              // The DELETE event is the authoritative confirmation that the conversation is gone.
+              // Lower the guard here so subsequent invalidations (e.g. unreadCount refetch) are
+              // not blocked. This is the correct place — earlier removal (e.g. in onSettled) races
+              // with DB-trigger UPDATE events that arrive via WebSocket AFTER the HTTP response.
+              removePendingDeletion(deletedId);
+              queryClient.setQueriesData(
+                { queryKey: queryKeys.messagingConversations.all },
+                (old: unknown) => {
+                  if (!Array.isArray(old)) return old;
+                  return (old as ConversationView[]).filter((conv) => conv.id !== deletedId);
+                }
+              );
+              queryClient.removeQueries({
+                queryKey: queryKeys.messagingConversations.detail(deletedId),
+              });
+              queryClient.invalidateQueries({
+                queryKey: queryKeys.messagingConversations.unreadCount(),
+              });
+              if (DEBUG_REALTIME) {
+                console.log('[Realtime] 🗑️ messaging_conversations DELETE — removed from cache directly', deletedId);
+              }
+            }
+            return; // Skip generic invalidation path
+          }
+
+          // Skip UPDATE/INSERT events for conversations currently being deleted.
+          // When messages are deleted, the DB trigger fires an UPDATE on messaging_conversations
+          // (updating last_message_at, message_count, etc.) that arrives via WebSocket AFTER the
+          // HTTP DELETE response. If we let it through, it queues a conversations-list refetch
+          // that returns the conversation (still in DB at that instant), causing the flicker.
+          if (table === 'messaging_conversations' && payload.eventType !== 'DELETE') {
+            const convId = ((payload.new || payload.old) as Record<string, unknown>)?.id as string | undefined;
+            if (convId && pendingDeletionIds.has(convId)) {
+              if (DEBUG_REALTIME) {
+                console.log('[Realtime] ⏭️ Skip conversations UPDATE for pending deletion:', convId.slice(0, 8));
+              }
+              return;
+            }
+          }
 
           // Queue query keys for invalidation (lazy loaded)
           const keys = getTableQueryKeys(table);
@@ -199,7 +451,6 @@ export function useRealtimeSync(
                 // #region agent log
                 if (process.env.NODE_ENV !== 'production') {
                   console.log(`[Realtime] ⏭️ INSERT deals - skipping duplicate`, { dealId: dealId.slice(0, 8) });
-                  fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:180',message:'INSERT deals - skipping duplicate',data:{dealId:dealId.slice(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-insert',hypothesisId:'RI0'})}).catch(()=>{});
                 }
                 // #endregion
                 return; // Skip this event, already processed by another hook instance
@@ -213,7 +464,6 @@ export function useRealtimeSync(
                   status: typeof newData.stage_id === 'string' ? (newData.stage_id as string).slice(0, 8) : 'null',
                 };
                 console.log(`[Realtime] 📥 INSERT deals - adding to cache directly`, logData);
-                fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:180',message:'INSERT deals - adding to cache directly',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-insert',hypothesisId:'RI1'})}).catch(()=>{});
               }
               // #endregion
 
@@ -283,7 +533,6 @@ export function useRealtimeSync(
                     // #region agent log
                     if (process.env.NODE_ENV !== 'production') {
                       console.log(`[Realtime] 📥 INSERT deals - deal already exists, updating`, { dealId: dealId.slice(0, 8) });
-                      fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:240',message:'INSERT deals - deal already exists, updating',data:{dealId:dealId.slice(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-insert',hypothesisId:'RI3'})}).catch(()=>{});
                     }
                     // #endregion
                     return old.map((d, i) => i === existingIndex ? { ...d, ...normalizedDeal } as DealView : d);
@@ -300,7 +549,6 @@ export function useRealtimeSync(
                   if (process.env.NODE_ENV !== 'production') {
                     const removedCount = old.length - tempDealsRemoved.length;
                     console.log(`[Realtime] 📥 INSERT deals - adding new deal to cache`, { dealId: dealId.slice(0, 8), removedTempDeals: removedCount, cacheSize: tempDealsRemoved.length + 1 });
-                    fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:255',message:'INSERT deals - adding new deal to cache',data:{dealId:dealId.slice(0,8),removedTempDeals:removedCount,cacheSize:tempDealsRemoved.length+1},timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-insert',hypothesisId:'RI4'})}).catch(()=>{});
                   }
                   // #endregion
                   
@@ -378,7 +626,6 @@ export function useRealtimeSync(
                   rawStageId: typeof newData.stage_id === 'string' ? (newData.stage_id as string).slice(0, 8) : 'null',
                 };
                 console.log(`[Realtime] 🔍 Processing deals UPDATE`, logData);
-                fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:195',message:'Processing deals UPDATE',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-update',hypothesisId:'A'})}).catch(()=>{});
               }
               // #endregion
 
@@ -413,7 +660,6 @@ export function useRealtimeSync(
                       cacheSize: old.length,
                     };
                     console.log(`[Realtime] 🔍 Cache state`, logData);
-                    fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:226',message:'Cache state',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-update',hypothesisId:'B'})}).catch(()=>{});
                   }
                   // #endregion
                   
@@ -457,7 +703,6 @@ export function useRealtimeSync(
                           payloadOldStatus: payloadOldStatus.slice(0, 8),
                         };
                         console.log(`[Realtime] ⚠️ Skipping update - incoming matches oldStatus (reverting)`, logData);
-                        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:265',message:'Skipping stale update (reverting)',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-update',hypothesisId:'D'})}).catch(()=>{});
                       }
                       // #endregion
                       return old; // Skip stale update
@@ -493,7 +738,6 @@ export function useRealtimeSync(
                               diffMs: diffMs,
                             };
                             console.log(`[Realtime] ⚠️ Skipping update - incoming timestamp significantly older (stale)`, logData);
-                            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:290',message:'Skipping stale update (incoming timestamp significantly older)',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-update',hypothesisId:'C'})}).catch(()=>{});
                           }
                           // #endregion
                           return old; // Skip stale update
@@ -512,7 +756,6 @@ export function useRealtimeSync(
                             diffMs: diffMs,
                           };
                           console.log(`[Realtime] ✅ Applying update (empty oldStatus, timestamp newer or close)`, logData);
-                          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:315',message:'Applying update (empty oldStatus, timestamp newer or close)',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-update',hypothesisId:'L'})}).catch(()=>{});
                         }
                         // #endregion
                         // Continue to apply the update below
@@ -529,7 +772,6 @@ export function useRealtimeSync(
                               incomingUpdatedAt: incomingUpdatedAt ? new Date(incomingUpdatedAt).toISOString() : 'null',
                             };
                             console.log(`[Realtime] ✅ Applying update (empty oldStatus, can't compare but status matches)`, logData);
-                            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:330',message:'Applying update (empty oldStatus, can\'t compare but status matches)',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-update',hypothesisId:'M'})}).catch(()=>{});
                           }
                           // #endregion
                           // Continue to apply the update below
@@ -544,7 +786,6 @@ export function useRealtimeSync(
                               incomingUpdatedAt: incomingUpdatedAt ? new Date(incomingUpdatedAt).toISOString() : 'null',
                             };
                             console.log(`[Realtime] ⚠️ Skipping update (empty oldStatus, can't compare and status differs)`, logData);
-                            fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:345',message:'Skipping update (empty oldStatus, can\'t compare and status differs)',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-update',hypothesisId:'N'})}).catch(()=>{});
                           }
                           // #endregion
                           return old; // Skip update - too risky without timestamp comparison
@@ -592,7 +833,6 @@ export function useRealtimeSync(
                           newStatus: incomingStatus ? incomingStatus.slice(0, 8) : '',
                         };
                         console.log(`[Realtime] ✅ Applying update to cache`, logData);
-                        fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:346',message:'Applying update to cache',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-update',hypothesisId:'E'})}).catch(()=>{});
                       }
                       // #endregion
                       // Transform Realtime payload (snake_case) to app format (camelCase)
@@ -658,6 +898,10 @@ export function useRealtimeSync(
               debounceTimerRef.current = setTimeout(() => {
                 // Invalidate all pending queries
                 pendingInvalidationsRef.current.forEach(queryKey => {
+                  // Skip conversations-list invalidation while a deletion is in-progress.
+                  if (pendingDeletionIds.size > 0 && queryKey === queryKeys.messagingConversations.all) {
+                    return;
+                  }
                   if (DEBUG_REALTIME) {
                     console.log(`[Realtime] Invalidating queries (debounced):`, queryKey);
                   }
@@ -671,76 +915,45 @@ export function useRealtimeSync(
       );
     });
 
-    // Subscribe to channel
-    channel.subscribe((status) => {
-      if (DEBUG_REALTIME) {
-        console.log(`[Realtime] Channel ${channelName} status:`, status);
-      }
-      
-      // #region agent log
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[Realtime] Channel ${channelName} status changed:`, status, { tables: tableList.join(',') });
-      }
-      // #endregion
-      
-      setIsConnected(status === 'SUBSCRIBED');
-      
-      if (status === 'SUBSCRIBED') {
+    // Delay subscription slightly to avoid race condition with previous channel
+    // removal in React StrictMode (unmount → remount happens synchronously, but
+    // Supabase removeChannel is async on the server side).
+    const subscribeTimer = setTimeout(() => {
+      channel.subscribe((status) => {
         if (DEBUG_REALTIME) {
-          console.log(`[Realtime] Successfully subscribed to ${tableList.join(', ')}`);
+          console.log(`[Realtime] Channel ${channelName} status:`, status);
         }
-        // #region agent log
-        if (process.env.NODE_ENV !== 'production') {
-          const logData = {
-            channelName,
-            tables: tableList.join(','),
-            status: 'SUBSCRIBED',
-          };
+
+        isConnectedRef.current = status === 'SUBSCRIBED';
+
+        if (status === 'SUBSCRIBED') {
           console.log(`[Realtime] ✅ Connected to ${tableList.join(', ')}`);
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:488',message:'Realtime connected',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-connection',hypothesisId:'O'})}).catch(()=>{});
+        } else if (status === 'CHANNEL_ERROR') {
+          console.warn(`[Realtime] Channel error for ${channelName} (will auto-retry)`);
+        } else if (status === 'TIMED_OUT') {
+          console.warn(`[Realtime] Channel timeout for ${channelName}`);
+        } else if (status === 'CLOSED') {
+          if (DEBUG_REALTIME) {
+            console.warn(`[Realtime] Channel closed for ${channelName}`);
+          }
         }
-        // #endregion
-      } else if (status === 'CHANNEL_ERROR') {
-        console.error(`[Realtime] Channel error for ${channelName}`);
-        // #region agent log
-        if (process.env.NODE_ENV !== 'production') {
-          const logData = { channelName, tables: tableList.join(','), status: 'CHANNEL_ERROR' };
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:497',message:'Realtime channel error',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-connection',hypothesisId:'P'})}).catch(()=>{});
-        }
-        // #endregion
-      } else if (status === 'TIMED_OUT') {
-        console.warn(`[Realtime] Channel timeout for ${channelName}`);
-        // #region agent log
-        if (process.env.NODE_ENV !== 'production') {
-          const logData = { channelName, tables: tableList.join(','), status: 'TIMED_OUT' };
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:500',message:'Realtime channel timeout',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-connection',hypothesisId:'Q'})}).catch(()=>{});
-        }
-        // #endregion
-      } else if (status === 'CLOSED') {
-        if (DEBUG_REALTIME) {
-          console.warn(`[Realtime] Channel closed for ${channelName}`);
-        }
-        // #region agent log
-        if (process.env.NODE_ENV !== 'production') {
-          const logData = { channelName, tables: tableList.join(','), status: 'CLOSED' };
-          fetch('http://127.0.0.1:7242/ingest/d70f541c-09d7-4128-9745-93f15f184017',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useRealtimeSync.ts:503',message:'Realtime channel closed',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'realtime-connection',hypothesisId:'R'})}).catch(()=>{});
-        }
-        // #endregion
-      }
-    });
+      });
+    }, 100);
 
     channelRef.current = channel;
 
-    // Cleanup
+    // Cleanup (detach-and-forget: null ref immediately, remove async)
     return () => {
+      clearTimeout(subscribeTimer);
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      if (channelRef.current) {
-        sb.removeChannel(channelRef.current);
-        channelRef.current = null;
+      const channelToRemove = channelRef.current;
+      channelRef.current = null;
+      isConnectedRef.current = false;
+      if (channelToRemove) {
+        sb.removeChannel(channelToRemove);
       }
-      setIsConnected(false);
     };
     // Only re-run if enabled, tables, or debounceMs change
     // queryClient is stable, onchange is handled via ref
@@ -758,7 +971,7 @@ export function useRealtimeSync(
       });
     },
     /** Check if channel is connected */
-    isConnected,
+    isConnected: isConnectedRef.current,
   };
 }
 
@@ -779,7 +992,7 @@ export function useRealtimeSyncKanban(options: UseRealtimeSyncOptions = {}) {
 }
 
 /**
- * Subscribe to messaging-related tables
+ * Subscribe to Messaging-related tables
  * Optimized for the messaging inbox
  */
 export function useRealtimeSyncMessaging(options: UseRealtimeSyncOptions = {}) {

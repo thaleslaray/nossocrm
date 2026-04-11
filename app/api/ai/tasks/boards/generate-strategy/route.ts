@@ -1,4 +1,4 @@
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { requireAITaskContext, AITaskHttpError } from '@/lib/ai/tasks/server';
 import { GenerateBoardStrategyInputSchema, BoardStrategyOutputSchema } from '@/lib/ai/tasks/schemas';
@@ -37,14 +37,14 @@ export async function POST(req: Request) {
       boardName: boardData?.boardName || '',
     });
 
-    const result = await generateObject({
+    const result = await generateText({
       model,
       maxRetries: 3,
-      schema: BoardStrategyOutputSchema,
+      output: Output.object({ schema: BoardStrategyOutputSchema }),
       prompt,
     });
 
-    return json(result.object);
+    return json(result.output);
   } catch (err: unknown) {
     if (err instanceof AITaskHttpError) return err.toResponse();
     if (err instanceof z.ZodError) {

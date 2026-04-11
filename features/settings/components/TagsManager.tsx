@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tag, Plus, X } from 'lucide-react';
 import { SettingsSection } from './SettingsSection';
+import { Button } from '@/components/ui/button';
 
 interface TagsManagerProps {
   availableTags: string[];
@@ -54,13 +55,14 @@ export const TagsManager: React.FC<TagsManagerProps> = ({
               className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
             />
           </div>
-          <button
+          <Button
+            variant="default"
+            size="sm"
             onClick={onAddTag}
             disabled={!newTagName.trim()}
-            className="bg-primary-600 hover:bg-primary-500 shadow-primary-600/20 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors h-[38px] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus size={16} /> Adicionar
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -69,13 +71,15 @@ export const TagsManager: React.FC<TagsManagerProps> = ({
           <div key={tag} className="flex items-center gap-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 group hover:border-red-300 dark:hover:border-red-500/50 transition-colors">
             <Tag size={14} className="text-slate-400" />
             <span className="text-sm font-medium text-slate-900 dark:text-white">{tag}</span>
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => onRemoveTag(tag)}
-              className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
               title="Remover tag"
+              className="opacity-0 group-hover:opacity-100 h-6 w-6 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
               <X size={14} />
-            </button>
+            </Button>
           </div>
         ))}
         {availableTags.length === 0 && (

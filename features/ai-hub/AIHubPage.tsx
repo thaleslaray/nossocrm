@@ -1,8 +1,10 @@
+'use client'
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Send, Loader2, Bot, User, Sparkles, StopCircle, Trash2, Settings, AlertCircle } from 'lucide-react';
 import { useCRMAgent, AgentMessage } from './hooks/useCRMAgent';
-import { useCRM } from '@/context/CRMContext';
+import { useOrgSettings } from '@/lib/query/hooks/useOrgSettingsQuery';
 
 // Componente de mensagem individual
 const ChatMessage: React.FC<{ message: AgentMessage }> = ({ message }) => {
@@ -144,8 +146,8 @@ const APINotConfigured: React.FC = () => {
  */
 export const AIHubPage: React.FC = () => {
   const router = useRouter();
-  const { aiApiKey } = useCRM();
-  const hasApiKey = Boolean(aiApiKey && aiApiKey.trim());
+  const { data: settings } = useOrgSettings();
+  const hasApiKey = Boolean(settings?.aiKeyConfigured);
   const { messages, isLoading, error, sendMessage, clearMessages, stopGeneration } = useCRMAgent();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);

@@ -16,7 +16,18 @@ import { supabase } from './client';
 import { Contact, CRMCompany, OrganizationId, PaginationState, PaginatedResponse, ContactsServerFilters } from '@/types';
 import { sanitizeUUID, sanitizeText, sanitizeNumber } from './utils';
 import { normalizePhoneE164 } from '@/lib/phone';
-import { escapePostgrestFilter } from '@/lib/security/escapePostgrest';
+
+async function getCurrentOrganizationId(): Promise<string | null> {
+  if (!supabase) return null;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('organization_id')
+    .eq('id', user.id)
+    .maybeSingle();
+  return (profile as any)?.organization_id ?? null;
+}
 
 // ============================================
 // CONTACTS SERVICE
@@ -38,6 +49,10 @@ export interface DbContact {
   email: string | null;
   /** Telefone do contato. */
   phone: string | null;
+  /** Cargo/função do contato. */
+  role: string | null;
+  /** Nome da empresa (texto livre, deprecado). */
+  company_name: string | null;
   /** ID da empresa CRM vinculada. */
   client_company_id: string | null;
   /** URL do avatar. */
@@ -64,17 +79,8 @@ export interface DbContact {
   updated_at: string;
   /** ID do dono/responsável. */
   owner_id: string | null;
-  // Campos de viagem (agência de viagens)
-  destino_viagem: string | null;
-  data_viagem: string | null;
-  quantidade_adultos: number | null;
-  quantidade_criancas: number | null;
-  idade_criancas: string | null;
-  categoria_viagem: string | null;
-  urgencia_viagem: string | null;
-  origem_lead: string | null;
-  indicado_por: string | null;
-  observacoes_viagem: string | null;
+  /** Quando true, o agente de IA não responde a este contato. */
+  ai_paused: boolean;
 }
 
 /**
@@ -113,6 +119,7 @@ const transformContact = (db: DbContact): Contact => ({
   name: db.name,
   email: db.email || '',
   phone: normalizePhoneE164(db.phone),
+  role: db.role || '',
   clientCompanyId: db.client_company_id || undefined,
   companyId: db.client_company_id || '', // @deprecated - backwards compatibility
   avatar: db.avatar || '',
@@ -126,17 +133,7 @@ const transformContact = (db: DbContact): Contact => ({
   totalValue: db.total_value || 0,
   createdAt: db.created_at,
   updatedAt: db.updated_at,
-  // Campos de viagem
-  destino_viagem: db.destino_viagem || undefined,
-  data_viagem: db.data_viagem || undefined,
-  quantidade_adultos: db.quantidade_adultos ?? undefined,
-  quantidade_criancas: db.quantidade_criancas ?? undefined,
-  idade_criancas: db.idade_criancas || undefined,
-  categoria_viagem: db.categoria_viagem as Contact['categoria_viagem'] || undefined,
-  urgencia_viagem: db.urgencia_viagem as Contact['urgencia_viagem'] || undefined,
-  origem_lead: db.origem_lead as Contact['origem_lead'] || undefined,
-  indicado_por: db.indicado_por || undefined,
-  observacoes_viagem: db.observacoes_viagem || undefined,
+  aiPaused: db.ai_paused ?? false,
 });
 
 /**
@@ -170,6 +167,7 @@ const transformContactToDb = (contact: Partial<Contact>): Partial<DbContact> => 
     const e164 = normalizePhoneE164(contact.phone);
     db.phone = e164 ? e164 : null;
   }
+  if (contact.role !== undefined) db.role = contact.role || null;
   // Support both new clientCompanyId and deprecated companyId
   if (contact.clientCompanyId !== undefined) db.client_company_id = contact.clientCompanyId || null;
   else if (contact.companyId !== undefined) db.client_company_id = contact.companyId || null;
@@ -182,17 +180,7 @@ const transformContactToDb = (contact: Partial<Contact>): Partial<DbContact> => 
   if (contact.lastInteraction !== undefined) db.last_interaction = contact.lastInteraction || null;
   if (contact.lastPurchaseDate !== undefined) db.last_purchase_date = contact.lastPurchaseDate || null;
   if (contact.totalValue !== undefined) db.total_value = contact.totalValue;
-  // Campos de viagem
-  if (contact.destino_viagem !== undefined) db.destino_viagem = contact.destino_viagem || null;
-  if (contact.data_viagem !== undefined) db.data_viagem = contact.data_viagem || null;
-  if (contact.quantidade_adultos !== undefined) db.quantidade_adultos = contact.quantidade_adultos ?? null;
-  if (contact.quantidade_criancas !== undefined) db.quantidade_criancas = contact.quantidade_criancas ?? null;
-  if (contact.idade_criancas !== undefined) db.idade_criancas = contact.idade_criancas || null;
-  if (contact.categoria_viagem !== undefined) db.categoria_viagem = contact.categoria_viagem || null;
-  if (contact.urgencia_viagem !== undefined) db.urgencia_viagem = contact.urgencia_viagem || null;
-  if (contact.origem_lead !== undefined) db.origem_lead = contact.origem_lead || null;
-  if (contact.indicado_por !== undefined) db.indicado_por = contact.indicado_por || null;
-  if (contact.observacoes_viagem !== undefined) db.observacoes_viagem = contact.observacoes_viagem || null;
+  if (contact.aiPaused !== undefined) db.ai_paused = contact.aiPaused;
 
   return db;
 };
@@ -256,9 +244,10 @@ export const contactsService = {
    * Otimizado para buscar apenas os contatos necessários.
    *
    * @param ids - Array de IDs de contatos a buscar.
+   * @param options - Opções adicionais, incluindo AbortSignal para cancelar a request.
    * @returns Promise com array de contatos ou erro.
    */
-  async getByIds(ids: string[]): Promise<{ data: Contact[] | null; error: Error | null }> {
+  async getByIds(ids: string[], options?: { signal?: AbortSignal }): Promise<{ data: Contact[] | null; error: Error | null }> {
     try {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
@@ -273,10 +262,12 @@ export const contactsService = {
         return { data: [], error: null };
       }
 
-      const { data, error } = await supabase
+      let contactsQuery = supabase
         .from('contacts')
         .select('*')
-        .in('id', uniqueIds);
+        .is('deleted_at', null);
+      if (options?.signal) contactsQuery = contactsQuery.abortSignal(options.signal);
+      const { data, error } = await contactsQuery.in('id', uniqueIds);
 
       if (error) return { data: null, error };
       return { data: (data || []).map(c => transformContact(c as DbContact)), error: null };
@@ -295,13 +286,14 @@ export const contactsService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
-      // Safety limit: Prevent unbounded queries when pagination isn't used
-      // For paginated access, use getAllPaginated() instead
+      // Safety limit: cap at 1000 for non-paginated access.
+      // For full datasets, use getAllPaginated() with cursor pagination.
       const { data, error } = await supabase
         .from('contacts')
         .select('*')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
-        .limit(10000);
+        .limit(1000);
 
       if (error) return { data: null, error };
       return { data: (data || []).map(c => transformContact(c as DbContact)), error: null };
@@ -330,7 +322,8 @@ export const contactsService = {
    */
   async getAllPaginated(
     pagination: PaginationState,
-    filters?: ContactsServerFilters
+    filters?: ContactsServerFilters,
+    options?: { signal?: AbortSignal }
   ): Promise<{ data: PaginatedResponse<Contact> | null; error: Error | null }> {
     try {
       if (!supabase) {
@@ -340,16 +333,18 @@ export const contactsService = {
       const from = pageIndex * pageSize;
       const to = from + pageSize - 1;
 
-      // Build query with count
+      // Build query with count (exclude soft-deleted/merged contacts)
       let query = supabase
         .from('contacts')
-        .select('*', { count: 'exact' });
+        .select('*', { count: 'exact' })
+        .is('deleted_at', null);
+      if (options?.signal) query = query.abortSignal(options.signal);
 
       // Apply filters
       if (filters) {
         // T007: Search filter (name OR email)
         if (filters.search && filters.search.trim()) {
-          const searchTerm = escapePostgrestFilter(filters.search.trim());
+          const searchTerm = filters.search.trim();
           query = query.or(`name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
         }
 
@@ -427,10 +422,12 @@ export const contactsService = {
         return { data: null, error: new Error('Supabase não configurado') };
       }
       const phoneE164 = normalizePhoneE164(contact.phone);
+      const organizationId = await getCurrentOrganizationId();
       const insertData = {
         name: contact.name,
         email: sanitizeText(contact.email),
         phone: sanitizeText(phoneE164),
+        role: sanitizeText(contact.role),
         client_company_id: sanitizeUUID(contact.clientCompanyId || contact.companyId),
         avatar: sanitizeText(contact.avatar),
         notes: sanitizeText(contact.notes),
@@ -441,17 +438,7 @@ export const contactsService = {
         last_interaction: sanitizeText(contact.lastInteraction),
         last_purchase_date: sanitizeText(contact.lastPurchaseDate),
         total_value: sanitizeNumber(contact.totalValue, 0),
-        // Campos de viagem
-        destino_viagem: sanitizeText(contact.destino_viagem),
-        data_viagem: sanitizeText(contact.data_viagem),
-        quantidade_adultos: contact.quantidade_adultos ?? 1,
-        quantidade_criancas: contact.quantidade_criancas ?? 0,
-        idade_criancas: sanitizeText(contact.idade_criancas),
-        categoria_viagem: sanitizeText(contact.categoria_viagem),
-        urgencia_viagem: sanitizeText(contact.urgencia_viagem),
-        origem_lead: sanitizeText(contact.origem_lead),
-        indicado_por: sanitizeText(contact.indicado_por),
-        observacoes_viagem: sanitizeText(contact.observacoes_viagem),
+        ...(organizationId ? { organization_id: organizationId } : {}),
       };
 
       const { data, error } = await supabase
@@ -603,9 +590,10 @@ export const companiesService = {
    * Otimizado para buscar apenas as empresas necessárias.
    *
    * @param ids - Array de IDs de empresas a buscar.
+   * @param options - Opções adicionais, incluindo AbortSignal para cancelar a request.
    * @returns Promise com array de empresas ou erro.
    */
-  async getByIds(ids: string[]): Promise<{ data: CRMCompany[] | null; error: Error | null }> {
+  async getByIds(ids: string[], options?: { signal?: AbortSignal }): Promise<{ data: CRMCompany[] | null; error: Error | null }> {
     try {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
@@ -620,10 +608,11 @@ export const companiesService = {
         return { data: [], error: null };
       }
 
-      const { data, error } = await supabase
+      let companiesQuery = supabase
         .from('crm_companies')
-        .select('*')
-        .in('id', uniqueIds);
+        .select('*');
+      if (options?.signal) companiesQuery = companiesQuery.abortSignal(options.signal);
+      const { data, error } = await companiesQuery.in('id', uniqueIds);
 
       if (error) return { data: null, error };
       return { data: (data || []).map(c => transformCRMCompany(c as DbCRMCompany)), error: null };
@@ -642,12 +631,12 @@ export const companiesService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
-      // Safety limit: Prevent unbounded queries
+      // Safety limit: cap at 1000 for non-paginated access
       const { data, error } = await supabase
         .from('crm_companies')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10000);
+        .limit(1000);
 
       if (error) return { data: null, error };
       return { data: (data || []).map(c => transformCRMCompany(c as DbCRMCompany)), error: null };
@@ -667,10 +656,12 @@ export const companiesService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
+      const organizationId = await getCurrentOrganizationId();
       const insertData = {
         name: company.name,
         industry: sanitizeText(company.industry),
         website: sanitizeText(company.website),
+        ...(organizationId ? { organization_id: organizationId } : {}),
       };
 
       const { data, error } = await supabase

@@ -20,9 +20,15 @@ const RollbackSchema = z.object({
 export async function POST(req: Request) {
   const t0 = Date.now();
   const log = (msg: string) => console.log('[rollback]', ((Date.now() - t0) / 1000).toFixed(1) + 's', msg);
-  
+
   log('🔄 START');
-  
+
+  // Guard: installer must be explicitly enabled to use rollback
+  if (process.env.INSTALLER_ENABLED === 'false') {
+    log('ERROR: Installer is disabled');
+    return Response.json({ error: 'Installer is disabled' }, { status: 403 });
+  }
+
   if (!isAllowedOrigin(req)) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }

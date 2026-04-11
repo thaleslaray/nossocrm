@@ -20,7 +20,10 @@ const PROCESSED_KEY = 'crm_processed_decisions';
 // STORAGE
 // ============================================
 
+const isBrowser = typeof window !== 'undefined';
+
 function loadState(): DecisionQueueState {
+  if (!isBrowser) return { decisions: [], analyzerResults: [] };
   try {
     const data = localStorage.getItem(STORAGE_KEY);
     if (data) {
@@ -33,6 +36,7 @@ function loadState(): DecisionQueueState {
 }
 
 function saveState(state: DecisionQueueState): void {
+  if (!isBrowser) return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
@@ -42,6 +46,7 @@ function saveState(state: DecisionQueueState): void {
 
 // Track processed decisions to avoid duplicates
 function getProcessedDecisions(): Set<string> {
+  if (!isBrowser) return new Set();
   try {
     const data = localStorage.getItem(PROCESSED_KEY);
     if (data) {
@@ -54,6 +59,7 @@ function getProcessedDecisions(): Set<string> {
 }
 
 function addProcessedDecision(key: string): void {
+  if (!isBrowser) return;
   const processed = getProcessedDecisions();
   processed.add(key);
   // Keep only last 500 entries

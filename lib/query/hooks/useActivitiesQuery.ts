@@ -27,8 +27,9 @@ export interface ActivitiesFilters {
  * Hook to fetch all activities with optional filters
  * Waits for auth to be ready before fetching to ensure RLS works correctly
  */
-export const useActivities = (filters?: ActivitiesFilters) => {
+export const useActivities = (filters?: ActivitiesFilters, options?: { enabled?: boolean }) => {
   const { user, loading: authLoading } = useAuth();
+  const externalEnabled = options?.enabled ?? true;
 
   return useQuery({
     queryKey: filters
@@ -64,7 +65,7 @@ export const useActivities = (filters?: ActivitiesFilters) => {
       // Apply smart sorting (already sorted by service, but re-sort after filtering)
       return sortActivitiesSmart(activities);
     },
-    enabled: !authLoading && !!user, // Only fetch when auth is ready
+    enabled: !authLoading && !!user && externalEnabled,
     staleTime: 30 * 1000, // 30 seconds - short staleTime for Realtime updates
   });
 };

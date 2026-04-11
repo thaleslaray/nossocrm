@@ -87,7 +87,7 @@ export async function requireAITaskContext(req: Request): Promise<AITaskContext>
 
   const { data: orgSettings, error: orgError } = await supabase
     .from('organization_settings')
-    .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key')
+    .select('ai_enabled, ai_model, ai_google_key')
     .eq('organization_id', organizationId)
     .single();
 
@@ -96,21 +96,14 @@ export async function requireAITaskContext(req: Request): Promise<AITaskContext>
     throw new AITaskHttpError(403, 'AI_DISABLED', 'IA desativada pela organização. Um admin pode ativar em Configurações → Central de I.A.');
   }
 
-  const provider: AIProvider = (orgSettings?.ai_provider ?? 'google') as AIProvider;
-
-  const apiKey: string | null =
-    provider === 'google'
-      ? (orgSettings?.ai_google_key ?? null)
-      : provider === 'openai'
-        ? (orgSettings?.ai_openai_key ?? null)
-        : (orgSettings?.ai_anthropic_key ?? null);
+  const provider: AIProvider = 'google';
+  const apiKey: string | null = orgSettings?.ai_google_key ?? null;
 
   if (orgError || !apiKey) {
-    const providerLabel = provider === 'google' ? 'Google Gemini' : provider === 'openai' ? 'OpenAI' : 'Anthropic';
     throw new AITaskHttpError(
       400,
       'AI_KEY_NOT_CONFIGURED',
-      `API key não configurada para ${providerLabel}. Configure em Configurações → Inteligência Artificial.`
+      'API key não configurada para Google Gemini. Configure em Configurações → Inteligência Artificial.'
     );
   }
 

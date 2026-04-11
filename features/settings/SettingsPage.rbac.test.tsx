@@ -69,6 +69,30 @@ vi.mock('./components/McpSection', () => ({
   ),
 }))
 
+vi.mock('./components/ChannelsSection', () => ({
+  ChannelsSection: () => (
+    <div>
+      <h3>Canais de Comunicação</h3>
+    </div>
+  ),
+}))
+
+vi.mock('./components/BusinessUnitsSection', () => ({
+  BusinessUnitsSection: () => (
+    <div>
+      <h3>Unidades de Negócio</h3>
+    </div>
+  ),
+}))
+
+vi.mock('./components/ai/AIAgentConfigSection', () => ({
+  AIAgentConfigSection: () => (
+    <div>
+      <h3>Configuração IA</h3>
+    </div>
+  ),
+}))
+
 import SettingsPage from './SettingsPage'
 import { useAuth } from '@/context/AuthContext'
 
@@ -122,18 +146,23 @@ describe('SettingsPage RBAC', () => {
     fireEvent.click(integrationsTab)
 
     // Sub-tabs dentro de Integrações
-    const apiSubTab = await screen.findByRole('button', { name: /^API$/i })
+    const channelsSubTab = await screen.findByRole('button', { name: /Canais/i })
     const webhooksSubTab = await screen.findByRole('button', { name: /^Webhooks$/i })
+    const apiSubTab = await screen.findByRole('button', { name: /^API$/i })
     const mcpSubTab = await screen.findByRole('button', { name: /^MCP$/i })
-    expect(apiSubTab).toBeInTheDocument()
+    expect(channelsSubTab).toBeInTheDocument()
     expect(webhooksSubTab).toBeInTheDocument()
+    expect(apiSubTab).toBeInTheDocument()
     expect(mcpSubTab).toBeInTheDocument()
 
-    // Default é API
-    expect(await screen.findByRole('heading', { name: /^API \(Integrações\)$/i })).toBeInTheDocument()
+    // Default é Canais (Messaging)
+    expect(await screen.findByRole('heading', { name: /^Canais de Comunicação$/i })).toBeInTheDocument()
 
     fireEvent.click(webhooksSubTab)
     expect(await screen.findByRole('heading', { name: /^Webhooks$/i })).toBeInTheDocument()
+
+    fireEvent.click(apiSubTab)
+    expect(await screen.findByRole('heading', { name: /^API \(Integrações\)$/i })).toBeInTheDocument()
 
     fireEvent.click(mcpSubTab)
     expect(await screen.findByRole('heading', { name: /^MCP$/i })).toBeInTheDocument()

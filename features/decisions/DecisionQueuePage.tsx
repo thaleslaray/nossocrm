@@ -1,3 +1,5 @@
+'use client'
+
 /**
  * Decision Queue Page
  * Central de Decisões - Página principal

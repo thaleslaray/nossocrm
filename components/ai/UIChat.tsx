@@ -79,13 +79,13 @@ export function UIChat({
     const [isExpanded, setIsExpanded] = useState(false);
 
     const cockpitDealTitle = useMemo(() => {
-        const s: any = cockpitSnapshot as any;
+        const s = cockpitSnapshot as any;
         const title = s?.deal?.title;
         return humanizeTestLabel(title) ?? (typeof title === 'string' && title.trim() ? title.trim() : undefined);
     }, [cockpitSnapshot]);
 
     const cockpitContactName = useMemo(() => {
-        const s: any = cockpitSnapshot as any;
+        const s = cockpitSnapshot as any;
         const name = s?.contact?.name;
         return humanizeTestLabel(name) ?? (typeof name === 'string' && name.trim() ? name.trim() : undefined);
     }, [cockpitSnapshot]);
@@ -170,7 +170,7 @@ export function UIChat({
                 if (m.role !== 'assistant') continue;
                 for (const part of (m.parts as any[]) ?? []) {
                     const type = (part?.type as string) || '';
-                    const isTool = type.startsWith('tool-') || type === 'dynamic-tool' || type === 'tool-invocation';
+                    const isTool = type.startsWith('tool-') || type === 'dynamic-tool';
                     if (!isTool) continue;
 
                     if (part?.state === 'approval-responded') {
@@ -184,8 +184,6 @@ export function UIChat({
 
             return hasResponded && !hasPending;
         },
-        // @ts-expect-error - maxSteps is required for approval flow; types may be outdated
-        maxSteps: 10,
     });
 
     const dealTitleById = useMemo(() => {
@@ -200,7 +198,7 @@ export function UIChat({
         for (const m of messages) {
             for (const p of (m.parts as any[])) {
                 const type = (p?.type as string) || '';
-                const isToolPart = type.startsWith('tool-') || type === 'dynamic-tool' || type === 'tool-invocation';
+                const isToolPart = type.startsWith('tool-') || type === 'dynamic-tool';
                 if (!isToolPart) continue;
 
                 const output = p?.output;
@@ -286,7 +284,7 @@ export function UIChat({
             const parts = (m as any).parts || [];
             for (const part of parts) {
                 const partType = part?.type as string | undefined;
-                const isTool = partType === 'tool-invocation' || (typeof partType === 'string' && partType.startsWith('tool-'));
+                const isTool = typeof partType === 'string' && partType.startsWith('tool-');
                 if (!isTool) continue;
 
                 const toolPart = part as any;
@@ -644,7 +642,7 @@ export function UIChat({
 
                     const approvalParts = messageParts.filter((p: any) => {
                         const partType = p?.type as string | undefined;
-                        const isTool = partType === 'tool-invocation' || (typeof partType === 'string' && partType.startsWith('tool-'));
+                        const isTool = typeof partType === 'string' && partType.startsWith('tool-');
                         if (!isTool) return false;
                         return p?.state === 'approval-requested';
                     });
@@ -1120,7 +1118,7 @@ export function UIChat({
                                 }
 
                                 const partType = part.type as string;
-                                const isTool = partType === 'tool-invocation' || partType.startsWith('tool-');
+                                const isTool = partType.startsWith('tool-');
 
                                 if (isTool) {
                                     const toolPart = part as any;

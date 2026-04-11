@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, Search, LayoutGrid, Table as TableIcon, User, Settings, Lightbulb, Download } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
 import { Board } from '@/types';
 import { BoardSelector } from '../BoardSelector';
 
@@ -208,12 +209,13 @@ export const KanbanHeader: React.FC<KanbanHeaderProps> = ({
             </div>
 
             <div className="flex gap-3">
-                <button
+                <Button
                     onClick={onNewDeal}
-                    className="bg-primary-700 hover:bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all shadow-lg shadow-primary-700/20"
+                    size="sm"
+                    className="gap-2 bg-primary-700 hover:bg-primary-600 text-white shadow-lg shadow-primary-700/20"
                 >
                     <Plus size={18} aria-hidden="true" /> Novo Negócio
-                </button>
+                </Button>
             </div>
         </div>
     );

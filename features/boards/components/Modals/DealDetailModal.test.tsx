@@ -7,6 +7,15 @@ import { DealDetailModal } from './DealDetailModal';
 // Keep this test focused: we only want to ensure opening/closing the modal
 // never crashes due to hook-order issues (React error #310).
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+  }),
+}));
+
 vi.mock('@/hooks/useResponsiveMode', () => ({
   useResponsiveMode: () => ({ mode: 'desktop' }),
 }));
@@ -56,6 +65,14 @@ vi.mock('@/lib/ai/tasksClient', () => ({
   analyzeLead: vi.fn(),
   generateEmailDraft: vi.fn(),
   generateObjectionResponse: vi.fn(),
+}));
+
+vi.mock('@/features/deals/components/BriefingDrawer', () => ({
+  BriefingDrawer: () => null,
+}));
+
+vi.mock('@/features/deals/components/AIExtractedFields', () => ({
+  AIExtractedFields: () => null,
 }));
 
 vi.mock('@/context/CRMContext', () => ({

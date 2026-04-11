@@ -50,7 +50,10 @@ export async function GET() {
     .limit(200)
     .order('created_at', { ascending: false });
 
-  if (error) return json({ error: error.message }, 500);
+  if (error) {
+    console.error('[API] Database error:', error)
+    return json({ error: 'Internal server error' }, 500)
+  }
 
   return json({ invites: invites || [] });
 }
@@ -104,9 +107,9 @@ export async function POST(req: Request) {
 
   if (error) {
     console.error('[admin/invites POST] Database error:', error);
-    return json({ error: error.message }, 500);
+    return json({ error: 'Internal server error' }, 500);
   }
 
-  console.log('[admin/invites POST] Created invite:', { id: invite?.id, token: invite?.token, expires_at: invite?.expires_at });
+  console.log('[admin/invites POST] Created invite:', { id: invite?.id, expires_at: invite?.expires_at });
   return json({ invite }, 201);
 }

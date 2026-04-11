@@ -36,7 +36,7 @@ async function getCurrentOrganizationId(): Promise<string | null> {
     .from('profiles')
     .select('organization_id')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   if (error) return null;
 
@@ -100,6 +100,8 @@ export interface DbDeal {
   is_lost: boolean;
   /** Data de fechamento. */
   closed_at: string | null;
+  /** AI-extracted BANT fields (zero config). */
+  ai_extracted: Record<string, any> | null;
 }
 
 /**
@@ -172,6 +174,7 @@ const transformDeal = (db: DbDeal | DbDealWithItems, items?: DbDealItem[]): Deal
     tags: db.tags || [],
     lastStageChangeDate: db.last_stage_change_date || undefined,
     customFields: db.custom_fields || {},
+    aiExtracted: db.ai_extracted || undefined,
     createdAt: db.created_at,
     updatedAt: db.updated_at,
     items: filteredItems.map(i => ({
@@ -247,10 +250,11 @@ const transformDealToDb = (deal: Partial<Deal>): Partial<DbDeal> => {
 export const dealsService = {
   /**
    * Busca todos os deals da organização com seus itens.
-   * 
+   *
+   * @param options - Opções adicionais, incluindo AbortSignal para cancelar a request.
    * @returns Promise com array de deals ou erro.
    */
-  async getAll(): Promise<{ data: Deal[] | null; error: Error | null }> {
+  async getAll(options?: { signal?: AbortSignal }): Promise<{ data: Deal[] | null; error: Error | null }> {
     try {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
@@ -258,13 +262,17 @@ export const dealsService = {
       // Embedded select: traz deal_items junto com deals em UMA query
       // Elimina N+1: antes carregava TODOS items e filtrava no cliente
       // Agora o Postgres já retorna os items aninhados por deal
-      const { data, error } = await supabase
+      // Safety limit: cap at 1000 deals for non-paginated access
+      let dealsQuery = supabase
         .from('deals')
         .select(`
           *,
           deal_items (*)
-        `)
-        .order('created_at', { ascending: false });
+        `);
+      if (options?.signal) dealsQuery = dealsQuery.abortSignal(options.signal);
+      const { data, error } = await dealsQuery
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
       if (error) return { data: null, error };
 
@@ -287,8 +295,8 @@ export const dealsService = {
         return { data: null, error: new Error('Supabase não configurado') };
       }
       const [dealResult, itemsResult] = await Promise.all([
-        supabase.from('deals').select('*').eq('id', id).single(),
-        supabase.from('deal_items').select('*').eq('deal_id', id),
+        supabase.from('deals').select('*').eq('id', id).maybeSingle(),
+        supabase.from('deal_items').select('id, organization_id, deal_id, product_id, name, quantity, price, unit, discount, total, created_at, updated_at').eq('deal_id', id),
       ]);
 
       if (dealResult.error) return { data: null, error: dealResult.error };
@@ -334,7 +342,7 @@ export const dealsService = {
         .from('boards')
         .select('id, organization_id')
         .eq('id', boardId)
-        .single();
+        .maybeSingle();
 
       if (boardCheckError || !boardExists) {
         return {
@@ -430,7 +438,7 @@ export const dealsService = {
       // Fetch items
       const { data: items } = await supabase
         .from('deal_items')
-        .select('*')
+        .select('id, organization_id, deal_id, product_id, name, quantity, price, unit, discount, total, created_at, updated_at')
         .eq('deal_id', data.id);
 
       return {
@@ -510,6 +518,7 @@ export const dealsService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
+      const organizationId = await getCurrentOrganizationId();
       const { data, error } = await supabase
         .from('deal_items')
         .insert({
@@ -518,6 +527,7 @@ export const dealsService = {
           name: item.name,
           quantity: item.quantity,
           price: item.price,
+          ...(organizationId ? { organization_id: organizationId } : {}),
         })
         .select()
         .single();

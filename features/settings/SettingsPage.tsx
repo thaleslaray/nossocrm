@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSettingsController } from './hooks/useSettingsController';
@@ -6,15 +8,19 @@ import { CustomFieldsManager } from './components/CustomFieldsManager';
 import { ApiKeysSection } from './components/ApiKeysSection';
 import { WebhooksSection } from './components/WebhooksSection';
 import { McpSection } from './components/McpSection';
+import { ChannelsSection } from './components/ChannelsSection';
+import { BusinessUnitsSection } from './components/BusinessUnitsSection';
 import { DataStorageSettings } from './components/DataStorageSettings';
 import { ProductsCatalogManager } from './components/ProductsCatalogManager';
 import { AICenterSettings } from './AICenterSettings';
 
 import { UsersPage } from './UsersPage';
 import { useAuth } from '@/context/AuthContext';
-import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Database, Sparkles, Plug, Package, Building2 } from 'lucide-react';
+import { SelectField } from '@/components/ui/FormField';
+import { Button } from '@/components/ui/button';
 
-type SettingsTab = 'general' | 'products' | 'integrations' | 'ai' | 'data' | 'users';
+type SettingsTab = 'general' | 'products' | 'business-units' | 'integrations' | 'ai' | 'data' | 'users';
 
 interface GeneralSettingsProps {
   hash?: string;
@@ -47,20 +53,22 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({ hash, isAdmin }) => {
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
             Escolha qual tela deve abrir quando você iniciar o CRM.
           </p>
-          <select
-            aria-label="Selecionar página inicial"
+          <SelectField
+            label="Página Inicial"
+            containerClassName="max-w-xs"
+            options={[
+              { value: '/dashboard', label: 'Dashboard' },
+              { value: '/inbox-list', label: 'Inbox (Lista)' },
+              { value: '/inbox-focus', label: 'Inbox (Foco)' },
+              { value: '/boards', label: 'Boards (Kanban)' },
+              { value: '/contacts', label: 'Contatos' },
+              { value: '/activities', label: 'Atividades' },
+              { value: '/reports', label: 'Relatórios' },
+            ]}
             value={controller.defaultRoute}
             onChange={(e) => controller.setDefaultRoute(e.target.value)}
-            className="w-full max-w-xs px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-slate-900 dark:text-white transition-all"
-          >
-            <option value="/dashboard">Dashboard</option>
-            <option value="/inbox-list">Inbox (Lista)</option>
-            <option value="/inbox-focus">Inbox (Foco)</option>
-            <option value="/boards">Boards (Kanban)</option>
-            <option value="/contacts">Contatos</option>
-            <option value="/activities">Atividades</option>
-            <option value="/reports">Relatórios</option>
-          </select>
+            aria-label="Selecionar página inicial"
+          />
         </div>
       </div>
 
@@ -104,13 +112,13 @@ const ProductsSettings: React.FC = () => {
 };
 
 const IntegrationsSettings: React.FC = () => {
-  type IntegrationsSubTab = 'api' | 'webhooks' | 'mcp';
-  const [subTab, setSubTab] = useState<IntegrationsSubTab>('api');
+  type IntegrationsSubTab = 'channels' | 'webhooks' | 'api' | 'mcp';
+  const [subTab, setSubTab] = useState<IntegrationsSubTab>('channels');
 
   useEffect(() => {
     const syncFromHash = () => {
     const h = typeof window !== 'undefined' ? (window.location.hash || '').replace('#', '') : '';
-    if (h === 'webhooks' || h === 'api' || h === 'mcp') setSubTab(h as IntegrationsSubTab);
+    if (h === 'channels' || h === 'webhooks' || h === 'api' || h === 'mcp') setSubTab(h as IntegrationsSubTab);
     };
 
     syncFromHash();
@@ -134,28 +142,27 @@ const IntegrationsSettings: React.FC = () => {
     <div className="pb-10">
       <div className="flex items-center gap-2 mb-6">
         {([
+          { id: 'channels' as const, label: 'Canais (Messaging)' },
           { id: 'webhooks' as const, label: 'Webhooks' },
           { id: 'api' as const, label: 'API' },
           { id: 'mcp' as const, label: 'MCP' },
         ] as const).map((t) => {
           const active = subTab === t.id;
           return (
-            <button
+            <Button
               key={t.id}
               type="button"
+              variant={active ? 'default' : 'outline'}
+              size="sm"
               onClick={() => setSubTabAndHash(t.id)}
-              className={`px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                active
-                  ? 'border-primary-500/50 bg-primary-500/10 text-primary-700 dark:text-primary-300'
-                  : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10'
-              }`}
             >
               {t.label}
-            </button>
+            </Button>
           );
         })}
       </div>
 
+      {subTab === 'channels' && <ChannelsSection />}
       {subTab === 'api' && <ApiKeysSection />}
       {subTab === 'webhooks' && <WebhooksSection />}
       {subTab === 'mcp' && <McpSection />}
@@ -187,6 +194,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
       setActiveTab('ai');
     } else if (pathname?.includes('/settings/products')) {
       setActiveTab('products');
+    } else if (pathname?.includes('/settings/business-units') || pathname?.includes('/settings/unidades')) {
+      setActiveTab('business-units');
     } else if (pathname?.includes('/settings/integracoes')) {
       setActiveTab('integrations');
     } else if (pathname?.includes('/settings/data')) {
@@ -201,6 +210,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
   const tabs = [
     { id: 'general' as SettingsTab, name: 'Geral', icon: SettingsIcon },
     ...(profile?.role === 'admin' ? [{ id: 'products' as SettingsTab, name: 'Produtos/Serviços', icon: Package }] : []),
+    ...(profile?.role === 'admin' ? [{ id: 'business-units' as SettingsTab, name: 'Unidades', icon: Building2 }] : []),
     ...(profile?.role === 'admin' ? [{ id: 'integrations' as SettingsTab, name: 'Integrações', icon: Plug }] : []),
     { id: 'ai' as SettingsTab, name: 'Central de I.A', icon: Sparkles },
     { id: 'data' as SettingsTab, name: 'Dados', icon: Database },
@@ -211,6 +221,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ tab: initialTab }) => {
     switch (activeTab) {
       case 'products':
         return <ProductsSettings />;
+      case 'business-units':
+        return (
+          <div className="pb-10 space-y-8">
+            <BusinessUnitsSection />
+          </div>
+        );
       case 'integrations':
         return <IntegrationsSettings />;
       case 'ai':

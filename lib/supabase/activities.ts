@@ -18,8 +18,20 @@ import { sanitizeUUID } from './utils';
 import { sortActivitiesSmart } from '@/lib/utils/activitySort';
 
 // ============================================
-// HELPERS REMOVED
+// HELPERS
 // ============================================
+
+async function getCurrentOrganizationId(): Promise<string | null> {
+  if (!supabase) return null;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('organization_id')
+    .eq('id', user.id)
+    .single();
+  return (profile as any)?.organization_id ?? null;
+}
 
 
 // ============================================
@@ -126,7 +138,8 @@ export const activitiesService = {
           *,
           deals:deal_id (title)
         `)
-        .order('date', { ascending: false }); // Ordenação básica do banco
+        .order('date', { ascending: false })
+        .limit(1000); // Safety limit for non-paginated access
 
       if (error) return { data: null, error };
       
@@ -149,6 +162,7 @@ export const activitiesService = {
       const sb = supabase;
       if (!sb) return { data: null, error: new Error('Supabase não configurado') };
 
+      const organizationId = await getCurrentOrganizationId();
       const insertData: any = {
         title: activity.title,
         description: activity.description || null,
@@ -159,6 +173,7 @@ export const activitiesService = {
         contact_id: sanitizeUUID(activity.contactId),
         client_company_id: sanitizeUUID(activity.clientCompanyId),
         participant_contact_ids: activity.participantContactIds || [],
+        ...(organizationId ? { organization_id: organizationId } : {}),
       };
 
       const { data, error } = await sb.from('activities').insert(insertData).select().single();

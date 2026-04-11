@@ -11,7 +11,9 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { Board } from '@/types';
-import { useCRM } from '@/context/CRMContext';
+import { useUpdateBoard } from '@/lib/query/hooks/useBoardsQuery';
+import { useDealsByBoard } from '@/lib/query/hooks/useDealsQuery';
+import { useUIState } from '@/store/uiState';
 
 // Performance: reuse formatter instances.
 const BRL_CURRENCY_FORMATTER = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -27,7 +29,9 @@ interface BoardStrategyHeaderProps {
  * @returns {Element} Retorna um valor do tipo `Element`.
  */
 export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board }) => {
-  const { updateBoard, setIsGlobalAIOpen, boards, deals } = useCRM();
+  const updateBoardMutation = useUpdateBoard();
+  const { data: deals = [] } = useDealsByBoard(board.id);
+  const { setIsGlobalAIOpen } = useUIState();
   const [isEditing, setIsEditing] = useState(false);
   const [editedBoard, setEditedBoard] = useState(board);
 
@@ -111,11 +115,14 @@ export const BoardStrategyHeader: React.FC<BoardStrategyHeaderProps> = ({ board 
   }
 
   const handleSave = () => {
-    updateBoard(board.id, {
-      goal: editedBoard.goal,
-      agentPersona: editedBoard.agentPersona,
-      entryTrigger: editedBoard.entryTrigger,
-      nextBoardId: editedBoard.nextBoardId,
+    updateBoardMutation.mutate({
+      id: board.id,
+      updates: {
+        goal: editedBoard.goal,
+        agentPersona: editedBoard.agentPersona,
+        entryTrigger: editedBoard.entryTrigger,
+        nextBoardId: editedBoard.nextBoardId,
+      },
     });
     setIsEditing(false);
   };

@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Webhook, ArrowRight, Copy, Check, Link as LinkIcon, Pencil, Power, Trash2, KeyRound, HelpCircle } from 'lucide-react';
 import { SettingsSection } from './SettingsSection';
 import { Modal } from '@/components/ui/Modal';
-import ConfirmModal from '@/components/ConfirmModal';
-import { useBoards } from '@/context/boards/BoardsContext';
+import { ConfirmDialog as ConfirmModal } from '@/components/ui/confirm-dialog';
+import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
@@ -74,7 +74,7 @@ function buildCurlExample(url: string, secret: string) {
 export const WebhooksSection: React.FC = () => {
   const { profile } = useAuth();
   const { addToast } = useToast();
-  const { boards, loading: boardsLoading } = useBoards();
+  const { data: boards = [], isLoading: boardsLoading } = useBoards();
 
   const [sources, setSources] = useState<InboundSourceRow[]>([]);
   const [endpoint, setEndpoint] = useState<OutboundEndpointRow | null>(null);
