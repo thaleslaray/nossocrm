@@ -185,6 +185,9 @@ export interface Contact {
   indicado_por?: string;
   observacoes_viagem?: string;
 
+  // Campo do agente IA (upstream: ai paused flag)
+  aiPaused?: boolean;
+
   // @deprecated - Use clientCompanyId instead
   companyId?: string;
 }
