@@ -4,6 +4,38 @@
 
 ---
 
+## Origem do Projeto
+
+Este repositório é um **fork especializado** de [thaleslaray/nossocrm](https://github.com/thaleslaray/nossocrm), adaptado para o cliente **Kleber Yascom — Viagens +**.
+
+### Relação com o repositório base
+
+| Aspecto                     | Base (`thaleslaray/nossocrm`)              | Este fork (`kleberyascom/nossocrm`)             |
+| :-------------------------- | :----------------------------------------- | :---------------------------------------------- |
+| **Foco**                    | CRM genérico multi-segmento                | CRM especializado para agências de viagens      |
+| **Campos de contato**       | Genéricos                                  | +10 campos de viagem (destino, datas, categoria, urgência) |
+| **Integração IA**           | Google Gemini consolidado                  | GPTMaker + agente Isa (pré-qualificação)        |
+| **Webhook inbound**         | Genérico                                   | `gptmaker-in` + classificação por temperatura   |
+| **Messaging**               | Evolution API / Meta / Z-API               | Portado do base (mantido sem uso ativo)         |
+| **Pipeline**                | Configurável                               | Fixo: Novo Contato → Interessado → Em Negociação → Fechou |
+
+### Política de sincronização
+
+- **Customizações locais** (travel-first, GPTMaker, Isa) têm prioridade e **nunca devem ser sobrescritas** por merges do base.
+- **Atualizações do base** são portadas pontualmente via `git checkout upstream/main -- <path>` para arquivos específicos.
+- O remote `upstream` aponta para `https://github.com/thaleslaray/nossocrm` e deve ser mantido para facilitar comparações.
+
+```bash
+# Verificar divergência com o base
+git fetch upstream
+git diff --name-only HEAD..upstream/main
+
+# Portar arquivo específico do base (sem sobrescrever customizações)
+git checkout upstream/main -- <caminho/do/arquivo>
+```
+
+---
+
 ## Índice
 
 - [Sobre](#sobre)
