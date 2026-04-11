@@ -13,6 +13,46 @@ import { dealsService, contactsService, companiesService, boardStagesService } f
 import { useAuth } from '@/context/AuthContext';
 import type { Deal, DealView, DealItem } from '@/types';
 
+// ============ STANDALONE QUERY FN (used by prefetch) ============
+
+export const dealsViewQueryFn = async (
+  { signal }: { signal?: AbortSignal } = {}
+): Promise<DealView[]> => {
+  const [dealsResult, stagesResult] = await Promise.all([
+    dealsService.getAll({ signal }),
+    boardStagesService.getAll({ signal }),
+  ]);
+
+  if (dealsResult.error) throw dealsResult.error;
+
+  const deals = dealsResult.data || [];
+  const stages = stagesResult.data || [];
+
+  const contactIds = deals.map(d => d.contactId).filter(Boolean);
+  const companyIds = deals.map(d => d.clientCompanyId).filter(Boolean) as string[];
+
+  const [contactsResult, companiesResult] = await Promise.all([
+    contactsService.getByIds(contactIds, { signal }),
+    companiesService.getByIds(companyIds, { signal }),
+  ]);
+
+  const contactMap = new Map((contactsResult.data || []).map(c => [c.id, c]));
+  const companyMap = new Map((companiesResult.data || []).map(c => [c.id, c]));
+  const stageMap = new Map(stages.map(s => [s.id, s.label || s.name]));
+
+  return deals.map(deal => {
+    const contact = contactMap.get(deal.contactId);
+    const company = deal.clientCompanyId ? companyMap.get(deal.clientCompanyId) : undefined;
+    return {
+      ...deal,
+      companyName: company?.name || 'Sem empresa',
+      contactName: contact?.name || 'Sem contato',
+      contactEmail: contact?.email || '',
+      stageLabel: stageMap.get(deal.status) || 'Estágio não identificado',
+    };
+  });
+};
+
 // ============ QUERY HOOKS ============
 
 export interface DealsFilters {
