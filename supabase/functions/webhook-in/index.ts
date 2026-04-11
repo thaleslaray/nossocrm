@@ -453,6 +453,18 @@ function getTravelFields(payload: LeadPayload): TravelFields {
   };
 }
 
+function classifyLead(travel: TravelFields): { classificacao: string; stage_label: string } {
+  const hasDates = !!travel.data_viagem;
+  const highUrgency = ["alta", "urgente", "urgencia alta", "imediato", "curto_prazo"].includes(
+    (travel.urgencia_viagem || "").toLowerCase()
+  );
+  const hasBudget = !!travel.categoria_viagem;
+
+  if (hasDates && highUrgency && hasBudget) return { classificacao: "Quente", stage_label: "Interessado" };
+  if ((hasDates && hasBudget) || (hasDates && highUrgency) || (hasBudget && highUrgency)) return { classificacao: "Morno", stage_label: "Novo Contato" };
+  return { classificacao: "Frio", stage_label: "Novo Contato" };
+}
+
 Deno.serve(async (req) => {
   // CORS preflight
   if (req.method === "OPTIONS") {
@@ -513,6 +525,7 @@ Deno.serve(async (req) => {
   const dealTitleFromPayload = getDealTitle(payload);
   const dealValue = getDealValue(payload);
   const travel = getTravelFields(payload);
+  const classification = classifyLead(travel);
 
   // 1) Auditoria/dedupe (idempotente quando external_event_id existe)
   if (externalEventId) {
@@ -687,7 +700,21 @@ Deno.serve(async (req) => {
   // 3) Deal (cadastro/upsert):
   // - Se já existir um deal "em aberto" do mesmo contato no mesmo board, atualiza em vez de criar outro.
   // - Se não existir (ou não tiver contato), cria.
-  const dealTitle = dealTitleFromPayload || leadName || leadEmail || leadPhone || "Novo Lead";
+  const baseTitle = leadName || leadEmail || leadPhone || "Novo Lead";
+  const dealTitle = dealTitleFromPayload ||
+    (travel.destino_viagem ? `${baseTitle} | ${travel.destino_viagem}` : baseTitle);
+
+  // Determinar stage correto pela classificação (Quente → "Interessado", demais → entry_stage)
+  let resolvedStageId = source.entry_stage_id;
+  if (classification.stage_label !== "Novo Contato") {
+    const { data: classifiedStage } = await supabase
+      .from("board_stages")
+      .select("id")
+      .eq("board_id", source.entry_board_id)
+      .eq("name", classification.stage_label)
+      .maybeSingle();
+    if (classifiedStage?.id) resolvedStageId = classifiedStage.id;
+  }
 
   let dealId: string | null = null;
   let dealAction: "created" | "updated" = "created";
@@ -721,11 +748,12 @@ Deno.serve(async (req) => {
       if (clientCompanyId) updates.client_company_id = clientCompanyId;
 
       // mantém stage atual (não “puxa” de volta pro stage de entrada)
-      // apenas carimba metadados do inbound
+      // apenas carimba metadados do inbound + classificação
       updates.custom_fields = {
         inbound_source_id: source.id,
         inbound_external_event_id: externalEventId,
         inbound_company_name: companyName,
+        classificacao: classification.classificacao,
       };
 
       const { error: updDealErr } = await supabase
@@ -747,7 +775,7 @@ Deno.serve(async (req) => {
         probability: 10,
         priority: "medium",
         board_id: source.entry_board_id,
-        stage_id: source.entry_stage_id,
+        stage_id: resolvedStageId,
         contact_id: contactId,
         client_company_id: clientCompanyId,
         last_stage_change_date: new Date().toISOString(),
@@ -756,6 +784,8 @@ Deno.serve(async (req) => {
           inbound_source_id: source.id,
           inbound_external_event_id: externalEventId,
           inbound_company_name: companyName,
+          classificacao: classification.classificacao,
+          stage_label: classification.stage_label,
         },
       })
       .select("id")
