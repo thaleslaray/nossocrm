@@ -350,6 +350,7 @@ export interface Board {
   isDefault?: boolean;
   template?: 'PRE_SALES' | 'SALES' | 'ONBOARDING' | 'CS' | 'CUSTOM'; // Template usado para criar este board
   automationSuggestions?: string[]; // Sugestões de automação da IA
+  agentGoalStageId?: string; // ID do estágio-meta do agente IA (upstream: agent goal stage)
 
   // AI Strategy Fields
   goal?: BoardGoal;
