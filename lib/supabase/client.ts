@@ -38,3 +38,6 @@ export function createClient(): SupabaseClient | null {
 // amigável em dev quando o `.env` não está preenchido, mas exportamos o singleton como
 // não-nulo para simplificar o restante do código (e evitar checks repetitivos).
 export const supabase: SupabaseClient = createClient() as SupabaseClient
+
+// Alias usado pelos hooks do upstream (useMessaging*, useChannel*, etc.)
+export const getClient = createClient
