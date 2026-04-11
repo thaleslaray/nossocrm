@@ -15,12 +15,10 @@ import type { Deal, DealView, DealItem } from '@/types';
 
 // ============ STANDALONE QUERY FN (used by prefetch) ============
 
-export const dealsViewQueryFn = async (
-  { signal }: { signal?: AbortSignal } = {}
-): Promise<DealView[]> => {
+export const dealsViewQueryFn = async (): Promise<DealView[]> => {
   const [dealsResult, stagesResult] = await Promise.all([
-    dealsService.getAll({ signal }),
-    boardStagesService.getAll({ signal }),
+    dealsService.getAll(),
+    boardStagesService.getAll(),
   ]);
 
   if (dealsResult.error) throw dealsResult.error;
@@ -32,8 +30,8 @@ export const dealsViewQueryFn = async (
   const companyIds = deals.map(d => d.clientCompanyId).filter(Boolean) as string[];
 
   const [contactsResult, companiesResult] = await Promise.all([
-    contactsService.getByIds(contactIds, { signal }),
-    companiesService.getByIds(companyIds, { signal }),
+    contactsService.getByIds(contactIds),
+    companiesService.getByIds(companyIds),
   ]);
 
   const contactMap = new Map((contactsResult.data || []).map(c => [c.id, c]));
