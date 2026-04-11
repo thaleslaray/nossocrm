@@ -12,7 +12,6 @@ export {
   useDeal,
   useDealsByBoard,
   useCreateDeal,
-  useCreateDealWithContact,
   useUpdateDeal,
   useUpdateDealStatus,
   useDeleteDeal,
