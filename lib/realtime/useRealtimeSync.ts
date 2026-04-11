@@ -773,3 +773,11 @@ export function useRealtimeSyncAll(options: UseRealtimeSyncOptions = {}) {
 export function useRealtimeSyncKanban(options: UseRealtimeSyncOptions = {}) {
   return useRealtimeSync(['deals', 'board_stages'], options);
 }
+
+/**
+ * Subscribe to messaging-related tables
+ * Optimized for the messaging inbox
+ */
+export function useRealtimeSyncMessaging(options: UseRealtimeSyncOptions = {}) {
+  return useRealtimeSync(['messaging_conversations', 'messaging_messages'], options);
+}
