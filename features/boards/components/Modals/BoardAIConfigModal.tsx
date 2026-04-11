@@ -43,7 +43,7 @@ export const BoardAIConfigModal: React.FC<BoardAIConfigModalProps> = ({
     setGoalStageId(value);
     updateBoard.mutate({
       id: board.id,
-      updates: { agentGoalStageId: value || null },
+      updates: { agentGoalStageId: value || undefined },
     });
   }
 

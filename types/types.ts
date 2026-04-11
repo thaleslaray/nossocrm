@@ -173,6 +173,9 @@ export interface Contact {
   createdAt: string;
   updatedAt?: string; // Última modificação do registro
 
+  // Cargo/função do contato
+  role?: string;
+
   // Campos de viagem (agência de viagens)
   destino_viagem?: string;
   data_viagem?: string;
@@ -254,6 +257,7 @@ export interface Deal {
   };
   tags: string[];
   aiSummary?: string;
+  aiExtracted?: boolean; // Flag: dados extraídos pelo agente IA
   customFields?: Record<string, any>; // Dynamic fields storage
   lastStageChangeDate?: string; // For stagnation tracking
   lossReason?: string; // For win/loss analysis

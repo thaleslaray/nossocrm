@@ -16,7 +16,9 @@
     "smoke:integrations": "node scripts/smoke-integrations.mjs"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.69",
     "@ai-sdk/google": "^3.0.55",
+    "@ai-sdk/openai": "^3.0.52",
     "@ai-sdk/react": "^3.0.144",
     "@faker-js/faker": "^10.4.0",
     "@hookform/resolvers": "^5.2.2",

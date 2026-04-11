@@ -196,7 +196,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
       if (settings) {
         setAiThinkingState(settings.aiThinking);
         setAiSearchState(settings.aiSearch);
-        setAiAnthropicCachingState(settings.aiAnthropicCaching);
+        setAiAnthropicCachingState(settings.aiAnthropicCaching ?? false);
       }
 
       // Config org-wide (fonte de verdade): provider/model/keys em organization_settings

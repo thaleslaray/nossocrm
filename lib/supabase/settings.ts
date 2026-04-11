@@ -41,6 +41,7 @@ export interface UserSettings {
   aiModel: string;
   aiThinking: boolean;
   aiSearch: boolean;
+  aiAnthropicCaching?: boolean;
   darkMode: boolean;
   defaultRoute: string;
   activeBoardId: string | null;

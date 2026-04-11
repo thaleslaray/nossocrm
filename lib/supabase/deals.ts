@@ -174,7 +174,7 @@ const transformDeal = (db: DbDeal | DbDealWithItems, items?: DbDealItem[]): Deal
     tags: db.tags || [],
     lastStageChangeDate: db.last_stage_change_date || undefined,
     customFields: db.custom_fields || {},
-    aiExtracted: db.ai_extracted || undefined,
+    aiExtracted: typeof db.ai_extracted === 'boolean' ? db.ai_extracted : undefined,
     createdAt: db.created_at,
     updatedAt: db.updated_at,
     items: filteredItems.map(i => ({

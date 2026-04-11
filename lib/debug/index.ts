@@ -70,6 +70,17 @@ export const fakeContact = () => ({
   })(),
   role: faker.person.jobTitle(),
   companyName: faker.company.name(),
+  // Campos de viagem (agência de viagens)
+  destino_viagem: faker.helpers.arrayElement(['Cancún', 'Lisboa', 'Paris', 'Orlando', 'Miami', 'Maldivas', 'Roma']),
+  data_viagem: faker.date.soon({ days: 180 }).toISOString().split('T')[0],
+  quantidade_adultos: faker.number.int({ min: 1, max: 4 }),
+  quantidade_criancas: faker.number.int({ min: 0, max: 2 }),
+  idade_criancas: '',
+  categoria_viagem: faker.helpers.arrayElement(['economica', 'intermediaria', 'premium'] as const),
+  urgencia_viagem: faker.helpers.arrayElement(['imediato', 'curto_prazo', 'medio_prazo', 'planejando'] as const),
+  origem_lead: faker.helpers.arrayElement(['instagram', 'facebook', 'google', 'site', 'whatsapp', 'indicacao', 'outro'] as const),
+  indicado_por: '',
+  observacoes_viagem: '',
 });
 
 /**

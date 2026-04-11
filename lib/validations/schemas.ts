@@ -113,6 +113,18 @@ export const contactFormSchema = z.object({
   phone: phoneSchema,
   role: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
   companyName: optionalString.pipe(z.string().max(MAX_LENGTHS.COMPANY_NAME)),
+
+  // Campos de viagem (agência de viagens)
+  destino_viagem: z.string().max(MAX_LENGTHS.MEDIUM_TEXT).optional().transform(v => v || ''),
+  data_viagem: z.string().max(30).optional().transform(v => v || ''),
+  quantidade_adultos: z.coerce.number().min(0).max(99).optional(),
+  quantidade_criancas: z.coerce.number().min(0).max(99).optional(),
+  idade_criancas: z.string().max(MAX_LENGTHS.SHORT_TEXT).optional().transform(v => v || ''),
+  categoria_viagem: z.enum(['economica', 'intermediaria', 'premium']).optional(),
+  urgencia_viagem: z.enum(['imediato', 'curto_prazo', 'medio_prazo', 'planejando']).optional(),
+  origem_lead: z.enum(['instagram', 'facebook', 'google', 'site', 'whatsapp', 'indicacao', 'outro']).optional(),
+  indicado_por: z.string().max(MAX_LENGTHS.NAME).optional().transform(v => v || ''),
+  observacoes_viagem: z.string().max(MAX_LENGTHS.DESCRIPTION).optional().transform(v => v || ''),
 });
 
 export type ContactFormData = z.infer<typeof contactFormSchema>;
