@@ -76,7 +76,7 @@ const ROUTE_PREFETCH: Readonly<Record<string, PrefetchEntry[]>> = {
       // useActivitiesController usa useDeals() → queryKeys.deals.lists() + dealsService.getAll()
       queryKey: queryKeys.deals.lists(),
       queryFn: async () => {
-        const { data, error } = await dealsService.getAll({});
+        const { data, error } = await dealsService.getAll();
         if (error) throw error;
         return data ?? [];
       },
