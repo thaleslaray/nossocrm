@@ -96,3 +96,5 @@ AGENTS.md
 
 # Generated/internal PDFs (may contain sensitive prompts or specs)
 docs/*.pdf
+docs/*.har
+*.har
