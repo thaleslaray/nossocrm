@@ -38,6 +38,9 @@ dev_server.log
 # Cursor IDE (local/personal configs)
 .cursor/
 
+# Playwright CLI artifacts (local only)
+.playwright-cli/
+
 # Other AI/dev tools (local configs)
 .jules/
 .specify/
