@@ -5,8 +5,6 @@
  */
 export const AI_DEFAULT_MODELS = {
   google: 'gemini-2.0-flash',
-  openai: 'gpt-4o-mini',
-  anthropic: 'claude-haiku-4-5-20251001',
 } as const;
 
 export const AI_DEFAULT_PROVIDER = 'google' as const;

@@ -38,12 +38,14 @@ dev_server.log
 # Cursor IDE (local/personal configs)
 .cursor/
 
-# Playwright CLI artifacts (local only)
-.playwright-cli/
-
 # Other AI/dev tools (local configs)
 .jules/
 .specify/
+.claude/
+.mcp.json
+
+# Temporary files
+tmp/
 
 # testsprite generated artifacts (may contain PII)
 testsprite_tests/tmp/
@@ -57,11 +59,8 @@ testsprite_tests/tmp/
 # vercel
 .vercel
 
-# supabase local development artifacts
+# supabase local temp artifacts
 supabase/.temp/
-supabase/.branches/
-supabase/snippets/
-.supabase/
 
 # typescript
 *.tsbuildinfo
@@ -89,12 +88,10 @@ scripts/
 # Test documentation (test code stays, docs are local)
 test/*.md
 
-# Claude/AI tools local context files (never commit)
-.claude/
-AGENTS.md
-.sc-context.md
-
-# Generated/internal PDFs (may contain sensitive prompts or specs)
-docs/*.pdf
-docs/*.har
-*.har
+# Security audit artifacts
+.sb-pentest-*.json
+.sb-pentest-*.log
+debug_navigation_failed_*.png
+*.png
+.env*.local
+.dmux/

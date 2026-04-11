@@ -71,30 +71,16 @@ export function ContactsImportExportModal(props: {
 
   const templateCsv = useMemo(() => {
     const d: CsvDelimiter = delimiter === 'auto' ? ';' : delimiter;
-    const header = [
-      'name', 'email', 'phone', 'company', 'status', 'stage', 'notes',
-      'destino_viagem', 'data_viagem', 'quantidade_adultos', 'quantidade_criancas',
-      'idade_criancas', 'categoria_viagem', 'urgencia_viagem', 'origem_lead',
-      'indicado_por', 'observacoes_viagem',
-    ];
+    const header = ['name', 'email', 'phone', 'role', 'company', 'status', 'stage', 'notes'];
     const example = [
       'Maria Silva',
-      'maria@email.com',
+      'maria@empresa.com',
       '+55 11 99999-9999',
-      '',
+      'Compras',
+      'Empresa Exemplo',
       'ACTIVE',
       'LEAD',
-      '',
-      'Orlando',
-      '2026-12-15',
-      '2',
-      '0',
-      '',
-      'premium',
-      'curto_prazo',
-      'instagram',
-      '',
-      '',
+      'Conheci em evento',
     ];
     return withUtf8Bom(stringifyCsv([header, example], d));
   }, [delimiter]);
@@ -241,7 +227,7 @@ export function ContactsImportExportModal(props: {
           </div>
 
           <div className="text-xs text-slate-600 dark:text-slate-300">
-            <b>Campos exportados:</b> name, email, phone, company, status, stage, notes, destino_viagem, data_viagem, quantidade_adultos, quantidade_criancas, idade_criancas, categoria_viagem, urgencia_viagem, origem_lead, indicado_por, observacoes_viagem, created_at, updated_at.
+            <b>Campos exportados:</b> name, email, phone, role, company, status, stage, notes, created_at, updated_at.
           </div>
 
           <button

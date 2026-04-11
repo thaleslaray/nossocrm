@@ -9,16 +9,9 @@
  */
 
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { AI_DEFAULT_MODELS } from './defaults';
+import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from './defaults';
 
-/**
- * Provedores de IA suportados pelo sistema.
- * 
- * @typedef {'google' | 'openai' | 'anthropic'} AIProvider
- */
-export type AIProvider = 'google' | 'openai' | 'anthropic';
+export type AIProvider = 'google';
 
 /**
  * Cria e retorna uma instância do modelo de IA configurada.
@@ -48,20 +41,45 @@ export const getModel = (provider: AIProvider, apiKey: string, modelId: string) 
         throw new Error('API Key is missing');
     }
 
-    switch (provider) {
-        case 'google':
-            const google = createGoogleGenerativeAI({ apiKey });
-            return google(modelId || AI_DEFAULT_MODELS.google);
+    const google = createGoogleGenerativeAI({ apiKey });
+    return google(modelId || AI_DEFAULT_MODELS.google);
+};
 
-        case 'openai':
-            const openai = createOpenAI({ apiKey });
-            return openai(modelId || AI_DEFAULT_MODELS.openai);
+/**
+ * Configuração de modelo para uso com env vars.
+ */
+export interface ModelConfig {
+    provider?: AIProvider;
+    model?: string;
+}
 
-        case 'anthropic':
-            const anthropic = createAnthropic({ apiKey });
-            return anthropic(modelId || AI_DEFAULT_MODELS.anthropic);
+/**
+ * Retorna um modelo de IA usando variáveis de ambiente.
+ *
+ * Usa as seguintes env vars:
+ * - GOOGLE_GENERATIVE_AI_API_KEY
+ * - OPENAI_API_KEY
+ * - ANTHROPIC_API_KEY
+ *
+ * @param config - Configuração opcional (provider e model)
+ * @returns Instância configurada do modelo de IA
+ *
+ * @example
+ * ```typescript
+ * // Usa provider padrão (google) com model padrão
+ * const model = getModelFromEnv();
+ *
+ * // Especifica provider e model
+ * const model = getModelFromEnv({ provider: 'openai', model: 'gpt-4o-mini' });
+ * ```
+ */
+export const getModelFromEnv = (config?: ModelConfig) => {
+    const model = config?.model || '';
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
-        default:
-            throw new Error(`Provider ${provider} not supported`);
+    if (!apiKey) {
+        throw new Error('API Key for google not found in environment (GOOGLE_GENERATIVE_AI_API_KEY)');
     }
+
+    return getModel(AI_DEFAULT_PROVIDER, apiKey, model);
 };

@@ -1,13 +1,11 @@
 import { ToolLoopAgent, stepCountIs } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { CRMCallOptionsSchema, type CRMCallOptions } from '@/types/ai';
 import { createCRMTools } from './tools';
 import { formatPriorityPtBr } from '@/lib/utils/priority';
 import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from './defaults';
 
-type AIProvider = 'google' | 'openai' | 'anthropic';
+type AIProvider = 'google';
 
 function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,20 +48,30 @@ function formatCockpitSnapshotForPrompt(snapshot: any): string[] {
     const contact = snapshot.contact;
     if (contact && typeof contact === 'object') {
         const name = clampText(contact.name, 80);
-        const destino = clampText(contact.destino_viagem, 80);
+        const role = clampText(contact.role, 80);
         const email = clampText(contact.email, 120);
         const phone = clampText(contact.phone, 60);
-        lines.push(`👤 Contato (cockpit): ${name ?? '(sem nome)'}${destino ? ` — Destino: ${destino}` : ''}`);
+        lines.push(`👤 Contato (cockpit): ${name ?? '(sem nome)'}${role ? ` — ${role}` : ''}`);
         if (email) lines.push(`   - Email: ${email}`);
         if (phone) lines.push(`   - Telefone: ${phone}`);
-        const categoria = clampText(contact.categoria_viagem, 30);
-        const urgencia = clampText(contact.urgencia_viagem, 30);
-        const origem = clampText(contact.origem_lead, 30);
-        if (categoria) lines.push(`   - Categoria: ${categoria}`);
-        if (urgencia) lines.push(`   - Urgência: ${urgencia}`);
-        if (origem) lines.push(`   - Origem: ${origem}`);
         const notes = clampText(contact.notes, 220);
         if (notes) lines.push(`   - Notas do contato: ${notes}`);
+
+        // Campos de viagem (travel-first customization)
+        const destino = clampText(contact.destino_viagem, 80);
+        const dataViagem = clampText(contact.data_viagem, 30);
+        const categoriaViagem = clampText(contact.categoria_viagem, 30);
+        const urgenciaViagem = clampText(contact.urgencia_viagem, 30);
+        const origemLead = clampText(contact.origem_lead, 30);
+        if (destino) lines.push(`   - Destino: ${destino}`);
+        if (dataViagem) lines.push(`   - Data viagem: ${dataViagem}`);
+        if (categoriaViagem) lines.push(`   - Categoria: ${categoriaViagem}`);
+        if (urgenciaViagem) lines.push(`   - Urgência: ${urgenciaViagem}`);
+        if (origemLead) lines.push(`   - Origem lead: ${origemLead}`);
+        const qtdAdultos = typeof contact.quantidade_adultos === 'number' ? contact.quantidade_adultos : undefined;
+        const qtdCriancas = typeof contact.quantidade_criancas === 'number' ? contact.quantidade_criancas : undefined;
+        if (qtdAdultos != null) lines.push(`   - Adultos: ${qtdAdultos}`);
+        if (qtdCriancas != null) lines.push(`   - Crianças: ${qtdCriancas}`);
     }
 
     const signals = snapshot.cockpitSignals;
@@ -126,230 +134,6 @@ function formatCockpitSnapshotForPrompt(snapshot: any): string[] {
     return lines;
 }
 
-function createRetryingFetch(
-    baseFetch: typeof fetch,
-    opts: {
-        label: string;
-        retries: number;
-        baseDelayMs: number;
-        maxDelayMs: number;
-        modelFallback?: {
-            /** Se o body JSON tiver esse model, substitui por `toModel` em retries (attempt >= 1). */
-            fromModels: string[];
-            toModel: string;
-            /** Só aplicar fallback em respostas com status retryable (default: 429 e 5xx) */
-            statuses?: number[];
-        };
-    }
-) {
-    const { label, retries, baseDelayMs, maxDelayMs } = opts;
-
-    const isRetryableStatus = (status: number) => {
-        // 408: timeout, 429: rate limit, 5xx: instabilidade do provedor.
-        return status === 408 || status === 429 || (status >= 500 && status <= 599);
-    };
-
-    const shouldApplyModelFallback = (status: number | undefined) => {
-        const fb = opts.modelFallback;
-        if (!fb) return false;
-        if (status == null) return false;
-
-        // Se o caller forneceu uma lista de status, respeitar.
-        if (Array.isArray(fb.statuses) && fb.statuses.length > 0) {
-            return fb.statuses.includes(status);
-        }
-
-        // Default: 429 e 5xx.
-        return status === 429 || (status >= 500 && status <= 599);
-    };
-
-    const maybeRewriteModelInBody = (body: unknown, attempt: number, lastStatus?: number) => {
-        const fb = opts.modelFallback;
-        if (!fb) return body;
-
-        // Só tentar fallback a partir do segundo attempt (attempt >= 1)
-        if (attempt < 1) return body;
-        if (!shouldApplyModelFallback(lastStatus)) return body;
-
-        if (typeof body !== 'string') return body;
-
-        try {
-            const parsed = JSON.parse(body);
-            const current = parsed?.model;
-            if (typeof current !== 'string') return body;
-            if (!fb.fromModels.includes(current)) return body;
-
-            parsed.model = fb.toModel;
-            const rewritten = JSON.stringify(parsed);
-
-            console.warn(`[${label}] Falling back model`, {
-                from: current,
-                to: fb.toModel,
-                attempt,
-                lastStatus,
-            });
-
-            return rewritten;
-        } catch {
-            return body;
-        }
-    };
-
-    const extractRequestId = (res: Response) => {
-        // OpenAI costuma enviar request-id em um desses headers.
-        return (
-            res.headers.get('x-request-id') ||
-            res.headers.get('openai-request-id') ||
-            res.headers.get('request-id') ||
-            undefined
-        );
-    };
-
-    const canRetryBody = (body: any): boolean => {
-        // Evitar retries quando o body é stream não-reutilizável.
-        // Strings/ArrayBuffer/Uint8Array/etc são OK.
-        if (body == null) return true;
-        if (typeof body === 'string') return true;
-        if (body instanceof ArrayBuffer) return true;
-        if (typeof Uint8Array !== 'undefined' && body instanceof Uint8Array) return true;
-        if (typeof Blob !== 'undefined' && body instanceof Blob) return true;
-        // FormData geralmente é reusável, mas em alguns ambientes pode falhar; preferir não retry.
-        if (typeof FormData !== 'undefined' && body instanceof FormData) return false;
-        // ReadableStream: não retry.
-        if (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) return false;
-        return false;
-    };
-
-    return async (input: RequestInfo | URL, init?: RequestInit) => {
-        const bodyRetryable = !(input instanceof Request) && !canRetryBody(init?.body);
-        if (bodyRetryable) {
-            // Melhor fazer uma chamada única do que tentar retry e falhar ao reusar body.
-            return baseFetch(input, init);
-        }
-
-        // Quando o SDK chama fetch passando um Request pronto, precisamos "bufferizar" o body
-        // para poder refazer a request (e aplicar fallback de model) em retries.
-        // Isso é especialmente importante para requests JSON do OpenAI.
-        let bufferedFromRequest:
-            | {
-                url: string;
-                init: RequestInit;
-                jsonBodyText?: string;
-                contentType?: string;
-            }
-            | undefined;
-
-        const getSignal = () => {
-            if (init?.signal) return init.signal;
-            if (input instanceof Request) return input.signal;
-            return undefined;
-        };
-
-        const makeRequest = async (attempt: number, lastStatus?: number) => {
-            if (input instanceof Request) {
-                // 1) Primeiro build: extrair headers/método/url e, se possível, o body JSON.
-                if (!bufferedFromRequest) {
-                    const headers = new Headers(input.headers);
-                    const contentType = headers.get('content-type') || undefined;
-
-                    let jsonBodyText: string | undefined;
-                    const method = input.method || 'GET';
-                    const hasBody = method !== 'GET' && method !== 'HEAD';
-
-                    if (hasBody) {
-                        try {
-                            // clone() para não consumir o Request original.
-                            const bodyText = await input.clone().text();
-                            // Só guardar se parece JSON; senão, não tentamos reescrever model.
-                            if (
-                                (contentType && /application\/json/i.test(contentType)) ||
-                                bodyText.trim().startsWith('{')
-                            ) {
-                                jsonBodyText = bodyText;
-                            }
-                        } catch {
-                            // Se não conseguimos ler o body, seguimos sem fallback de model.
-                            jsonBodyText = undefined;
-                        }
-                    }
-
-                    // Recriar RequestInit "mínimo". Não copiamos tudo porque alguns campos
-                    // podem não estar disponíveis/ser relevantes no runtime do Next.
-                    bufferedFromRequest = {
-                        url: input.url,
-                        contentType,
-                        jsonBodyText,
-                        init: {
-                            method,
-                            headers,
-                            // sinal/abort vem de getSignal(), aplicado no Request.
-                        },
-                    };
-                }
-
-                // 2) Se temos body JSON bufferizado, conseguimos aplicar fallback de model.
-                const rewritten = maybeRewriteModelInBody(bufferedFromRequest.jsonBodyText, attempt, lastStatus);
-                const nextInit: RequestInit = {
-                    ...bufferedFromRequest.init,
-                    body: rewritten as any,
-                    signal: getSignal(),
-                };
-
-                return new Request(bufferedFromRequest.url, nextInit);
-            }
-
-            const rewrittenBody = maybeRewriteModelInBody(init?.body, attempt, lastStatus);
-            const nextInit: RequestInit = rewrittenBody === init?.body ? init ?? {} : { ...(init ?? {}), body: rewrittenBody as any };
-            return new Request(input, nextInit);
-        };
-
-        let lastResponse: Response | undefined;
-        let lastStatus: number | undefined;
-        for (let attempt = 0; attempt <= retries; attempt++) {
-            if (getSignal()?.aborted) {
-                // Respeitar abort sem tentar novamente.
-                throw new DOMException('The operation was aborted.', 'AbortError');
-            }
-
-            try {
-                const req = await makeRequest(attempt, lastStatus);
-                const res = await baseFetch(req);
-                lastResponse = res;
-                lastStatus = res.status;
-
-                if (!isRetryableStatus(res.status) || attempt === retries) {
-                    return res;
-                }
-
-                const requestId = extractRequestId(res);
-                const delay = Math.min(maxDelayMs, baseDelayMs * Math.pow(2, attempt));
-                const jitter = Math.floor(Math.random() * 120);
-                console.warn(`[${label}] Retryable response (${res.status}). Retrying...`, {
-                    attempt: attempt + 1,
-                    retries,
-                    delayMs: delay + jitter,
-                    requestId,
-                });
-                await sleep(delay + jitter);
-            } catch (err: any) {
-                if (attempt === retries) throw err;
-
-                const delay = Math.min(maxDelayMs, baseDelayMs * Math.pow(2, attempt));
-                const jitter = Math.floor(Math.random() * 120);
-                console.warn(`[${label}] Fetch error. Retrying...`, {
-                    attempt: attempt + 1,
-                    retries,
-                    delayMs: delay + jitter,
-                    message: String(err?.message || err),
-                });
-                await sleep(delay + jitter);
-            }
-        }
-
-        // Segurança: nunca deve chegar aqui.
-        return lastResponse ?? baseFetch(input, init);
-    };
-}
 
 /**
  * Build context prompt from call options
@@ -469,45 +253,8 @@ export async function createCRMAgent(
         provider,
     });
 
-    // Create provider client with org-specific API key
-    // NOTE: Model IDs are stored in organization_settings and passed through.
-    const model = (() => {
-        switch (provider) {
-            case 'google': {
-                const google = createGoogleGenerativeAI({ apiKey });
-                return google(modelId);
-            }
-            case 'openai': {
-                const openai = createOpenAI({
-                    apiKey,
-                    fetch: createRetryingFetch(fetch, {
-                        label: 'OpenAI',
-                        retries: 2,
-                        baseDelayMs: 350,
-                        maxDelayMs: 2000,
-                        modelFallback: {
-                            // Muitos modelos "preview"/novos oscilam mais; aqui fazemos fallback automático
-                            // para um modelo estável sem exigir intervenção do usuário.
-                            fromModels: [modelId],
-                            toModel: AI_DEFAULT_MODELS.openai,
-                            // Default já cobre 429/5xx; manter explícito só para clareza.
-                            statuses: [429, 500, 502, 503, 504],
-                        },
-                    }),
-                });
-                return openai(modelId);
-            }
-            case 'anthropic': {
-                const anthropic = createAnthropic({ apiKey });
-                return anthropic(modelId);
-            }
-            default: {
-                // Should be unreachable due to type, but keep runtime safety.
-                const google = createGoogleGenerativeAI({ apiKey });
-                return google(modelId);
-            }
-        }
-    })();
+    const google = createGoogleGenerativeAI({ apiKey });
+    const model = google(modelId);
 
     // Create tools with context injected
     const tools = createCRMTools(context, userId);

@@ -70,7 +70,8 @@ export const fakeContact = () => ({
   })(),
   role: faker.person.jobTitle(),
   companyName: faker.company.name(),
-  // Campos de viagem (agência de viagens)
+
+  // Campos de viagem (agência de viagens — travel-first customization)
   destino_viagem: faker.helpers.arrayElement(['Cancún', 'Lisboa', 'Paris', 'Orlando', 'Miami', 'Maldivas', 'Roma']),
   data_viagem: faker.date.soon({ days: 180 }).toISOString().split('T')[0],
   quantidade_adultos: faker.number.int({ min: 1, max: 4 }),

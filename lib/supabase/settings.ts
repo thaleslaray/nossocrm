@@ -41,12 +41,12 @@ export interface UserSettings {
   aiModel: string;
   aiThinking: boolean;
   aiSearch: boolean;
-  aiAnthropicCaching?: boolean;
   darkMode: boolean;
   defaultRoute: string;
   activeBoardId: string | null;
   inboxViewMode: 'list' | 'focus';
   onboardingCompleted: boolean;
+  aiAnthropicCaching?: boolean;
 }
 
 // Transform DB -> App

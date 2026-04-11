@@ -1,7 +1,8 @@
 import React from 'react';
-import { MapPin, Building2, Mail, Phone, Plus, Calendar, Pencil, Trash2, Globe, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Building2, Mail, Phone, Plus, Calendar, Pencil, Trash2, Globe, MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, GitMerge, Users } from 'lucide-react';
 import { Contact, Company, ContactSortableColumn } from '@/types';
 import { StageBadge } from './ContactsStageTabs';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 // Performance: reuse Intl formatters (they are relatively expensive to instantiate).
 const PT_BR_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR');
@@ -82,7 +83,6 @@ interface ContactsListProps {
     updateContact: (id: string, data: Partial<Contact>) => void;
     convertContactToDeal: (id: string) => void;
     openEditModal: (contact: Contact) => void;
-    openDetailDrawer: (contact: Contact) => void;
     setDeleteId: (id: string) => void;
     openEditCompanyModal?: (company: Company) => void;
     setDeleteCompanyId?: (id: string) => void;
@@ -90,6 +90,10 @@ interface ContactsListProps {
     sortBy?: ContactSortableColumn;
     sortOrder?: 'asc' | 'desc';
     onSort?: (column: ContactSortableColumn) => void;
+    // Duplicate detection
+    duplicateContactIds?: Set<string>;
+    // Empty state action
+    onAddContact?: () => void;
 }
 
 /**
@@ -142,13 +146,14 @@ export const ContactsList: React.FC<ContactsListProps> = ({
     updateContact,
     convertContactToDeal,
     openEditModal,
-    openDetailDrawer,
     setDeleteId,
     openEditCompanyModal,
     setDeleteCompanyId,
     sortBy = 'created_at',
     sortOrder = 'desc',
     onSort,
+    duplicateContactIds,
+    onAddContact,
 }) => {
     const activeListIds = viewMode === 'people'
         ? filteredContacts.map(c => c.id)
@@ -198,7 +203,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                     <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Nome</th>
                                 )}
                                 <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Estágio</th>
-                                <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Destino / Categoria</th>
+                                <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Cargo / Empresa</th>
                                 <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Contato</th>
                                 <th scope="col" className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-display text-xs uppercase tracking-wider">Status</th>
                                 {onSort ? (
@@ -215,7 +220,18 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                            {filteredContacts.map((contact) => (
+                            {filteredContacts.length === 0 ? (
+                                <tr>
+                                    <td colSpan={9}>
+                                        <EmptyState
+                                            icon={Users}
+                                            title="Nenhum contato encontrado"
+                                            description="Tente ajustar os filtros ou adicione um novo contato."
+                                            action={onAddContact ? { label: 'Adicionar Contato', onClick: onAddContact } : undefined}
+                                        />
+                                    </td>
+                                </tr>
+                            ) : filteredContacts.map((contact) => (
                                 <tr key={contact.id} className={`hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group ${selectedIds.has(contact.id) ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''}`}>
                                     <td className="px-6 py-4">
                                         <input 
@@ -230,21 +246,23 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                         <div className="flex items-center gap-3">
                                             <button
                                                 type="button"
-                                                onClick={() => openDetailDrawer(contact)}
+                                                onClick={() => openEditModal(contact)}
                                                 className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800 text-primary-700 dark:text-primary-200 flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-white dark:ring-white/5 hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-dark-card"
-                                                aria-label={`Ver detalhes de ${contact.name || 'Sem nome'}`}
+                                                aria-label={`Editar contato: ${contact.name || 'Sem nome'}`}
                                                 title={contact.name || 'Sem nome'}
                                             >
                                                 {(contact.name || '?').charAt(0)}
                                             </button>
                                             <div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openDetailDrawer(contact)}
-                                                    className="font-semibold text-slate-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors text-left"
-                                                >
+                                                <span className="font-semibold text-slate-900 dark:text-white block">
                                                     {contact.name}
-                                                </button>
+                                                    {duplicateContactIds?.has(contact.id) && (
+                                                        <span className="inline-flex items-center gap-1 ml-2 px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-full align-middle">
+                                                            <GitMerge size={10} />
+                                                            Duplicado
+                                                        </span>
+                                                    )}
+                                                </span>
                                             </div>
                                         </div>
                                     </td>
@@ -253,33 +271,10 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                                     </td>
                                     <td className="px-6 py-4">
                                         <div>
-                                            <div className="flex items-center gap-1 text-sm text-slate-900 dark:text-white font-medium">
-                                                <MapPin size={12} className="text-primary-500 shrink-0" />
-                                                <span>{contact.destino_viagem || '---'}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1 mt-1">
-                                                {contact.categoria_viagem && (
-                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                                        contact.categoria_viagem === 'premium'
-                                                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                                                            : contact.categoria_viagem === 'intermediaria'
-                                                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                                                            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                                    }`}>
-                                                        {contact.categoria_viagem === 'economica' ? 'Econômica' : contact.categoria_viagem === 'intermediaria' ? 'Intermediária' : 'Premium'}
-                                                    </span>
-                                                )}
-                                                {contact.urgencia_viagem && (
-                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                                        contact.urgencia_viagem === 'imediato'
-                                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                                                            : contact.urgencia_viagem === 'curto_prazo'
-                                                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
-                                                            : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-400'
-                                                    }`}>
-                                                        {contact.urgencia_viagem === 'imediato' ? 'Imediato' : contact.urgencia_viagem === 'curto_prazo' ? 'Curto prazo' : contact.urgencia_viagem === 'medio_prazo' ? 'Médio prazo' : 'Planejando'}
-                                                    </span>
-                                                )}
+                                            <span className="text-slate-900 dark:text-white font-medium block">{contact.role || 'Cargo não inf.'}</span>
+                                            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                <Building2 size={10} />
+                                                <span>{getCompanyName(contact.clientCompanyId)}</span>
                                             </div>
                                         </div>
                                     </td>
@@ -379,7 +374,17 @@ export const ContactsList: React.FC<ContactsListProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                            {filteredCompanies.map((company) => (
+                            {filteredCompanies.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6}>
+                                        <EmptyState
+                                            icon={Users}
+                                            title="Nenhuma empresa encontrada"
+                                            description="Tente ajustar os filtros ou adicione uma nova empresa."
+                                        />
+                                    </td>
+                                </tr>
+                            ) : filteredCompanies.map((company) => (
                                 <tr key={company.id} className={`hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group ${selectedIds.has(company.id) ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''}`}>
                                     <td className="px-6 py-4">
                                         <input

@@ -1,17 +1,8 @@
-'use client'
+import type { Metadata } from 'next';
+import { ContactsPage } from '@/features/contacts/ContactsPage'
 
-import dynamic from 'next/dynamic'
-import { PageLoader } from '@/components/PageLoader'
+export const metadata: Metadata = { title: 'Contatos | NossoCRM' };
 
-const ContactsPage = dynamic(
-    () => import('@/features/contacts/ContactsPage').then(m => ({ default: m.ContactsPage })),
-    { loading: () => <PageLoader />, ssr: false }
-)
-
-/**
- * Componente React `Contacts`.
- * @returns {Element} Retorna um valor do tipo `Element`.
- */
 export default function Contacts() {
     return <ContactsPage />
 }

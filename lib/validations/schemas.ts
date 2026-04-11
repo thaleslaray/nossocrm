@@ -114,7 +114,7 @@ export const contactFormSchema = z.object({
   role: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
   companyName: optionalString.pipe(z.string().max(MAX_LENGTHS.COMPANY_NAME)),
 
-  // Campos de viagem (agência de viagens)
+  // Campos de viagem (agência de viagens — travel-first customization)
   destino_viagem: z.string().max(MAX_LENGTHS.MEDIUM_TEXT).optional().transform(v => v || ''),
   data_viagem: z.string().max(30).optional().transform(v => v || ''),
   quantidade_adultos: z.coerce.number().min(0).max(99).optional(),

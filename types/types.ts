@@ -159,6 +159,7 @@ export interface Contact {
   organizationId?: OrganizationId; // Tenant FK (for RLS) - optional during migration
   clientCompanyId?: ClientCompanyId; // CRM company this contact belongs to
   name: string;
+  role?: string;
   email: string;
   phone: string;
   avatar?: string;
@@ -173,10 +174,13 @@ export interface Contact {
   createdAt: string;
   updatedAt?: string; // Última modificação do registro
 
-  // Cargo/função do contato
-  role?: string;
+  // @deprecated - Use clientCompanyId instead
+  companyId?: string;
 
-  // Campos de viagem (agência de viagens)
+  /** Quando true, o agente de IA não responde a este contato em nenhum canal. */
+  aiPaused?: boolean;
+
+  // Campos de viagem (agência de viagens — travel-first customization)
   destino_viagem?: string;
   data_viagem?: string;
   quantidade_adultos?: number;
@@ -187,12 +191,6 @@ export interface Contact {
   origem_lead?: OrigemLead;
   indicado_por?: string;
   observacoes_viagem?: string;
-
-  // Campo do agente IA (upstream: ai paused flag)
-  aiPaused?: boolean;
-
-  // @deprecated - Use clientCompanyId instead
-  companyId?: string;
 }
 
 // ITEM 3: Produtos e Serviços
@@ -257,10 +255,10 @@ export interface Deal {
   };
   tags: string[];
   aiSummary?: string;
-  aiExtracted?: boolean; // Flag: dados extraídos pelo agente IA
   customFields?: Record<string, any>; // Dynamic fields storage
   lastStageChangeDate?: string; // For stagnation tracking
   lossReason?: string; // For win/loss analysis
+  aiExtracted?: Record<string, any>; // AI-extracted BANT fields (zero config)
 
   // @deprecated - Use clientCompanyId instead
   companyId?: string;
@@ -357,12 +355,13 @@ export interface Board {
   isDefault?: boolean;
   template?: 'PRE_SALES' | 'SALES' | 'ONBOARDING' | 'CS' | 'CUSTOM'; // Template usado para criar este board
   automationSuggestions?: string[]; // Sugestões de automação da IA
-  agentGoalStageId?: string; // ID do estágio-meta do agente IA (upstream: agent goal stage)
 
   // AI Strategy Fields
   goal?: BoardGoal;
   agentPersona?: AgentPersona;
   entryTrigger?: string; // "Quem deve entrar aqui?"
+  /** Estágio limite do agente AI. NULL = sem limite (age até o fim do funil). */
+  agentGoalStageId?: string | null;
 
   createdAt: string;
 }

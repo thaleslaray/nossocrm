@@ -159,16 +159,8 @@ export const useContactsController = () => {
     name: '',
     email: '',
     phone: '',
-    destino_viagem: '',
-    data_viagem: '',
-    quantidade_adultos: 1,
-    quantidade_criancas: 0,
-    idade_criancas: '',
-    categoria_viagem: '' as '' | 'economica' | 'intermediaria' | 'premium',
-    urgencia_viagem: '' as '' | 'imediato' | 'curto_prazo' | 'medio_prazo' | 'planejando',
-    origem_lead: '' as '' | 'instagram' | 'facebook' | 'google' | 'site' | 'whatsapp' | 'indicacao' | 'outro',
-    indicado_por: '',
-    observacoes_viagem: '',
+    role: '',
+    companyName: '',
   });
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
 
@@ -185,40 +177,19 @@ export const useContactsController = () => {
       return;
     }
     setEditingContact(null);
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      destino_viagem: '',
-      data_viagem: '',
-      quantidade_adultos: 1,
-      quantidade_criancas: 0,
-      idade_criancas: '',
-      categoria_viagem: '',
-      urgencia_viagem: '',
-      origem_lead: '',
-      indicado_por: '',
-      observacoes_viagem: '',
-    });
+    setFormData({ name: '', email: '', phone: '', role: '', companyName: '' });
     setIsModalOpen(true);
   };
 
   const openEditModal = (contact: Contact) => {
     setEditingContact(contact);
+    const company = companies.find(c => c.id === contact.companyId);
     setFormData({
       name: contact.name,
       email: contact.email,
       phone: contact.phone,
-      destino_viagem: contact.destino_viagem || '',
-      data_viagem: contact.data_viagem || '',
-      quantidade_adultos: contact.quantidade_adultos ?? 1,
-      quantidade_criancas: contact.quantidade_criancas ?? 0,
-      idade_criancas: contact.idade_criancas || '',
-      categoria_viagem: contact.categoria_viagem || '',
-      urgencia_viagem: contact.urgencia_viagem || '',
-      origem_lead: contact.origem_lead || '',
-      indicado_por: contact.indicado_por || '',
-      observacoes_viagem: contact.observacoes_viagem || '',
+      role: contact.role || '',
+      companyName: company?.name || '',
     });
     setIsModalOpen(true);
   };
@@ -400,27 +371,44 @@ export const useContactsController = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const t0 = Date.now();
     setIsSubmittingContact(true);
     const normalizedPhone = normalizePhoneE164(formData.phone);
 
     // Close immediately to avoid "modal close lag" while we wait for Supabase.
+    // (TanStack Query does not support onMutate in mutate() call options.)
     if (!editingContact) {
       setIsModalOpen(false);
       (addToast || showToast)('Criando contato...', 'info');
     }
 
-    const travelFields = {
-      destino_viagem: formData.destino_viagem,
-      data_viagem: formData.data_viagem || undefined,
-      quantidade_adultos: formData.quantidade_adultos,
-      quantidade_criancas: formData.quantidade_criancas,
-      idade_criancas: formData.idade_criancas || undefined,
-      categoria_viagem: formData.categoria_viagem || undefined,
-      urgencia_viagem: formData.urgencia_viagem || undefined,
-      origem_lead: formData.origem_lead || undefined,
-      indicado_por: formData.indicado_por || undefined,
-      observacoes_viagem: formData.observacoes_viagem || undefined,
-    };
+    // Find or create company
+    let companyId: string | undefined;
+    const companyName = (formData.companyName || '').trim();
+    const companyNameKey = companyName.toLowerCase();
+
+    if (companyName) {
+      const existingCompany = companies.find(c => (c.name || '').toLowerCase() === companyNameKey);
+
+      if (existingCompany) {
+        companyId = existingCompany.id;
+      } else {
+        // Create new company and wait for result
+        const tCompany0 = Date.now();
+        const newCompany = await new Promise<{ id: string } | null>(resolve => {
+          createCompanyMutation.mutate(
+            { name: companyName },
+            { onSuccess: resolve, onError: () => resolve(null) }
+          );
+        });
+        if (newCompany) {
+          companyId = newCompany.id;
+        }
+      }
+    } else if (editingContact) {
+      // Explicitly unlink company when clearing the field in Edit
+      companyId = '';
+    }
 
     if (editingContact) {
       updateContactMutation.mutate(
@@ -430,7 +418,8 @@ export const useContactsController = () => {
             name: formData.name,
             email: formData.email,
             phone: normalizedPhone,
-            ...travelFields,
+            role: formData.role,
+            companyId: companyId,
           },
         },
         {
@@ -447,10 +436,11 @@ export const useContactsController = () => {
           name: formData.name,
           email: formData.email,
           phone: normalizedPhone,
+          role: formData.role,
+          companyId: companyId || '',
           status: 'ACTIVE',
           stage: ContactStage.LEAD,
           totalValue: 0,
-          ...travelFields,
         },
         {
           onSuccess: () => {
@@ -472,20 +462,32 @@ export const useContactsController = () => {
     let createdCount = 0;
 
     for (const fake of fakeContacts) {
+      let companyId: string | undefined;
+
+      if (fake.companyName) {
+        const existingCompany = companies.find(
+          c => (c.name || '').toLowerCase() === (fake.companyName || '').toLowerCase()
+        );
+
+        if (existingCompany) {
+          companyId = existingCompany.id;
+        } else {
+          const newCompany = await new Promise<{ id: string } | null>(resolve => {
+            createCompanyMutation.mutate(
+              { name: fake.companyName },
+              { onSuccess: resolve, onError: () => resolve(null) }
+            );
+          });
+          if (newCompany) companyId = newCompany.id;
+        }
+      }
+
       await createContactMutation.mutateAsync({
         name: fake.name,
         email: fake.email,
         phone: normalizePhoneE164(fake.phone),
-        destino_viagem: fake.destino_viagem,
-        data_viagem: fake.data_viagem,
-        quantidade_adultos: fake.quantidade_adultos,
-        quantidade_criancas: fake.quantidade_criancas,
-        idade_criancas: fake.idade_criancas,
-        categoria_viagem: fake.categoria_viagem,
-        urgencia_viagem: fake.urgencia_viagem,
-        origem_lead: fake.origem_lead,
-        indicado_por: fake.indicado_por,
-        observacoes_viagem: fake.observacoes_viagem,
+        role: fake.role,
+        companyId: companyId || '',
         status: 'ACTIVE',
         stage: ContactStage.LEAD,
         totalValue: 0,
@@ -495,7 +497,7 @@ export const useContactsController = () => {
     }
 
     (addToast || showToast)(`${createdCount} contatos fake criados!`, 'success');
-  }, [addToast, showToast, createContactMutation]);
+  }, [addToast, showToast, companies, createCompanyMutation, createContactMutation]);
 
   // Open modal to select board for deal creation (or create directly if only 1 board)
   const convertContactToDeal = (contactId: string) => {
@@ -584,18 +586,9 @@ export const useContactsController = () => {
         name: data.name,
         email: data.email,
         phone: data.phone,
+        role: data.role,
         status: data.status,
         stage: data.stage,
-        destino_viagem: data.destino_viagem,
-        data_viagem: data.data_viagem,
-        quantidade_adultos: data.quantidade_adultos,
-        quantidade_criancas: data.quantidade_criancas,
-        idade_criancas: data.idade_criancas,
-        categoria_viagem: data.categoria_viagem,
-        urgencia_viagem: data.urgencia_viagem,
-        origem_lead: data.origem_lead,
-        indicado_por: data.indicado_por,
-        observacoes_viagem: data.observacoes_viagem,
       },
     });
   };

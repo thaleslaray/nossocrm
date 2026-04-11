@@ -342,62 +342,30 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
         }),
 
         searchContacts: tool({
-            description: 'Busca contatos por nome, email ou filtros de viagem (destino, categoria, urgência, origem, crianças)',
+            description: 'Busca contatos por nome ou email',
             inputSchema: z.object({
-                query: z.string().optional().describe('Termo de busca por nome ou email'),
-                destino: z.string().optional().describe('Filtrar por destino de viagem (ex: Cancún)'),
-                categoria: z.enum(['economica', 'intermediaria', 'premium']).optional().describe('Filtrar por categoria da viagem'),
-                urgencia: z.enum(['imediato', 'curto_prazo', 'medio_prazo', 'planejando']).optional().describe('Filtrar por urgência'),
-                origemLead: z.enum(['instagram', 'facebook', 'google', 'site', 'whatsapp', 'indicacao', 'outro']).optional().describe('Filtrar por canal de origem'),
-                temCriancas: z.boolean().optional().describe('Filtrar contatos que têm crianças na viagem'),
-                limit: z.number().optional().default(10),
+                query: z.string().describe('Termo de busca'),
+                limit: z.number().optional().default(5),
             }),
-            execute: async ({ query, destino, categoria, urgencia, origemLead, temCriancas, limit }) => {
-                console.log('[AI] 🔍 searchContacts EXECUTED!', { query, destino, categoria, urgencia, origemLead, temCriancas });
+            execute: async ({ query, limit }) => {
+                // supabase is already initialized
+                console.log('[AI] 🔍 searchContacts EXECUTED!', query);
 
-                let q = supabase
+                const { data: contacts } = await supabase
                     .from('contacts')
-                    .select('id, name, email, phone, destino_viagem, categoria_viagem, urgencia_viagem, origem_lead, quantidade_adultos, quantidade_criancas, data_viagem, stage, status')
-                    .eq('organization_id', organizationId);
-
-                if (query) {
-                    q = q.or(`name.ilike.%${query}%,email.ilike.%${query}%`);
-                }
-                if (destino) {
-                    q = q.ilike('destino_viagem', `%${destino}%`);
-                }
-                if (categoria) {
-                    q = q.eq('categoria_viagem', categoria);
-                }
-                if (urgencia) {
-                    q = q.eq('urgencia_viagem', urgencia);
-                }
-                if (origemLead) {
-                    q = q.eq('origem_lead', origemLead);
-                }
-                if (temCriancas === true) {
-                    q = q.gt('quantidade_criancas', 0);
-                } else if (temCriancas === false) {
-                    q = q.eq('quantidade_criancas', 0);
-                }
-
-                const { data: contacts } = await q.limit(limit);
+                    .select('id, name, email, phone, company_name')
+                    .eq('organization_id', organizationId)
+                    .or(`name.ilike.%${query}%,email.ilike.%${query}%`)
+                    .limit(limit);
 
                 return {
                     count: contacts?.length || 0,
                     contacts: contacts?.map(c => ({
                         id: c.id,
                         name: c.name,
-                        email: c.email || '—',
-                        phone: c.phone || '—',
-                        destino: c.destino_viagem || '—',
-                        categoria: c.categoria_viagem || '—',
-                        urgencia: c.urgencia_viagem || '—',
-                        origem: c.origem_lead || '—',
-                        viajantes: `${c.quantidade_adultos ?? 1} adulto(s) + ${c.quantidade_criancas ?? 0} criança(s)`,
-                        dataViagem: c.data_viagem || '—',
-                        stage: c.stage || '—',
-                        status: c.status || '—',
+                        email: c.email || 'N/A',
+                        phone: c.phone || 'N/A',
+                        company: c.company_name || 'N/A'
                     })) || []
                 };
             },
@@ -1440,23 +1408,15 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
                 name: z.string().min(1),
                 email: z.string().email().optional(),
                 phone: z.string().optional(),
+                role: z.string().optional(),
+                companyName: z.string().optional(),
+                notes: z.string().optional(),
                 status: z.string().optional().default('ACTIVE'),
                 stage: z.string().optional().default('LEAD'),
                 source: z.string().optional(),
-                // Campos de viagem
-                destinoViagem: z.string().optional().describe('Destino desejado'),
-                dataViagem: z.string().optional().describe('Data prevista (YYYY-MM-DD)'),
-                quantidadeAdultos: z.number().int().min(1).optional().default(1),
-                quantidadeCriancas: z.number().int().min(0).optional().default(0),
-                idadeCriancas: z.string().optional().describe('Idades das crianças'),
-                categoriaViagem: z.enum(['economica', 'intermediaria', 'premium']).optional(),
-                urgenciaViagem: z.enum(['imediato', 'curto_prazo', 'medio_prazo', 'planejando']).optional(),
-                origemLead: z.enum(['instagram', 'facebook', 'google', 'site', 'whatsapp', 'indicacao', 'outro']).optional(),
-                indicadoPor: z.string().optional(),
-                observacoesViagem: z.string().optional(),
             }),
             needsApproval: !bypassApproval,
-            execute: async ({ name, email, phone, status, stage, source, destinoViagem, dataViagem, quantidadeAdultos, quantidadeCriancas, idadeCriancas, categoriaViagem, urgenciaViagem, origemLead, indicadoPor, observacoesViagem }) => {
+            execute: async ({ name, email, phone, role, companyName, notes, status, stage, source }) => {
                 const { data, error } = await supabase
                     .from('contacts')
                     .insert({
@@ -1464,23 +1424,16 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
                         name,
                         email: email || null,
                         phone: phone || null,
+                        role: role || null,
+                        company_name: companyName || null,
+                        notes: notes || null,
                         status,
                         stage,
                         source: source || null,
                         owner_id: userId,
                         updated_at: new Date().toISOString(),
-                        destino_viagem: destinoViagem || null,
-                        data_viagem: dataViagem || null,
-                        quantidade_adultos: quantidadeAdultos ?? 1,
-                        quantidade_criancas: quantidadeCriancas ?? 0,
-                        idade_criancas: idadeCriancas || null,
-                        categoria_viagem: categoriaViagem || null,
-                        urgencia_viagem: urgenciaViagem || null,
-                        origem_lead: origemLead || null,
-                        indicado_por: indicadoPor || null,
-                        observacoes_viagem: observacoesViagem || null,
                     })
-                    .select('id, name, email, phone, destino_viagem, categoria_viagem')
+                    .select('id, name, email, phone, company_name')
                     .single();
                 if (error) return { error: formatSupabaseFailure(error) };
                 return { success: true, contact: data, message: `Contato "${data.name}" criado.` };
@@ -1488,26 +1441,18 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
         }),
 
         updateContact: tool({
-            description: 'Atualiza campos de um contato, incluindo dados da viagem. Requer aprovação no card (Aprovar/Negar) — não peça confirmação em texto.',
+            description: 'Atualiza campos de um contato. Requer aprovação no card (Aprovar/Negar) — não peça confirmação em texto.',
             inputSchema: z.object({
                 contactId: z.string(),
                 name: z.string().optional(),
                 email: z.string().email().optional(),
                 phone: z.string().optional(),
+                role: z.string().optional(),
+                companyName: z.string().optional(),
+                notes: z.string().optional(),
                 status: z.string().optional(),
                 stage: z.string().optional(),
                 source: z.string().optional(),
-                // Campos de viagem
-                destinoViagem: z.string().optional(),
-                dataViagem: z.string().optional().describe('YYYY-MM-DD'),
-                quantidadeAdultos: z.number().int().min(1).optional(),
-                quantidadeCriancas: z.number().int().min(0).optional(),
-                idadeCriancas: z.string().optional(),
-                categoriaViagem: z.enum(['economica', 'intermediaria', 'premium']).optional(),
-                urgenciaViagem: z.enum(['imediato', 'curto_prazo', 'medio_prazo', 'planejando']).optional(),
-                origemLead: z.enum(['instagram', 'facebook', 'google', 'site', 'whatsapp', 'indicacao', 'outro']).optional(),
-                indicadoPor: z.string().optional(),
-                observacoesViagem: z.string().optional(),
             }),
             needsApproval: !bypassApproval,
             execute: async ({ contactId, ...patch }) => {
@@ -1515,26 +1460,19 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
                 if (patch.name !== undefined) updateData.name = patch.name;
                 if (patch.email !== undefined) updateData.email = patch.email;
                 if (patch.phone !== undefined) updateData.phone = patch.phone;
+                if (patch.role !== undefined) updateData.role = patch.role;
+                if (patch.companyName !== undefined) updateData.company_name = patch.companyName;
+                if (patch.notes !== undefined) updateData.notes = patch.notes;
                 if (patch.status !== undefined) updateData.status = patch.status;
                 if (patch.stage !== undefined) updateData.stage = patch.stage;
                 if (patch.source !== undefined) updateData.source = patch.source;
-                if (patch.destinoViagem !== undefined) updateData.destino_viagem = patch.destinoViagem;
-                if (patch.dataViagem !== undefined) updateData.data_viagem = patch.dataViagem;
-                if (patch.quantidadeAdultos !== undefined) updateData.quantidade_adultos = patch.quantidadeAdultos;
-                if (patch.quantidadeCriancas !== undefined) updateData.quantidade_criancas = patch.quantidadeCriancas;
-                if (patch.idadeCriancas !== undefined) updateData.idade_criancas = patch.idadeCriancas;
-                if (patch.categoriaViagem !== undefined) updateData.categoria_viagem = patch.categoriaViagem;
-                if (patch.urgenciaViagem !== undefined) updateData.urgencia_viagem = patch.urgenciaViagem;
-                if (patch.origemLead !== undefined) updateData.origem_lead = patch.origemLead;
-                if (patch.indicadoPor !== undefined) updateData.indicado_por = patch.indicadoPor;
-                if (patch.observacoesViagem !== undefined) updateData.observacoes_viagem = patch.observacoesViagem;
 
                 const { data, error } = await supabase
                     .from('contacts')
                     .update(updateData)
                     .eq('organization_id', organizationId)
                     .eq('id', contactId)
-                    .select('id, name, email, phone, destino_viagem, categoria_viagem')
+                    .select('id, name, email, phone, company_name')
                     .maybeSingle();
                 if (error) return { error: formatSupabaseFailure(error) };
                 if (!data) return { error: 'Contato não encontrado nesta organização.' };
@@ -1543,14 +1481,14 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
         }),
 
         getContactDetails: tool({
-            description: 'Mostra detalhes completos de um contato, incluindo dados da viagem.',
+            description: 'Mostra detalhes de um contato.',
             inputSchema: z.object({
                 contactId: z.string(),
             }),
             execute: async ({ contactId }) => {
                 const { data, error } = await supabase
                     .from('contacts')
-                    .select('id, name, email, phone, status, stage, source, created_at, updated_at, destino_viagem, data_viagem, quantidade_adultos, quantidade_criancas, idade_criancas, categoria_viagem, urgencia_viagem, origem_lead, indicado_por, observacoes_viagem')
+                    .select('id, name, email, phone, role, company_name, notes, status, stage, source, created_at, updated_at')
                     .eq('organization_id', organizationId)
                     .eq('id', contactId)
                     .maybeSingle();
