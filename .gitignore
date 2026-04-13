@@ -88,6 +88,9 @@ scripts/
 # Test documentation (test code stays, docs are local)
 test/*.md
 
+# Playwright CLI artifacts
+.playwright-cli/
+
 # Security audit artifacts
 .sb-pentest-*.json
 .sb-pentest-*.log
