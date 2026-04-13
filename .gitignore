@@ -95,6 +95,11 @@ test/*.md
 docs/*.har
 docs/*.pdf
 
+# Arquivos locais de ferramentas
+.sc-context.md
+.supabase/
+supabase/.branches/
+
 # Security audit artifacts
 .sb-pentest-*.json
 .sb-pentest-*.log
