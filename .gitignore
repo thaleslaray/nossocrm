@@ -91,6 +91,10 @@ test/*.md
 # Playwright CLI artifacts
 .playwright-cli/
 
+# Docs locais não versionados
+docs/*.har
+docs/*.pdf
+
 # Security audit artifacts
 .sb-pentest-*.json
 .sb-pentest-*.log
