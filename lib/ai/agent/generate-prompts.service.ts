@@ -10,7 +10,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { generateText, Output } from 'ai';
-import { getOrgAIConfig } from './agent.service';
+import { getOrgAIConfig, SECURITY_PREAMBLE } from './agent.service';
+import { sanitizeIncomingMessage } from './input-filter';
 import { getModel } from '../config';
 import {
   GeneratedStagePromptsSchema,
@@ -122,8 +123,9 @@ export async function generateStagePrompts(
     return { success: false, error: 'Nenhum estágio encontrado neste board' };
   }
 
-  // 3. Montar prompts
-  const { system, user } = buildMetaPrompt(stages as StageInfo[], businessDescription);
+  // 3. Montar prompts (sanitizar businessDescription antes de injetar no prompt)
+  const { text: safeDescription } = sanitizeIncomingMessage(businessDescription, { org_id: organizationId });
+  const { system, user } = buildMetaPrompt(stages as StageInfo[], safeDescription);
 
   // 4. Gerar via LLM com structured output
   try {
@@ -133,27 +135,42 @@ export async function generateStagePrompts(
       model,
       output: Output.object({
         schema: GeneratedStagePromptsSchema,
-        name: 'GeneratedStagePrompts',
-        description: 'Prompts de IA gerados para cada estágio do funil de vendas',
+        // sem `name` — Gemini ignora e pode rejeitar a chamada dependendo da versão
       }),
-      system,
+      system: `${SECURITY_PREAMBLE}\n\n${system}`,
       prompt: user,
       maxRetries: 2,
     });
 
-    const generated = result.experimental_output as GeneratedStagePrompts | undefined;
+    void supabase.from('ai_conversation_log').insert({
+      organization_id: organizationId,
+      ai_response: '',
+      tokens_used: result.usage?.totalTokens ?? 0,
+      model_used: aiConfig.model,
+      action_taken: 'generate_stage_prompts',
+      context_snapshot: { boardId, stageCount: stages.length },
+    }).then(({ error }: { error: unknown }) => {
+      if (error) console.error('[AI] log failed:', error);
+    });
+
+    // AI SDK v6: resultado está em result.output (não experimental_output)
+    const generated = result.output as GeneratedStagePrompts | undefined;
 
     if (!generated?.stages?.length) {
       return { success: false, error: 'LLM não retornou prompts válidos' };
     }
 
-    // Mapear stageId para cada resultado (a LLM retorna por order)
+    // Mapear stageId + clamp de valores que o schema não restringiu
     const stagesWithIds = generated.stages.map((gen) => {
       const dbStage = stages.find((s) => s.order === gen.stageOrder)
         || stages.find((s) => s.name === gen.stageName);
       return {
         ...gen,
         stageId: dbStage?.id || '',
+        // Garante arrays dentro dos limites esperados pela UI
+        advancementCriteria: (gen.advancementCriteria ?? []).slice(0, 5),
+        handoffKeywords: (gen.handoffKeywords ?? []).slice(0, 6),
+        suggestedMaxMessages: Math.min(20, Math.max(3, gen.suggestedMaxMessages ?? 8)),
       };
     });
 

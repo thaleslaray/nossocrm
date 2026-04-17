@@ -1,11 +1,12 @@
+import 'server-only';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 let _cachedClient: SupabaseClient | null = null;
 
 /**
- * Static admin client (service role) for non-Next runtimes.
+ * Static admin client (service role) for server-only contexts.
  *
- * - Não depende de `next/headers` nem de `server-only`
+ * - Usa service role key — NUNCA expor ao client bundle
  * - Seguro para uso em scripts/CLI e em agentes (sem cookies)
  * - Lazy-initialized: safe to import at module level during build
  */

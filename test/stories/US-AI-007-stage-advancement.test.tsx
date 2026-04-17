@@ -54,6 +54,7 @@ const mockSupabase = {
   order: vi.fn().mockReturnThis(),
   limit: vi.fn().mockReturnThis(),
   single: vi.fn(),
+  maybeSingle: vi.fn(),
 };
 
 // =============================================================================
@@ -295,6 +296,7 @@ describe('evaluateStageAdvancement()', () => {
     mockSupabase.gt.mockReturnThis();
     mockSupabase.order.mockReturnThis();
     mockSupabase.limit.mockReturnThis();
+    mockSupabase.maybeSingle.mockReset();
   });
 
   describe('validações iniciais', () => {
@@ -365,8 +367,8 @@ describe('evaluateStageAdvancement()', () => {
         }),
       });
 
-      // Mock busca próximo estágio
-      mockSupabase.single
+      // Mock busca próximo estágio (getNextStage usa maybeSingle)
+      mockSupabase.maybeSingle
         .mockResolvedValueOnce({
           data: { board_id: 'board-1', order: 1 },
           error: null,
@@ -380,6 +382,7 @@ describe('evaluateStageAdvancement()', () => {
       mockSupabase.eq.mockImplementation(() => ({
         ...mockSupabase,
         single: mockSupabase.single,
+        maybeSingle: mockSupabase.maybeSingle,
         update: () => Promise.resolve({ error: null }),
       }));
 
@@ -417,8 +420,8 @@ describe('evaluateStageAdvancement()', () => {
         }),
       });
 
-      // Mock busca próximo estágio
-      mockSupabase.single
+      // Mock busca próximo estágio (getNextStage usa maybeSingle)
+      mockSupabase.maybeSingle
         .mockResolvedValueOnce({
           data: { board_id: 'board-1', order: 1 },
           error: null,
@@ -426,7 +429,9 @@ describe('evaluateStageAdvancement()', () => {
         .mockResolvedValueOnce({
           data: { id: 'stage-2', name: 'Proposta' },
           error: null,
-        })
+        });
+      // createPendingAdvance usa single
+      mockSupabase.single
         .mockResolvedValueOnce({
           data: { id: 'pending-123' },
           error: null,
@@ -468,8 +473,8 @@ describe('evaluateStageAdvancement()', () => {
         }),
       });
 
-      // Mock busca próximo estágio (precisa de 2 chamadas single)
-      mockSupabase.single
+      // Mock busca próximo estágio (getNextStage usa maybeSingle)
+      mockSupabase.maybeSingle
         .mockResolvedValueOnce({
           data: { board_id: 'board-1', order: 1 },
           error: null,
@@ -507,8 +512,8 @@ describe('evaluateStageAdvancement()', () => {
         }),
       });
 
-      // Mock busca próximo estágio (precisa de 2 chamadas single)
-      mockSupabase.single
+      // Mock busca próximo estágio (getNextStage usa maybeSingle)
+      mockSupabase.maybeSingle
         .mockResolvedValueOnce({
           data: { board_id: 'board-1', order: 1 },
           error: null,
@@ -546,8 +551,8 @@ describe('evaluateStageAdvancement()', () => {
         }),
       });
 
-      // Mock: estágio atual existe
-      mockSupabase.single
+      // Mock: estágio atual existe (getNextStage usa maybeSingle)
+      mockSupabase.maybeSingle
         .mockResolvedValueOnce({
           data: { board_id: 'board-1', order: 5 }, // último estágio
           error: null,
@@ -729,8 +734,8 @@ describe('Fluxo Completo de Avaliação', () => {
     // Mock da AI retornando esta avaliação
     mockGenerateText.mockResolvedValueOnce({ output: expectedEvaluation });
 
-    // Mock da busca de próximo estágio
-    mockSupabase.single
+    // Mock da busca de próximo estágio (getNextStage usa maybeSingle)
+    mockSupabase.maybeSingle
       .mockResolvedValueOnce({
         data: { board_id: 'board-1', order: 1 },
         error: null,
@@ -804,7 +809,8 @@ describe('Fluxo Completo de Avaliação', () => {
 
     mockGenerateText.mockResolvedValueOnce({ output: partialEvaluation });
 
-    mockSupabase.single
+    // Mock busca próximo estágio (getNextStage usa maybeSingle)
+    mockSupabase.maybeSingle
       .mockResolvedValueOnce({
         data: { board_id: 'board-1', order: 1 },
         error: null,
@@ -812,11 +818,12 @@ describe('Fluxo Completo de Avaliação', () => {
       .mockResolvedValueOnce({
         data: { id: 'stage-2', name: 'Proposta' },
         error: null,
-      })
-      .mockResolvedValueOnce({
-        data: { id: 'pending-456' },
-        error: null,
       });
+    // createPendingAdvance usa single
+    mockSupabase.single.mockResolvedValueOnce({
+      data: { id: 'pending-456' },
+      error: null,
+    });
 
     const params: EvaluateAdvancementParams = {
       supabase: mockSupabase as any,

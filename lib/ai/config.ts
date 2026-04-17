@@ -13,6 +13,16 @@ import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from './defaults';
 
 export type AIProvider = 'google';
 
+const ALLOWED_GOOGLE_MODELS = new Set([
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-pro',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-2.5-pro-preview-03-25',
+  'gemini-2.5-flash-preview-04-17',
+]);
+
 /**
  * Cria e retorna uma instância do modelo de IA configurada.
  * 
@@ -41,8 +51,12 @@ export const getModel = (provider: AIProvider, apiKey: string, modelId: string) 
         throw new Error('API Key is missing');
     }
 
+    const resolvedModel = modelId && ALLOWED_GOOGLE_MODELS.has(modelId)
+        ? modelId
+        : AI_DEFAULT_MODELS.google;
+
     const google = createGoogleGenerativeAI({ apiKey });
-    return google(modelId || AI_DEFAULT_MODELS.google);
+    return google(resolvedModel);
 };
 
 /**

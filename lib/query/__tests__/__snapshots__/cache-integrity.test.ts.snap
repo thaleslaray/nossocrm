@@ -2,16 +2,14 @@
 
 exports[`Cache Integrity - Snapshot > deve gerar um snapshot das query keys usadas para escrita de deals 1`] = `
 {
-  "CRMContext.tsx": [
-    "[...queryKeys.deals.lists(",
-    "[...queryKeys.deals.lists(",
-    "[...queryKeys.deals.lists(",
-  ],
   "useDealsQuery.ts": [
     "DEALS_VIEW_KEY",
     "DEALS_VIEW_KEY",
     "DEALS_VIEW_KEY",
     "queryKeys.deals.detail(id",
+    "DEALS_VIEW_KEY",
+    "DEALS_VIEW_KEY",
+    "DEALS_VIEW_KEY",
     "DEALS_VIEW_KEY",
     "DEALS_VIEW_KEY",
   ],

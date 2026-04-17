@@ -1,24 +1,21 @@
 'use client';
 
 /**
- * @fileoverview AI Agent Configuration Section
+ * AIAgentConfigSection — Container principal para configuração do AI Agent.
  *
- * Container principal para configuração do AI Agent com 4 modos:
- * 1. Zero Config (BANT automático)
- * 2. Template Selection (BANT/SPIN/MEDDIC)
- * 3. Auto-Learn (few-shot learning com conversas de sucesso)
- * 4. Advanced (configuração manual por estágio)
+ * Fluxo simplificado:
+ * 1. Se sem API key → aviso
+ * 2. Se com API key → BoardAgentsSection com toggles inline é o foco principal
+ * 3. "Configurações avançadas" colapsável expõe: modos (BANT/SPIN/etc.), AI Takeover, HITL
  *
- * Inclui onboarding flow para primeira ativação.
- *
- * @module features/settings/components/ai/AIAgentConfigSection
+ * Ao detectar primeiro acesso (sem ai_config_mode), provisiona zero_config silenciosamente.
  */
 
-import { useState } from 'react';
-import { Bot, Brain, Sparkles, AlertCircle, Timer } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Bot, Sparkles, AlertCircle, Timer, Brain, ChevronDown } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AIConfigModeSelector, type AIConfigMode } from './AIConfigModeSelector';
-import { AIOnboarding } from './AIOnboarding';
+import { BoardAgentsSection } from './BoardAgentsSection';
 import { ZeroConfigMode } from './modes/ZeroConfigMode';
 import { TemplateSelectionMode } from './modes/TemplateSelectionMode';
 import { AutoLearnMode } from './modes/AutoLearnMode';
@@ -29,6 +26,7 @@ import {
   useProvisionStagesMutation,
 } from '@/lib/query/hooks/useAIConfigQuery';
 import { useOrgSettings } from '@/lib/query/hooks/useOrgSettingsQuery';
+import { cn } from '@/lib/utils';
 
 // =============================================================================
 // Component
@@ -42,39 +40,32 @@ export function AIAgentConfigSection() {
   const provisionStages = useProvisionStagesMutation();
 
   const [selectedMode, setSelectedMode] = useState<AIConfigMode | null>(null);
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const hasProvisioned = useRef(false);
 
-  // Mode from DB or local selection
+  // Provisiona zero_config silenciosamente no primeiro acesso
+  useEffect(() => {
+    if (hasProvisioned.current) return;
+    if (!config || config.ai_config_mode) return;
+
+    hasProvisioned.current = true;
+    updateConfig.mutateAsync({ ai_config_mode: 'zero_config' })
+      .then(() => provisionStages.mutateAsync())
+      .catch((e: unknown) => console.error('[AIAgentConfig] Auto-provision failed:', e));
+  }, [config]); // deps: only config matters — mutations are stable refs
+
   const currentMode = selectedMode || (config?.ai_config_mode as AIConfigMode) || 'zero_config';
-
-  // Check if this is first-time setup (no mode configured yet)
-  const isFirstTimeSetup = config && !config.ai_config_mode && !hasCompletedOnboarding;
 
   const handleModeChange = async (mode: AIConfigMode) => {
     setSelectedMode(mode);
-
-    // Persist mode change
     try {
       await updateConfig.mutateAsync({ ai_config_mode: mode });
-
-      // If switching to zero_config (Automático), provision stage configs automatically
       if (mode === 'zero_config') {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[AIAgentConfig] Provisioning stage configs for zero_config mode...');
-        }
-        const result = await provisionStages.mutateAsync();
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[AIAgentConfig] Provisioning result:', result);
-        }
+        await provisionStages.mutateAsync();
       }
     } catch (e) {
       console.error('[AIAgentConfig] Failed to update mode:', e);
     }
-  };
-
-  const handleOnboardingComplete = (mode: AIConfigMode) => {
-    setSelectedMode(mode);
-    setHasCompletedOnboarding(true);
   };
 
   if (isLoading) {
@@ -97,7 +88,6 @@ export function AIAgentConfigSection() {
     );
   }
 
-  // Se API key não está configurada, mostrar aviso
   if (!aiKeyConfigured) {
     return (
       <div className="space-y-4">
@@ -113,38 +103,52 @@ export function AIAgentConfigSection() {
     );
   }
 
-  // Primeira configuração - mostrar onboarding
-  if (isFirstTimeSetup) {
-    return (
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl p-6 shadow-sm">
-        <AIOnboarding onComplete={handleOnboardingComplete} />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      <Header />
+    <div className="space-y-4">
+      {/* Foco principal: controles inline por board */}
+      <BoardAgentsSection />
 
-      {/* Mode Selector */}
-      <AIConfigModeSelector currentMode={currentMode} onModeChange={handleModeChange} />
+      {/* Configurações avançadas — colapsável */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl shadow-sm overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Bot className="w-4 h-4 text-slate-400" />
+            Configurações avançadas do agente
+          </span>
+          <ChevronDown
+            className={cn('w-4 h-4 text-slate-400 transition-transform', showAdvanced && 'rotate-180')}
+          />
+        </button>
 
-      {/* Mode Content */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl p-4 shadow-sm">
-        {currentMode === 'zero_config' && <ZeroConfigMode config={config} />}
+        {showAdvanced && (
+          <div className="px-4 pb-4 space-y-4 border-t border-slate-100 dark:border-white/5 pt-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Escolha a metodologia de qualificação que o agente usa por padrão em todos os funis.
+            </p>
 
-        {currentMode === 'template' && <TemplateSelectionMode config={config} />}
+            {/* Mode Selector */}
+            <AIConfigModeSelector currentMode={currentMode} onModeChange={handleModeChange} />
 
-        {currentMode === 'auto_learn' && <AutoLearnMode config={config} />}
+            {/* Mode Content */}
+            <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-lg p-4">
+              {currentMode === 'zero_config' && <ZeroConfigMode config={config} />}
+              {currentMode === 'template' && <TemplateSelectionMode config={config} />}
+              {currentMode === 'auto_learn' && <AutoLearnMode config={config} />}
+              {currentMode === 'advanced' && <AdvancedMode config={config} />}
+            </div>
 
-        {currentMode === 'advanced' && <AdvancedMode config={config} />}
+            {/* AI Takeover */}
+            <AITakeoverSection config={config} onUpdate={updateConfig.mutateAsync} />
+
+            {/* HITL Stage Advancement */}
+            <HITLConfigSection />
+          </div>
+        )}
       </div>
-
-      {/* AI Takeover */}
-      <AITakeoverSection config={config} onUpdate={updateConfig.mutateAsync} />
-
-      {/* HITL Stage Advancement */}
-      <HITLConfigSection />
     </div>
   );
 }
@@ -181,14 +185,14 @@ function AITakeoverSection({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl p-4 shadow-sm">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-lg p-3">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-1.5 bg-amber-100 dark:bg-amber-900/20 rounded-lg text-amber-600 dark:text-amber-400">
-            <Timer size={20} />
+            <Timer size={18} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
               AI Takeover
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -202,9 +206,7 @@ function AITakeoverSection({
           aria-checked={takeoverEnabled}
           onClick={handleToggle}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-            takeoverEnabled
-              ? 'bg-amber-500'
-              : 'bg-slate-200 dark:bg-slate-700'
+            takeoverEnabled ? 'bg-amber-500' : 'bg-slate-200 dark:bg-slate-700'
           }`}
         >
           <span
@@ -269,11 +271,11 @@ function HITLConfigSection() {
     <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-500/20 rounded-lg p-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-medium text-amber-900 dark:text-amber-100 flex items-center gap-2">
-            <Brain size={18} className="text-amber-600" />
+          <h3 className="font-medium text-amber-900 dark:text-amber-100 flex items-center gap-2 text-sm">
+            <Brain size={16} className="text-amber-600" />
             Avanço de Estágio por IA
           </h3>
-          <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+          <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
             {isAutonomous ? (
               <span><strong>Modo Autônomo:</strong> Leads avançam automaticamente quando a IA tem ≥70% de confiança.</span>
             ) : (
@@ -281,22 +283,17 @@ function HITLConfigSection() {
             )}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isAutonomous}
-              onChange={handleToggle}
-              disabled={updateMutation.isPending}
-              className="sr-only peer"
-              aria-label="Alternar modo autônomo"
-            />
-            <div className="w-11 h-6 bg-amber-500 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 dark:peer-focus:ring-amber-800 rounded-full peer dark:bg-amber-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-500 dark:peer-checked:bg-green-600" />
-          </label>
-          <span className="text-xs text-amber-600 dark:text-amber-400">
-            {isAutonomous ? 'Autônomo' : 'Supervisionado'}
-          </span>
-        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isAutonomous}
+            onChange={handleToggle}
+            disabled={updateMutation.isPending}
+            className="sr-only peer"
+            aria-label="Alternar modo autônomo"
+          />
+          <div className="w-11 h-6 bg-amber-500 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 dark:peer-focus:ring-amber-800 rounded-full peer dark:bg-amber-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-500 dark:peer-checked:bg-green-600" />
+        </label>
       </div>
       {!isAutonomous && (
         <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-500/20">

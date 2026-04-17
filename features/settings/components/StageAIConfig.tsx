@@ -481,7 +481,7 @@ function StageConfigRow({
     if (generatedPreview) {
       setPrompt(generatedPreview.system_prompt);
       setGoal(generatedPreview.stage_goal);
-      setCriteria(generatedPreview.advancement_criteria.join('\n'));
+      setCriteria(generatedPreview.advancement_criteria?.join('\n') ?? '');
     }
   }, [generatedPreview]);
 
@@ -497,7 +497,7 @@ function StageConfigRow({
       if (generatedPreview) {
         setPrompt(generatedPreview.system_prompt);
         setGoal(generatedPreview.stage_goal);
-        setCriteria(generatedPreview.advancement_criteria.join('\n'));
+        setCriteria(generatedPreview.advancement_criteria?.join('\n') ?? '');
       } else {
         const template = getTemplateForStage(stage.name);
         setPrompt(config?.system_prompt || template.prompt);

@@ -122,7 +122,7 @@ describe('SettingsPage RBAC', () => {
     expect(screen.queryByRole('heading', { name: /^Webhooks$/i })).not.toBeInTheDocument()
 
     // Preferências pessoais seguem visíveis
-    expect(screen.getByText(/página inicial/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /página inicial/i })).toBeInTheDocument()
     // Tabs pessoais seguem visíveis
     expect(screen.getByRole('button', { name: /central de i\.a/i })).toBeInTheDocument()
   })

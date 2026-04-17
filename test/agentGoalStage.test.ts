@@ -146,8 +146,10 @@ function buildSupabaseMock({
             select: vi.fn().mockReturnThis(),
             eq: vi.fn((col: string, val: string) => {
               const order = val === stageId ? currentOrder : goalOrder
+              const resolver = vi.fn(async () => ({ data: { order }, error: null }))
               return {
-                single: vi.fn(async () => ({ data: { order }, error: null })),
+                single: resolver,
+                maybeSingle: resolver,
               }
             }),
           }
