@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getOrgAIConfig } from '@/lib/ai/agent/agent.service';
+import { sanitizeIncomingMessage } from '@/lib/ai/agent/input-filter';
 import { generatePersonaPrompt } from '@/lib/ai/messaging/persona-generator';
 import { scrapeUrl } from '@/lib/ai/utils/web-scraper';
 
@@ -27,9 +28,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'businessContext is required' }, { status: 400 });
   }
 
-  // Scrape website content if URL provided (via r.jina.ai → Markdown)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('organization_id, role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!profile?.organization_id) {
+    return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+  }
+  if (profile.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // Sanitize admin-supplied inputs against prompt injection
+  const { text: safeContext } = sanitizeIncomingMessage(businessContext, { org_id: profile.organization_id });
+  const { text: safeGoal } = sanitizeIncomingMessage(agentGoal ?? '', { org_id: profile.organization_id });
+
+  // Scrape website content if URL provided — validated by scrapeUrl (https + IP blocklist)
   let scrapedWebContent: string | undefined;
-  if (websiteUrl?.startsWith('http')) {
+  if (websiteUrl) {
     const scraped = await scrapeUrl(websiteUrl);
     if (scraped) {
       scrapedWebContent = [
@@ -39,16 +57,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (!profile?.organization_id) {
-    return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
-  }
-
   const aiConfig = await getOrgAIConfig(supabase, profile.organization_id);
   if (!aiConfig) {
     return NextResponse.json({ error: 'AI not configured for this organization' }, { status: 422 });
@@ -56,8 +64,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const personaPrompt = await generatePersonaPrompt({
-      businessContext,
-      agentGoal: agentGoal ?? '',
+      businessContext: safeContext,
+      agentGoal: safeGoal,
       aiConfig,
       scrapedWebContent,
     });

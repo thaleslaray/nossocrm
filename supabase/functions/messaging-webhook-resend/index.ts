@@ -285,10 +285,10 @@ Deno.serve(async (req) => {
       return json(401, { error: "Assinatura Svix inválida" });
     }
   } else {
-    // No webhookSecret configured — log a warning but still process
-    // This allows gradual migration: channels without a secret still work,
-    // but operators should configure webhookSecret for production security.
-    console.warn(`[Webhook/Resend] No webhookSecret configured for channel ${channelId} — skipping signature verification`);
+    // Default-deny: reject unauthenticated requests when no secret is configured.
+    // Consistent with messaging-webhook-zapi and messaging-webhook-evolution.
+    console.warn(`[Webhook/Resend] No webhookSecret configured for channel ${channelId} — rejecting request`);
+    return json(401, { error: "Webhook secret não configurado para este canal" });
   }
 
   // Parse payload from raw body

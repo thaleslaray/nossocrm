@@ -530,6 +530,29 @@ export async function processIncomingMessage(
     boardAIConfig,
   });
 
+  // LLM generation failure: increment circuit breaker and log so rate limiter counts the attempt.
+  // Without this, a revoked key or provider outage produces action:'skipped' indefinitely —
+  // the circuit breaker never opens and the DB-backed rate limiter never engages.
+  if (decision.action === 'skipped' && decision.reason?.startsWith('Erro na geração')) {
+    if (boardAIConfig) {
+      await incrementCircuitBreakerError(
+        supabase,
+        conversationId,
+        conversation?.contact_id ?? null,
+        boardAIConfig.circuit_breaker_threshold,
+      );
+    }
+    await logAIInteraction({
+      supabase,
+      organizationId,
+      conversationId,
+      messageId,
+      stageId: deal.stage_id,
+      context,
+      decision,
+    });
+  }
+
   // Note: rate limiting is now tracked via ai_conversation_log (DB), no explicit
   // recordRateCall() needed — the log insert in logAIInteraction() serves as the record.
 
@@ -586,6 +609,16 @@ export async function processIncomingMessage(
           boardAIConfig.circuit_breaker_threshold,
         );
       }
+      // Log send failure so the DB-backed rate limiter counts this attempt
+      await logAIInteraction({
+        supabase,
+        organizationId,
+        conversationId,
+        messageId,
+        stageId: deal.stage_id,
+        context,
+        decision: { ...decision, reason: `SEND_FAILED: ${sendResult.error?.message ?? 'unknown'}` },
+      });
       return {
         success: false,
         decision,

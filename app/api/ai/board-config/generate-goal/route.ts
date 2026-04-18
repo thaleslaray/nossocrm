@@ -39,12 +39,15 @@ export async function POST(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('organization_id')
+    .select('organization_id, role')
     .eq('id', user.id)
     .maybeSingle();
 
   if (!profile?.organization_id) {
     return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+  }
+  if (profile.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const aiConfig = await getOrgAIConfig(supabase, profile.organization_id);

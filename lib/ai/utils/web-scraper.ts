@@ -14,6 +14,29 @@ const JINA_BASE_URL = 'https://r.jina.ai/';
 const FETCH_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_CHARS = 4_000;
 
+// ── SSRF protection ────────────────────────────────────────────────────────
+
+const PRIVATE_IP_RE =
+  /^(127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|0\.0\.0\.|::1$|fc[0-9a-f]{2}:|fd[0-9a-f]{2}:|fe80:)/i;
+
+/**
+ * Returns a validated URL if it is safe to fetch (https + public IP only).
+ * Returns null for private IPs, localhost, non-https, or malformed URLs.
+ */
+function validateScrapableUrl(raw: string): URL | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:') return null;
+  const host = parsed.hostname.toLowerCase();
+  if (host === 'localhost' || host.endsWith('.local') || host.endsWith('.internal')) return null;
+  if (PRIVATE_IP_RE.test(host)) return null;
+  return parsed;
+}
+
 // ── Fallback: strip HTML básico ────────────────────────────────────────────
 
 const NOISE_BLOCK_RE =
@@ -68,9 +91,17 @@ export async function scrapeUrl(
   url: string,
   maxChars = DEFAULT_MAX_CHARS
 ): Promise<ScrapeResult | null> {
+  // Validate URL before any network call — reject private IPs, localhost, non-https
+  const validated = validateScrapableUrl(url);
+  if (!validated) {
+    console.warn('[WebScraper] URL rejected (unsafe or non-https):', url);
+    return null;
+  }
+  const safeUrl = validated.href;
+
   // ── Tentativa 1: Jina Reader ──
   try {
-    const jinaUrl = `${JINA_BASE_URL}${url}`;
+    const jinaUrl = `${JINA_BASE_URL}${safeUrl}`;
     const res = await fetch(jinaUrl, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: {
@@ -90,26 +121,26 @@ export async function scrapeUrl(
         ? raw.slice(0, maxChars).replace(/\s+\S*$/, '') + '…'
         : raw;
 
-      console.log('[WebScraper] Jina OK — %s, title: "%s", %d chars', url, title, markdown.length);
-      return { markdown, title, url, source: 'jina' };
+      console.log('[WebScraper] Jina OK — %s, title: "%s", %d chars', safeUrl, title, markdown.length);
+      return { markdown, title, url: safeUrl, source: 'jina' };
     }
 
-    console.warn('[WebScraper] Jina returned %d for %s', res.status, url);
+    console.warn('[WebScraper] Jina returned %d for %s', res.status, safeUrl);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn('[WebScraper] Jina failed for %s: %s — trying fallback', url, msg);
+    console.warn('[WebScraper] Jina failed for %s: %s — trying fallback', safeUrl, msg);
   }
 
-  // ── Tentativa 2: Fallback básico ──
+  // ── Tentativa 2: Fallback básico (safeUrl already validated — no SSRF risk) ──
   try {
-    const result = await fallbackScrape(url, maxChars);
+    const result = await fallbackScrape(safeUrl, maxChars);
     if (result) {
-      console.log('[WebScraper] Fallback OK — %s, %d chars', url, result.text.length);
-      return { markdown: result.text, title: result.title, url, source: 'fallback' };
+      console.log('[WebScraper] Fallback OK — %s, %d chars', safeUrl, result.text.length);
+      return { markdown: result.text, title: result.title, url: safeUrl, source: 'fallback' };
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn('[WebScraper] Fallback also failed for %s: %s', url, msg);
+    console.warn('[WebScraper] Fallback also failed for %s: %s', safeUrl, msg);
   }
 
   return null;

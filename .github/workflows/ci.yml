@@ -51,7 +51,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install commitlint
-        run: npm install --save-dev @commitlint/cli @commitlint/config-conventional
+        run: npm install --save-dev @commitlint/cli @commitlint/config-conventional --legacy-peer-deps
 
       - name: Validate commits
         run: |

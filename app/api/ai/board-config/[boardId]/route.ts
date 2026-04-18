@@ -61,6 +61,15 @@ export async function PUT(
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+  // Verify the board belongs to the caller's org — prevents cross-tenant config poisoning
+  const { data: board } = await supabase
+    .from('boards')
+    .select('id')
+    .eq('id', boardId)
+    .eq('organization_id', profile.organization_id)
+    .maybeSingle();
+  if (!board) return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+
   const body = await request.json() as Record<string, unknown>;
   const allowedFields = [
     'agent_name', 'business_context', 'agent_goal', 'persona_prompt',

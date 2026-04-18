@@ -53,7 +53,9 @@ export async function GET(): Promise<NextResponse<HealthCheckResult>> {
   // 1. Check Supabase connection
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseAnonKey =
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
       throw new Error('Supabase credentials not configured');
@@ -151,7 +153,9 @@ export async function GET(): Promise<NextResponse<HealthCheckResult>> {
 export async function HEAD(): Promise<NextResponse> {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseAnonKey =
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const aiApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
     const dbConfigured = !!(supabaseUrl && supabaseAnonKey);
