@@ -517,6 +517,14 @@ export const useAddDealItem = () => {
       if (error) throw error;
       return { dealId, item: data! };
     },
+    onSuccess: (data, { dealId }) => {
+      queryClient.setQueryData(DEALS_VIEW_KEY, (old) => {
+        if (!old) return old;
+        return old.map((d) =>
+          d.id === dealId ? { ...d, items: [...(d.items ?? []), data.item] } : d
+        );
+      });
+    },
     onSettled: (_data, _error, { dealId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.deals.detail(dealId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.deals.lists() });
@@ -535,6 +543,14 @@ export const useRemoveDealItem = () => {
       const { error } = await dealsService.removeItem(dealId, itemId);
       if (error) throw error;
       return { dealId, itemId };
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(DEALS_VIEW_KEY, (old) => {
+        if (!old) return old;
+        return old.map((d) =>
+          d.id === data.dealId ? { ...d, items: (d.items ?? []).filter((i) => i.id !== data.itemId) } : d
+        );
+      });
     },
     onSettled: (_data, _error, { dealId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.deals.detail(dealId) });
