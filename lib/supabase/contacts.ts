@@ -693,6 +693,7 @@ export const companiesService = {
       if (updates.name !== undefined) dbUpdates.name = updates.name;
       if (updates.industry !== undefined) dbUpdates.industry = updates.industry || null;
       if (updates.website !== undefined) dbUpdates.website = updates.website || null;
+      if (updates.custom_fields !== undefined) dbUpdates.custom_fields = updates.custom_fields;
       dbUpdates.updated_at = new Date().toISOString();
 
       const { error } = await supabase

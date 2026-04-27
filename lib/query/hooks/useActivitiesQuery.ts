@@ -136,6 +136,7 @@ interface CreateActivityParams {
  */
 export const useCreateActivity = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ activity }: CreateActivityParams) => {
@@ -186,6 +187,16 @@ export const useCreateActivity = () => {
       // Invalidate to ensure Realtime updates are picked up
       // This is a no-op if data is already fresh, but ensures consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.activities.all });
+      if (data.type === "MEETING") {
+        const startDate = data.date ? new Date(data.date) : null;
+        if (startDate && !isNaN(startDate.getTime())) {
+          fetch("https://n8n-production-9012a.up.railway.app/webhook/0ebbdfef-a03e-4109-bdce-7d00e70218f0", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: data.title, description: data.description || data.dealTitle, start_time: startDate.toISOString(), end_time: new Date(startDate.getTime() + 3600000).toISOString(), attendees: user?.email || "" })
+          }).catch((err) => console.error("[Calendar] Webhook error:", err));
+        }
+      }
     },
     onError: (_error, _params, context) => {
       if (context?.previousActivities) {

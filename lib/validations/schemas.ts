@@ -120,6 +120,10 @@ export type ContactFormData = z.infer<typeof contactFormSchema>;
 // ============ COMPANY SCHEMAS ============
 
 export const companyFormSchema = z.object({
+  num_funcionarios: z.coerce.number().int().min(0).optional(),
+  cnae: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
+  nrs_aplicaveis: optionalString.pipe(z.string().max(500)),
+  data_ultimo_aso: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
   name: requiredString('Nome da Empresa', MAX_LENGTHS.COMPANY_NAME),
   industry: optionalString.pipe(z.string().max(MAX_LENGTHS.SHORT_TEXT)),
   website: z

@@ -199,10 +199,10 @@ export const useContactsController = () => {
     setIsCompanyModalOpen(true);
   };
 
-  const handleCompanySubmit = (data: { name: string; industry?: string; website?: string }) => {
+  const handleCompanySubmit = (data: { name: string; industry?: string; website?: string; num_funcionarios?: number; cnae?: string; nrs_aplicaveis?: string; data_ultimo_aso?: string }) => {
     if (editingCompany) {
       updateCompanyMutation.mutate(
-        { id: editingCompany.id, updates: { ...data } },
+        { id: editingCompany.id, updates: { name: data.name, industry: data.industry, website: data.website, custom_fields: { num_funcionarios: data.num_funcionarios, cnae: data.cnae, nrs_aplicaveis: data.nrs_aplicaveis, data_ultimo_aso: data.data_ultimo_aso } } },
         {
           onSuccess: () => {
             (addToast || showToast)('Empresa atualizada!', 'success');
